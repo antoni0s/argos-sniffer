@@ -52,7 +52,7 @@ OPTIONS:
 
 ## Source Code & Compilation
 
-The source code is located at `usr/share/argos/src/argos-sniffer.c`. 
+The source code is located at `usr/share/argos/src/argos-sniffer.c`
 
 ### Manual Cross-Compilation (Example for OpenWrt ARM64/Alpine Docker):
 ```sh
@@ -60,7 +60,7 @@ docker run --rm -v $(pwd):/workspace alpine sh -c "
     apk add build-base libpcap-dev upx
     gcc -O3 -static /workspace/usr/share/argos/src/argos-sniffer.c -lpcap -o /workspace/usr/bin/argos-sniffer
     upx --best /workspace/usr/bin/argos-sniffer
-"
+''
 ## License
 
 This project is open-source and licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for more details.
