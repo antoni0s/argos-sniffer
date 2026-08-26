@@ -127,30 +127,23 @@ SYN|aa:bb:cc:dd:ee:05|10.0.0.195|64|65535|10|1460|M*,S,T,N,W*|80
 SNI|aa:bb:cc:dd:ee:05|10.0.0.195|www.google.com
 HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36
 DNS|aa:bb:cc:dd:ee:05|10.0.0.195|dns.adguard-dns.com
-SYNACK|aa:bb:cc:dd:ee:04|10.0.0.1|64|65160|7|1460|M*,S,T,N,W*|80
 L7|aa:bb:cc:dd:ee:05|10.0.0.195|1900|m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1    m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1    m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1
 HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|Dalvik/2.1.0 (Linux; U; Android OS; Device-Model Build/RANDOMBUILD)
 HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|okhttp/4.9.3
 SNI|aa:bb:cc:dd:ee:06|10.0.0.110|teams.events.data.microsoft.com
-SYN|aa:bb:cc:dd:ee:04|10.0.0.1|63|65535|10|1460|M*,S,T,N,W*|443
 SNI|aa:bb:cc:dd:ee:05|10.0.0.195|next.internal.dnsprovider.org
-SNI|aa:bb:cc:dd:ee:04|10.0.0.1|next.internal.dnsprovider.org
 SNI|aa:bb:cc:dd:ee:05|10.0.0.195|insight.samsunghealth.com
 MDNS|aa:bb:cc:dd:ee:05|10.0.0.195|5353|1.195.0.10.in-addr.arpa
 DNS|aa:bb:cc:dd:ee:05|10.0.0.195|google.com
 DNS|aa:bb:cc:dd:ee:05|10.0.0.195|www.google.com
-DNS|aa:bb:cc:dd:ee:05|10.0.0.195|216.58.202.4.in-addr.arpa
-DNS|aa:bb:cc:dd:ee:05|10.0.0.195|216.58.202.4
 DNS|aa:bb:cc:dd:ee:05|10.0.0.195|.google.com
 DNS|aa:bb:cc:dd:ee:05|10.0.0.195|google.com.onion
 SYN|aa:bb:cc:dd:ee:05|10.0.0.195|64|4000|-1|-1|none|53
-SYNACK|aa:bb:cc:dd:ee:04|10.0.0.1|64|64240|-1|1460|M*|53
 L7|aa:bb:cc:dd:ee:05|10.0.0.195|1900|m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1
 SNI|aa:bb:cc:dd:ee:06|10.0.0.110|eu-mobile.events.data.microsoft.com
 SNI|aa:bb:cc:dd:ee:06|10.0.0.110|api.weather.com
 DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|eu-office.events.data.microsoft.com
 DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|connectivitycheck.gstatic.com
-DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|vg-cloudproxy.isp-internal.net
 DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|eu-v20.events.data.microsoft.com
 SNI|aa:bb:cc:dd:ee:03|10.0.0.187|eu-v20.events.data.microsoft.com
 ```
