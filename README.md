@@ -94,10 +94,6 @@ L7|mac|src_ip|dst_port|payload
 
 ---
 
-## Source Code & Compilation
-
-The source code is located at `usr/share/argos/src/argos-sniffer.c`.
-
 ### Static Compilation (Alpine Docker for OpenWrt ARM64)
 ```sh
 docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src alpine:latest sh -c "\
