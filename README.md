@@ -17,6 +17,17 @@ Its core objectives are:
 
 ---
 
+#### Key Features
+* **Multi-Vector Passive Profiling:** Intercepts device indicators without active scanning overhead:
+  * **TCP SYN / SYN-ACK:** p0f-style TCP options, window sizing, MSS, TTL, and listening service discovery.
+  * **DHCP Telemetry:** Hostname (Opt 12), Vendor Class ID (Opt 60), and Parameter Request Lists (Opt 55).
+  * **Domain & Application Fingerprinting:** DNS query extraction and TLS Server Name Indication (SNI) snooping.
+  * **L7 Multicast & Broadcast:** mDNS, SSDP/UPnP service announcements, NetBIOS (NBNS), and LLDP frames.
+  * **HTTP Headers:** User-Agent extraction for legacy and IoT web traffic.
+* **In-Memory Rate Limiting:** Enforces a sliding deduplication window at the capture layer, automatically discarding redundant packets from noisy clients.
+* **Engine Protection:** Shields downstream evaluation daemons, parser scripts, and storage layers from telemetry floods and duplicate event churn.
+* **Embedded Optimization:** Engineered with minimal memory footprint and zero disk dependencies, ensuring reliable line-rate operation even on resource-constrained low-end devices.
+
 ## CLI Usage & Syntax
 
 ```text
