@@ -1,13 +1,13 @@
 # Argos Sniffer (`argos-sniffer`)
 
-**`argos-sniffer`** is a high-performance, low-level packet capture and passive telemetry engine written in **C**, built specifically for **OpenWrt** routers. 
+**`argos-sniffer`** is a high-performance, low-level packet capture written in **C** to feed a passive telemetry engine, built specifically for **OpenWrt** routers. 
 It acts as the core data collection engine for the Argos Network Sentinel ecosystem, operating with zero network overhead and complete passivity.
 
 ---
 
 ## Purpose
 
-Active network scanners (such as Nmap) can wake sleeping IoT devices, trigger battery-saving states, or congest home networks. **`argos-sniffer`** eliminates these issues by relying entirely on **Passive Network Sniffing**. 
+Active network scanners (such as Nmap) can wake sleeping IoT devices, trigger battery-saving states, or congest home networks. **`argos-sniffer`** relies entirely on **Passive Network Sniffing**. 
 
 Its core objectives are:
 * **Zero-Impact Monitoring:** Listens silently to network traffic passing through the bridge/interface without injecting or modifying packets.
