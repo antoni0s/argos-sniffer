@@ -91,7 +91,69 @@ DNS|mac|src_ip|query_domain
 MDNS|mac|src_ip|port|qname
 L7|mac|src_ip|dst_port|payload
 ```
-
+## Example Output Format
+```text
+root@router ~ # argos-sniffer br-lan
+SYN|aa:bb:cc:dd:ee:01|10.0.0.254|64|64240|10|1460|M*,S,T,N,W*|1
+DNS|aa:bb:cc:dd:ee:02|10.0.0.101|optimizationguide-pa.googleapis.com
+MDNS|aa:bb:cc:dd:ee:03|10.0.0.187|5353|device-alpha.local
+LLDP|aa:bb:cc:dd:ee:01|server-home.dnsprovider.org|Linux Distro 13 (codename) Linux 7.1.8+generic x86_64
+SYN|aa:bb:cc:dd:ee:02|fd00:1234:5678:0:d050:6d30:f0c6:5232|64|65535|8|1432|M*,N,W*,N,N,S|443
+SYNACK|aa:bb:cc:dd:ee:04|fd00:1234:5678::1|64|64440|7|1432|M*,N,N,S,N,W*|443
+SNI|aa:bb:cc:dd:ee:02|fd00:1234:5678:0:d050:6d30:f0c6:5232|adguard.internal.dnsprovider.org
+DNS|aa:bb:cc:dd:ee:02|10.0.0.101|wpad.lan
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|teams.events.data.microsoft.com
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|webdefence.global.blackspider.com
+SYN|aa:bb:cc:dd:ee:03|10.0.0.187|128|65535|8|1460|M*,N,W*,N,N,S|8082
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|proxy.localdomain
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|ngep.blackspider.com
+SYN|aa:bb:cc:dd:ee:03|10.0.0.187|128|65535|8|1460|M*,N,W*,N,N,S|443
+SNI|aa:bb:cc:dd:ee:03|10.0.0.187|ngep.blackspider.com
+DNS|aa:bb:cc:dd:ee:02|10.0.0.101|chrome.cloudflare-dns.com
+DNS|aa:bb:cc:dd:ee:05|fd00:1234:5678:0:cf9:3ddf:64c4:d266|www.google.com
+SYN|aa:bb:cc:dd:ee:05|10.0.0.195|64|65535|10|1212|M*,S,T,N,W*,?,N,N|853
+SYN|aa:bb:cc:dd:ee:05|10.0.0.195|64|65535|10|1460|M*,S,T,N,W*|443
+SNI|aa:bb:cc:dd:ee:05|10.0.0.195|api.weather.com
+SYN|aa:bb:cc:dd:ee:06|10.0.0.110|64|65535|10|1212|M*,S,T,N,W*,?,N,N|853
+SYNACK|aa:bb:cc:dd:ee:01|10.0.0.254|63|65160|10|1460|M*,S,T,N,W*|443
+SYN|aa:bb:cc:dd:ee:06|10.0.0.110|64|65535|10|1460|M*,S,T,N,W*|443
+L7|aa:bb:cc:dd:ee:02|10.0.0.101|1900|m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  mx: 1  st: urn:dial-multiscreen-org:service:dial:1  user-agent: chromium/128.0.6613.138 windows
+SNI|aa:bb:cc:dd:ee:06|10.0.0.110|eu-teams.events.data.microsoft.com
+SNI|aa:bb:cc:dd:ee:06|10.0.0.110|mobile.pipe.aria.microsoft.com
+L7|aa:bb:cc:dd:ee:01|10.0.0.254|1900|notify * http/1.1  host:239.255.255.250:1900  cache-control:max-age=130  location:http://10.0.0.254:8200/rootdesc.xml  server: linux dlnadoc/1.50 upnp/1.0 minidlna/1.3.3  nt:urn:schemas-upnp-org:service:connectionmanager:1  usn:uuid:4d696e69-444c-164e-9d41-aaubahost01::urn:schemas-upnp-org:service:connectionmanager:1  nts:ssdp:alive
+DHCP|aa:bb:cc:dd:ee:05|0.0.0.0|CLIENT-DHCP|android-dhcp-client|1,3,6,15,26,28,51,58,59,43,114,108
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|connectivitycheck.gstatic.com
+SYN|aa:bb:cc:dd:ee:05|10.0.0.195|64|65535|10|1460|M*,S,T,N,W*|80
+SNI|aa:bb:cc:dd:ee:05|10.0.0.195|www.google.com
+HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|dns.adguard-dns.com
+SYNACK|aa:bb:cc:dd:ee:04|10.0.0.1|64|65160|7|1460|M*,S,T,N,W*|80
+L7|aa:bb:cc:dd:ee:05|10.0.0.195|1900|m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1    m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1    m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1
+HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|Dalvik/2.1.0 (Linux; U; Android OS; Device-Model Build/RANDOMBUILD)
+HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|okhttp/4.9.3
+SNI|aa:bb:cc:dd:ee:06|10.0.0.110|teams.events.data.microsoft.com
+SYN|aa:bb:cc:dd:ee:04|10.0.0.1|63|65535|10|1460|M*,S,T,N,W*|443
+SNI|aa:bb:cc:dd:ee:05|10.0.0.195|next.internal.dnsprovider.org
+SNI|aa:bb:cc:dd:ee:04|10.0.0.1|next.internal.dnsprovider.org
+SNI|aa:bb:cc:dd:ee:05|10.0.0.195|insight.samsunghealth.com
+MDNS|aa:bb:cc:dd:ee:05|10.0.0.195|5353|1.195.0.10.in-addr.arpa
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|google.com
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|www.google.com
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|216.58.202.4.in-addr.arpa
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|216.58.202.4
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|.google.com
+DNS|aa:bb:cc:dd:ee:05|10.0.0.195|google.com.onion
+SYN|aa:bb:cc:dd:ee:05|10.0.0.195|64|4000|-1|-1|none|53
+SYNACK|aa:bb:cc:dd:ee:04|10.0.0.1|64|64240|-1|1460|M*|53
+L7|aa:bb:cc:dd:ee:05|10.0.0.195|1900|m-search * http/1.1  host: 239.255.255.250:1900  man: "ssdp:discover"  st: urn:schemas-upnp-org:device:internetgatewaydevice:1  mx: 1
+SNI|aa:bb:cc:dd:ee:06|10.0.0.110|eu-mobile.events.data.microsoft.com
+SNI|aa:bb:cc:dd:ee:06|10.0.0.110|api.weather.com
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|eu-office.events.data.microsoft.com
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|connectivitycheck.gstatic.com
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|vg-cloudproxy.isp-internal.net
+DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|eu-v20.events.data.microsoft.com
+SNI|aa:bb:cc:dd:ee:03|10.0.0.187|eu-v20.events.data.microsoft.com
+```
 ---
 
 ### Static Compilation (Alpine Docker for OpenWrt ARM64)
