@@ -60,7 +60,7 @@ argos-sniffer -i br-lan -Z e8:fb:1c:b2:9b:9f -a -p
 
 Vector flags control which protocols are parsed and emitted. **Lowercase** flags apply deduplication/rate-limiting windows (`-f`), while **Uppercase** flags stream raw, uncapped events.
 
-| Vector / Protocol | Rate-Limited (`-x`) | Uncapped (`-X`) | Description |
+| Vector / Protocol | Rate-Limited | Uncapped | Description |
 | :--- | :---: | :---: | :--- |
 | **TCP SYN / p0f** | `-s` | `-S` | Passive OS fingerprinting via TCP options (MSS, Window Scale, SACK, TS) & SYN-ACK open port discovery. |
 | **DHCP Options** | `-d` | `-D` | Extracts Hostname (Opt 12), Vendor Class ID (Opt 60), and Parameter Request List (Opt 55). |
