@@ -1,7 +1,7 @@
 /* ============================================================================
  * argos-sniffer.c - passive LAN traffic fingerprinter & live packet inspector
  *                    for OpenWrt routers.
- * Version: 4.9 (Target-Filtered Telemetry + IPv6-Aware Capture)
+ * Version: 4.9.1 (Target-Filtered Telemetry + IPv6-Aware Capture + WSD)
  *
  * Core Features:
  *  - Native Target Packet Inspector mode (-z <mac> [-c <count>]): a self
@@ -54,7 +54,7 @@
 #include <linux/if_packet.h>
 #include <linux/filter.h>
 
-#define VERSION "4.9"
+#define VERSION "4.9.1"
 
 /* ============================================================================
  * SECTION: Graceful shutdown
@@ -675,7 +675,7 @@ static void print_help(const char *prog) {
 "  -f <seconds>    Deduplication window in seconds (default: 35)\n\n"
 "TELEMETRY VECTORS (Lowercase = ENABLE WITH RATE LIMIT | Uppercase = ENABLE NO LIMIT):\n"
 "  -s / -S         TCP SYN (p0f) & SYNACK (open ports) fingerprinting\n"
-"  -m / -M         mDNS (5353) / SSDP (1900) payload logging\n"
+"  -m / -M         mDNS (5353) / SSDP (1900) / WSD (3702) payload logging\n"
 "  -d / -D         DHCP options (Hostname, VCI, PRL Option 55) logging\n"
 "  -n / -N         NetBIOS Name Service (UDP 137) logging\n"
 "  -q / -Q         DNS Queries (UDP port 53)\n"
@@ -897,8 +897,8 @@ int main(int argc, char *argv[]) {
      *   Mode 1 (-z): dump matching frames tcpdump-style, then continue.
      *   Mode 2:      run the frame through whichever telemetry vectors
      *                are enabled (-s/-d/-q/...), honoring -r (router
-     *                exclusion) and -Z (single-device filter) along the
-     *                way.
+     *                exclusion), -x (mac exclusion), and -Z (single
+     *                target filter) along the way.
      * --------------------------------------------------------------- */
     unsigned char buffer[4096];
     while (running) {
@@ -1133,13 +1133,13 @@ int main(int argc, char *argv[]) {
             else if (opt_netbios && (dport == 137 || sport == 137)) {
                 parse_netbios(payload, payload_len, mac, src_ip, opt_netbios_rl);
             }
-            /* L7 Multicast & Discovery (SSDP UPnP) */
-            else if (opt_multi && (dport == 1900 || sport == 1900)) {
+            /* L7 Multicast & Discovery (WS-Discovery / SSDP / UPnP) */
+            else if (opt_multi && (dport == 1900 || sport == 1900 || dport == 3702 || sport == 3702)) {
                 char clean_payload[513];
                 int plen = (payload_len > 512) ? 512 : payload_len;
                 sanitize_field(payload, plen, clean_payload, sizeof(clean_payload), 1);
                 if (clean_payload[0] && !dedup_should_suppress(mac, "L7", clean_payload, opt_multi_rl)) {
-                    printf("L7|%s|%s|%d|%s\n", mac, src_ip, (dport == 1900) ? dport : sport, clean_payload);
+                    printf("L7|%s|%s|%d|%s\n", mac, src_ip, (dport == 1900 || dport == 3702) ? dport : sport, clean_payload);
                 }
             }
             /* L7 Multicast & Discovery (mDNS) */
@@ -1149,22 +1149,12 @@ int main(int argc, char *argv[]) {
             /* Domain Name System Queries */
             else if (opt_dns && dport == 53) {
                 if (payload_len > 12) {
-								 
                     char qname[256];
                     if (decode_dns_name(payload, payload_len, 12, qname, sizeof(qname)) > 0) {
                         if (qname[0] && !dedup_should_suppress(mac, "DNS", qname, opt_dns_rl)) {
                             printf("DNS|%s|%s|%s\n", mac, src_ip, qname);
-																				   
-														
-																							   
-															 
-																										 
                         }
                     }
-									  
-																							
-																	 
-					 
                 }
             }
         }
