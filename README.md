@@ -32,13 +32,13 @@ USAGE:
 argos-sniffer br-lan
 
 # Run daemon profiler excluding router and specific device, listening on br-lan with 35s deduplication
-argos-sniffer -i br-lan -r f8:5e:3c:a0:69:75 -x d4:12:43:7c:3b:36 -a -f 35
+argos-sniffer -i br-lan -r aa:bb:cc:00:11:22 -x aa:bb:cc:33:44:55 -a -f 35
 
 # Mode 1: Live packet capture for a single device (replaces tcpdump, auto-enables promiscuous mode)
-argos-sniffer -i br-lan -z e8:fb:1c:b2:9b:9f -c 50
+argos-sniffer -i br-lan -z aa:bb:cc:00:11:22 -c 50
 
 # Mode 2: Restrict telemetry vectors to a single target device across the LAN
-argos-sniffer -i br-lan -Z e8:fb:1c:b2:9b:9f -a -p
+argos-sniffer -i br-lan -Z aa:bb:cc:00:11:22 -a -p
 ```
 
 ---
