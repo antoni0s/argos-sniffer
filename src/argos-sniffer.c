@@ -154,7 +154,6 @@ static void quic_heavy_gc(void) {}
  * to both UDP and stdout so a supervising daemon can continue parsing events.
  * ============================================================================ */
 static int use_syslog = 0;
-static int syslog_priority = LOG_INFO;
 
 #ifdef ARGOS_PORTABLE_TEST
 static void emit_telemetry(const char *format, ...) __attribute__((format(printf, 1, 2)));
@@ -173,6 +172,7 @@ static int remote_sock = -1;
 static struct sockaddr_storage remote_addr;
 static socklen_t remote_addr_len = 0;
 static int use_remote = 0;
+static int syslog_priority = LOG_INFO;
 
 /**
  * Parses a "host:port" (or "[host]:port" for an IPv6 literal, per the usual
