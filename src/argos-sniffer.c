@@ -287,7 +287,7 @@ static void emit_telemetry(const char *format, ...) {
 #endif
         /* -U is a fan-out sink: keep stdout active for the local daemon while
          * also delivering the same record to the remote UDP collector. */
-        if (use_remote || !use_ipc) {
+        if (use_remote || (!use_ipc && !use_syslog)) {
             fputs(buffer, stdout);
         } else if (!sent_anywhere) {
             fputs(buffer, stdout);
