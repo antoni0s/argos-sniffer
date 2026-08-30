@@ -14,7 +14,7 @@
 * **DNS Metrics & Threat Signals:** Query parsing, response latency, entropy calculations (`DNSEXT`), and high-entropy anomaly detection (`ALERT`).
 * **Local Discovery & Identity:** Captures DHCPv4 / DHCPv6 (DUID, FQDN, Vendor Class), mDNS, SSDP / UPnP, WSD, NetBIOS (NBNS), LLDP, ARP, NDP, and IPv6 Router Advertisements (RA).
 * **Routed-Source Classification:** Automatically identifies off-link clients arriving behind LAN next-hop routers (`[|routed]`), supporting IPv6 ULA and delegated prefixes.
-* **Flexible Telemetry Sinks:** Emits structured UTF-8 pipe-delimited records to `stdout`, a Unix Domain Socket (`-o`), or a remote UDP collector (`-U`).
+* **Flexible Telemetry Sinks:** Emits structured UTF-8 pipe-delimited records to `stdout`, local syslog (`-u`), a Unix Domain Socket (`-o`), or a remote UDP collector plus `stdout` (`-U`).
 * **Low-Resource Architecture:** Optimized for constrained MIPS, ARM, and x86_64 routers with bounded sliding-window deduplication and lazy QUIC state allocation.
 
 ---
@@ -64,6 +64,8 @@ argos-sniffer -i br-lan -a -E -W -f 35
 # Pipe telemetry directly to a Unix socket or a remote UDP collector
 argos-sniffer -i br-lan -a -o /var/run/argos.sock
 argos-sniffer -i br-lan -a -U 192.168.1.50:51412
+# Send telemetry only to local syslog
+argos-sniffer -i br-lan -a -u
 
 # Exclude router MAC from self-profiling and ignore a specific host/subnet
 argos-sniffer -i br-lan -r aa:bb:cc:00:11:22 -x 'host 192.168.1.10' -a
@@ -88,7 +90,8 @@ argos-sniffer -i br-lan -Z 'ether host aa:bb:cc:00:11:22' -a -p
 | `-W` | Enable bounded stateful QUIC / HTTP/3 inspection. |
 | `-f <seconds>` | Deduplication window in seconds (default: `35s`, `0` = disabled). |
 | `-o <path>` | Stream pipe-delimited records to a Unix-domain socket. |
-| `-U <ip:port>` | Stream pipe-delimited records to a trusted UDP collector. |
+| `-u` | Send telemetry only to local syslog (`daemon.info`). |
+| `-U <ip:port>` | Stream to a trusted UDP collector and `stdout`; combine with `-u` for syslog fan-out. |
 | `-r <mac>` / `-R <mac>` | Soft / hard MAC exclusion for router interfaces. |
 | `-x <expr>` | BPF/expression filter to exclude packets before parsing. |
 | `-z <expr>` | **Mode 1 (Live Inspector):** Dumps packet headers matching filter; forces promiscuous capture. |
