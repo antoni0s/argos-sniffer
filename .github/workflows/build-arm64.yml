@@ -169,6 +169,7 @@ jobs:
               cc -std=c11 -Os -Wall -Wextra -Wpedantic -Werror \
                 -static -ffunction-sections -fdata-sections \
                 -Wl,--gc-sections \
+                -no-pie \
                 src/argos-sniffer.c -lm \
                 -o dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64
               strip dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64
