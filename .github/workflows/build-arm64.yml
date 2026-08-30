@@ -1,4 +1,4 @@
-name: Build ARM64
+name: Build Linux binaries
 
 on:
   push:
@@ -93,31 +93,31 @@ jobs:
           upx --best --lzma dist/argos-sniffer-${{ steps.version.outputs.version }}-arm64-upx
           upx -t dist/argos-sniffer-${{ steps.version.outputs.version }}-arm64-upx
 
-      - name: Generate checksums and size report
+      - name: Generate ARM64 checksums
         shell: bash
         run: |
           cd dist
           sha256sum \
             argos-sniffer-${{ steps.version.outputs.version }}-arm64 \
             argos-sniffer-${{ steps.version.outputs.version }}-arm64-upx \
-            > SHA256SUMS
+            > SHA256SUMS-arm64
           ls -lh \
             argos-sniffer-${{ steps.version.outputs.version }}-arm64 \
             argos-sniffer-${{ steps.version.outputs.version }}-arm64-upx \
-            SHA256SUMS
-          cat SHA256SUMS
+            SHA256SUMS-arm64
+          cat SHA256SUMS-arm64
 
-      - name: Upload workflow artifact
+      - name: Upload ARM64 workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: argos-sniffer-${{ steps.version.outputs.version }}-arm64
           path: |
             dist/argos-sniffer-${{ steps.version.outputs.version }}-arm64
             dist/argos-sniffer-${{ steps.version.outputs.version }}-arm64-upx
-            dist/SHA256SUMS
+            dist/SHA256SUMS-arm64
           if-no-files-found: error
 
-      - name: Publish tagged GitHub release assets
+      - name: Publish ARM64 tagged release assets
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -139,5 +139,107 @@ jobs:
           gh release upload "$TAG" \
             "dist/argos-sniffer-$VERSION-arm64" \
             "dist/argos-sniffer-$VERSION-arm64-upx" \
-            "dist/SHA256SUMS" \
+            "dist/SHA256SUMS-arm64" \
+            --clobber
+
+  x86_64:
+    name: x86_64 static + UPX
+    needs: [validate, arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read source version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/^#define VERSION "\([^"]*\)"/\1/p' src/argos-sniffer.c | head -n1)
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Argos Sniffer $VERSION"
+
+      - name: Build static x86_64 musl binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD:/work" -w /work alpine:latest sh -ec '
+              apk add --no-cache gcc musl-dev linux-headers
+              cc -std=c11 -Os -Wall -Wextra -Wpedantic -Werror \
+                -static -ffunction-sections -fdata-sections \
+                -Wl,--gc-sections \
+                src/argos-sniffer.c -lm \
+                -o dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64
+              strip dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64
+            '
+
+      - name: Verify x86_64 binary
+        shell: bash
+        run: |
+          file dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64
+          readelf -h dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64 | grep -E 'Class:|Machine:'
+          if readelf -l dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64 | grep -q 'Requesting program interpreter'; then
+            echo 'ERROR: x86_64 binary is dynamically linked'
+            exit 1
+          fi
+
+      - name: Install UPX 5.2.0
+        shell: bash
+        run: |
+          curl -fsSLO https://github.com/upx/upx/releases/download/v5.2.0/upx-5.2.0-amd64_linux.tar.xz
+          echo '3db5d3294707439db97866feab8d75d800f028f48481a40547411824da4288a1  upx-5.2.0-amd64_linux.tar.xz' | sha256sum -c -
+          tar -xf upx-5.2.0-amd64_linux.tar.xz
+          echo "$PWD/upx-5.2.0-amd64_linux" >> "$GITHUB_PATH"
+
+      - name: Create UPX-compressed x86_64 binary
+        shell: bash
+        run: |
+          cp \
+            dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64 \
+            dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64-upx
+          upx --best --lzma dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64-upx
+          upx -t dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64-upx
+
+      - name: Generate x86_64 checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum \
+            argos-sniffer-${{ steps.version.outputs.version }}-x86_64 \
+            argos-sniffer-${{ steps.version.outputs.version }}-x86_64-upx \
+            > SHA256SUMS-x86_64
+          ls -lh \
+            argos-sniffer-${{ steps.version.outputs.version }}-x86_64 \
+            argos-sniffer-${{ steps.version.outputs.version }}-x86_64-upx \
+            SHA256SUMS-x86_64
+          cat SHA256SUMS-x86_64
+
+      - name: Upload x86_64 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: argos-sniffer-${{ steps.version.outputs.version }}-x86_64
+          path: |
+            dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64
+            dist/argos-sniffer-${{ steps.version.outputs.version }}-x86_64-upx
+            dist/SHA256SUMS-x86_64
+          if-no-files-found: error
+
+      - name: Publish x86_64 tagged release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "ERROR: tag $TAG does not match source VERSION $VERSION"
+            exit 1
+          fi
+
+          gh release upload "$TAG" \
+            "dist/argos-sniffer-$VERSION-x86_64" \
+            "dist/argos-sniffer-$VERSION-x86_64-upx" \
+            "dist/SHA256SUMS-x86_64" \
             --clobber
