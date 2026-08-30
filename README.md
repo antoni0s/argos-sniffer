@@ -14,7 +14,7 @@
 * **DNS Metrics & Threat Signals:** Query parsing, response latency, entropy calculations (`DNSEXT`), and high-entropy anomaly detection (`ALERT`).
 * **Local Discovery & Identity:** Captures DHCPv4 / DHCPv6 (DUID, FQDN, Vendor Class), mDNS, SSDP / UPnP, WSD, NetBIOS (NBNS), LLDP, ARP, NDP, and IPv6 Router Advertisements (RA).
 * **Routed-Source Classification:** Automatically identifies off-link clients arriving behind LAN next-hop routers (`[|routed]`), supporting IPv6 ULA and delegated prefixes.
-* **Flexible Telemetry Sinks:** Emits structured UTF-8 pipe-delimited records to `stdout`, local syslog (`-u`), a Unix Domain Socket (`-o`), or a remote UDP collector with `stdout` and syslog fan-out (`-U`).
+* **Flexible Telemetry Sinks:** Emits structured UTF-8 pipe-delimited records to `stdout`, local syslog (`-u`), a Unix Domain Socket (`-o`), or a remote UDP collector with `stdout` and debug-priority syslog fan-out (`-U`).
 * **Low-Resource Architecture:** Optimized for constrained MIPS, ARM, and x86_64 routers with bounded sliding-window deduplication and lazy QUIC state allocation.
 
 ---
@@ -93,7 +93,7 @@ argos-sniffer -i br-lan -Z 'ether host aa:bb:cc:00:11:22' -a -p
 | `-f <seconds>` | Deduplication window in seconds (default: `35s`, `0` = disabled). |
 | `-o <path>` | Stream pipe-delimited records to a Unix-domain socket. |
 | `-u` | Send telemetry only to local syslog (`daemon.info`). |
-| `-U <ip:port>` | Stream to a trusted UDP collector, `stdout`, and local syslog. |
+| `-U <ip:port>` | Stream to a trusted UDP collector and `stdout`; also emit telemetry to local syslog at debug priority. |
 | `-r <mac>` / `-R <mac>` | Soft / hard MAC exclusion for router interfaces. |
 | `-x <expr>` | BPF/expression filter to exclude packets before parsing. |
 | `-z <expr>` | **Mode 1 (Live Inspector):** Dumps packet headers matching filter; forces promiscuous capture. |
