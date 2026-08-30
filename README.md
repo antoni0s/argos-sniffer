@@ -2,6 +2,8 @@
 
 **`argos-sniffer`** is a high-performance, lightweight, passive packet capture and network telemetry engine written in C for **OpenWrt** gateways and Linux hosts. It serves as the data emitter core for the **Argos Network Sentinel** ecosystem, quietly observing local traffic with zero network overhead, zero packet injection, and complete passivity.
 
+**Current stable release: 5.2.1**
+
 ---
 
 ## Highlights
@@ -21,15 +23,13 @@
 
 ### Native Build (Full QUIC Support)
 ```sh
-cc -std=c11 -O2 -Wall -Wextra -Wpedantic argos-sniffer.c -lm -o argos-sniffer
-
+cc -std=c11 -O2 -Wall -Wextra -Wpedantic src/argos-sniffer.c -lm -o argos-sniffer
 ```
 
 ### Minimal Build (Without QUIC Parser)
 
 ```sh
-cc -std=c11 -O2 -Wall -Wextra -Wpedantic -DARGOS_QUIC_STUB argos-sniffer.c -lm -o argos-sniffer
-
+cc -std=c11 -O2 -Wall -Wextra -Wpedantic -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o argos-sniffer
 ```
 
 ### Static Cross-Compilation (OpenWrt ARM64 Example)
@@ -38,11 +38,8 @@ cc -std=c11 -O2 -Wall -Wextra -Wpedantic -DARGOS_QUIC_STUB argos-sniffer.c -lm -
 docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src alpine:latest sh -c "
   apk add --no-cache gcc musl-dev linux-headers && \
   gcc -Os -s -static -ffunction-sections -fdata-sections \
-    -Wl,--gc-sections -o argos-sniffer argos-sniffer.c -lm"
-
+    -Wl,--gc-sections -o argos-sniffer src/argos-sniffer.c -lm"
 ```
-
-*For production OpenWrt firmware package builds and SDK toolchain integration, see [BUILDING.md](BUILDING.md).*
 
 ---
 
@@ -53,7 +50,6 @@ USAGE:
   argos-sniffer [-i iface] [-r router_mac] [-x filter_expr] [-z filter | -Z filter] [-f seconds] [FLAGS...]
   OR:
   argos-sniffer [iface]  (Listens on the given interface with all quiet vectors enabled: -a)
-
 ```
 
 ### Quick Examples
@@ -77,7 +73,6 @@ argos-sniffer -i br-lan -z 'ether host aa:bb:cc:00:11:22' -c 50
 
 # Mode 2: Restrict structured telemetry parsing strictly to a target device
 argos-sniffer -i br-lan -Z 'ether host aa:bb:cc:00:11:22' -a -p
-
 ```
 
 ---
@@ -145,7 +140,6 @@ ARP|mac|sender_ip|target_ip|op[|routed]
 NDP|mac|src_ip|type|target_ip|flags[|routed]
 RA|mac|src_ip|hop_limit|flags|router_lifetime|prefix|prefix_len|mtu[|routed]
 L7|mac|src_ip|dst_port|payload[|routed]
-
 ```
 
 ### Sample Output Stream
@@ -171,7 +165,6 @@ NDP|aa:bb:cc:01:02:06|2001:db8::10|NEIGHBOR_SOLICIT|2001:db8::1|ROUTER
 RA|aa:bb:cc:01:02:99|fe80::1|64|MANAGED,OTHER|1800|2001:db8:cafe::|64|1500
 L7|aa:bb:cc:01:02:10|192.168.1.190|1900|M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"
 SYN|aa:bb:cc:01:02:99|10.10.30.45|64|65535|8|1460|M*,N,W*,N,N,S|443|routed
-
 ```
 
 ---
@@ -187,14 +180,11 @@ The `routed` marker indicates the topological origin of the observed device:
 
 ## Security & Privacy
 
-* **Passive Operation:** `argos-sniffer` never transmits, injects, or alters LAN packets. 
+* **Passive Operation:** `argos-sniffer` never transmits, injects, or alters LAN packets.
 * **Data Sensitivity:** Use it at a network with devices you own only. Emitted telemetry contains hostnames, DNS queries, SNIs, and MAC addresses. If streaming telemetry via UDP (`-U`), ensure traffic traverses a dedicated VLAN, management interface, or WireGuard/IPsec tunnel.
-
 
 ---
 
 ## License
 
 Distributed under the **GNU General Public License v3.0 (GPLv3)**. Ensure a standard `LICENSE` file is included at the repository root.
-
-
