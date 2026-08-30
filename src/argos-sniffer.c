@@ -154,6 +154,7 @@ static void quic_heavy_gc(void) {}
  * to both UDP and stdout so a supervising daemon can continue parsing events.
  * ============================================================================ */
 static int use_syslog = 0;
+static int syslog_priority = LOG_INFO;
 
 #ifdef ARGOS_PORTABLE_TEST
 static void emit_telemetry(const char *format, ...) __attribute__((format(printf, 1, 2)));
@@ -280,7 +281,7 @@ static void emit_telemetry(const char *format, ...) {
                 syslog_len--;
             }
             if (syslog_len > 0) {
-                syslog(LOG_INFO, "%.*s", syslog_len, buffer);
+                syslog(syslog_priority, "%.*s", syslog_len, buffer);
             }
             sent_anywhere = 1;
         }
@@ -2433,6 +2434,7 @@ int main(int argc, char *argv[]) {
             case 'u':
 #ifndef ARGOS_PORTABLE_TEST
                 use_syslog = 1;
+                syslog_priority = LOG_INFO;
                 openlog("argos-sniffer", LOG_PID | LOG_NDELAY, LOG_DAEMON);
 #endif
                 break;
@@ -2447,11 +2449,14 @@ int main(int argc, char *argv[]) {
                 if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -U"); return 1; }
                 use_remote = 1;
 #ifndef ARGOS_PORTABLE_TEST
-                /* -U is the default distributed fan-out: UDP + stdout + syslog. */
+                /* -U is the default distributed fan-out: UDP + stdout + syslog.
+                 * Use LOG_DEBUG for high-volume records so normal info logging
+                 * keeps the OpenWrt ring buffer usable. */
                 use_syslog = 1;
+                syslog_priority = LOG_DEBUG;
                 openlog("argos-sniffer", LOG_PID | LOG_NDELAY, LOG_DAEMON);
 #endif
-                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP, stdout, and local syslog; UDP is unencrypted, use only over a trusted path.\n", optarg);
+                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP, stdout, and local syslog (debug priority); UDP is unencrypted, use only over a trusted path.\n", optarg);
                 break;
             case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); return 1; } max_packets = (int)v; break; }
             case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); return 1; } rate_limit_ttl = (int)v; break; }
