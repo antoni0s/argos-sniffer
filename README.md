@@ -1,6 +1,6 @@
 # Argos Sniffer (`argos-sniffer`)
 
-**`argos-sniffer`** is a high-performance, lightweight, passive packet capture and network telemetry engine written in C for **OpenWrt** gateways and Linux hosts. It serves as the data collection core for the **Argos Network Sentinel** ecosystem, quietly observing local traffic with zero network overhead, zero packet injection, and complete passivity.
+**`argos-sniffer`** is a high-performance, lightweight, passive packet capture and network telemetry engine written in C for **OpenWrt** gateways and Linux hosts. It serves as the data emitter core for the **Argos Network Sentinel** ecosystem, quietly observing local traffic with zero network overhead, zero packet injection, and complete passivity.
 
 ---
 
