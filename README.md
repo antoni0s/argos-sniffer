@@ -1,28 +1,48 @@
 # Argos Sniffer (`argos-sniffer`)
 
-**`argos-sniffer`** is a lightweight, low-level packet capture tool written in C for **OpenWrt** routers. It acts as the data collection engine for the Argos Network Sentinel ecosystem, quietly observing local traffic with zero network overhead and complete passivity.
+**`argos-sniffer`** is a high-performance, lightweight, passive packet capture and network telemetry engine written in C for **OpenWrt** gateways and Linux hosts. It serves as the data collection core for the **Argos Network Sentinel** ecosystem, quietly observing local traffic with zero network overhead, zero packet injection, and complete passivity.
 
 ---
 
-## Why Passive Sniffing?
+## Highlights
 
-Active network scanners like Nmap generate traffic that can wake sleeping IoT devices, drain battery life, and clutter up home networks. `argos-sniffer` takes a strictly passive approach:
-
-* **Zero Network Impact:** Listens silently on your bridge interface (`br-lan`) without injecting, transmitting, or modifying a single packet.
-* **Real-Time Fingerprinting:** Extracts device types, hostnames, OS signatures, and protocols on the fly from everyday ambient traffic.
-* **Dual-Mode Flexibility:** Works as a structured telemetry feed for background daemons or as a quick, targeted replacement for `tcpdump`.
-* **Built for Low-Resource Hardware:** Written in pure C with minimal memory overhead, using Linux raw sockets (`AF_PACKET`) and in-kernel BPF filters to run smoothly on constrained MIPS, ARM, and x86_64 routers.
+* **Zero Network Impact:** Operates strictly passively using Linux raw packet sockets (`AF_PACKET`) and in-kernel BPF filters—no active probes, scans, or battery drain on sleeping IoT devices.
+* **L3/L4 OS Fingerprinting:** TCP SYN/SYN-ACK options (p0f-style layout, MSS, Window Scale, TTL, open port discovery) and TCP connection state/latency metrics (`TCPLVL`).
+* **L7 Application Telemetry:** Plain HTTP `User-Agent`, TLS SNI, JA4-like fingerprints, ALPN negotiation, and stateful QUIC / HTTP/3 inspection.
+* **DNS Metrics & Threat Signals:** Query parsing, response latency, entropy calculations (`DNSEXT`), and high-entropy anomaly detection (`ALERT`).
+* **Local Discovery & Identity:** Captures DHCPv4 / DHCPv6 (DUID, FQDN, Vendor Class), mDNS, SSDP / UPnP, WSD, NetBIOS (NBNS), LLDP, ARP, NDP, and IPv6 Router Advertisements (RA).
+* **Routed-Source Classification:** Automatically identifies off-link clients arriving behind LAN next-hop routers (`[|routed]`), supporting IPv6 ULA and delegated prefixes.
+* **Flexible Telemetry Sinks:** Emits structured UTF-8 pipe-delimited records to `stdout`, a Unix Domain Socket (`-o`), or a remote UDP collector (`-U`).
+* **Low-Resource Architecture:** Optimized for constrained MIPS, ARM, and x86_64 routers with bounded sliding-window deduplication and lazy QUIC state allocation.
 
 ---
 
-### What It Tracks
+## Build
 
-* **Passive OS & Device Profiling:**
-  * **TCP Handshakes (p0f-style):** SYN/SYN-ACK packet options, window scaling, MSS, TTL, and open port detection.
-  * **DHCP Leases:** Hostnames (Option 12), Vendor IDs (Option 60), and Parameter Request Lists (Option 55).
-  * **Web & Domain Names:** DNS queries, plain HTTP `User-Agent` strings, and TLS Server Name Indication (SNI) handshakes.
-  * **Local Discovery Protocols:** mDNS, SSDP / UPnP device broadcasts, NetBIOS (NBNS), and LLDP frames.
-* **Smart Deduplication:** An in-memory sliding window drops repeated packets from chatty devices right at the capture layer, protecting downstream scripts and databases from event floods.
+### Native Build (Full QUIC Support)
+```sh
+cc -std=c11 -O2 -Wall -Wextra -Wpedantic argos-sniffer.c -lm -o argos-sniffer
+
+```
+
+### Minimal Build (Without QUIC Parser)
+
+```sh
+cc -std=c11 -O2 -Wall -Wextra -Wpedantic -DARGOS_QUIC_STUB argos-sniffer.c -lm -o argos-sniffer
+
+```
+
+### Static Cross-Compilation (OpenWrt ARM64 Example)
+
+```sh
+docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src alpine:latest sh -c "
+  apk add --no-cache gcc musl-dev linux-headers && \
+  gcc -Os -s -static -ffunction-sections -fdata-sections \
+    -Wl,--gc-sections -o argos-sniffer argos-sniffer.c -lm"
+
+```
+
+*For production OpenWrt firmware package builds and SDK toolchain integration, see [BUILDING.md](BUILDING.md).*
 
 ---
 
@@ -30,114 +50,151 @@ Active network scanners like Nmap generate traffic that can wake sleeping IoT de
 
 ```text
 USAGE:
-  argos-sniffer [-i iface] [-r router_mac] [-x exclude_mac] [-z target_mac | -Z target_mac] [-f seconds] [FLAGS...]
+  argos-sniffer [-i iface] [-r router_mac] [-x filter_expr] [-z filter | -Z filter] [-f seconds] [FLAGS...]
   OR:
-  argos-sniffer [iface]  (Listens on the given interface and enables all vectors with -a)
+  argos-sniffer [iface]  (Listens on the given interface with all quiet vectors enabled: -a)
+
 ```
 
 ### Quick Examples
 
 ```sh
-# Sniff all telemetry vectors on br-lan (quick syntax)
+# Standard quiet daemon capture on br-lan (all vectors enabled)
 argos-sniffer br-lan
 
-# Run daemon mode on br-lan, excluding the router and a specific client, with a 35-second dedup window
-argos-sniffer -i br-lan -r aa:bb:cc:00:11:22 -x aa:bb:cc:33:44:55 -a -f 35
+# Extended daemon mode with QUIC (-W), TCP/DNS metrics (-E), and a 35-second dedup window
+argos-sniffer -i br-lan -a -E -W -f 35
 
-# Mode 1: Live packet capture for a single device (replaces tcpdump, auto-promiscuous)
-argos-sniffer -i br-lan -z aa:bb:cc:00:11:22 -c 50
+# Pipe telemetry directly to a Unix socket or a remote UDP collector
+argos-sniffer -i br-lan -a -o /var/run/argos.sock
+argos-sniffer -i br-lan -a -U 192.168.1.50:51412
 
-# Mode 2: Restrict telemetry parsing to a single target device across the LAN
-argos-sniffer -i br-lan -Z aa:bb:cc:00:11:22 -a -p
+# Exclude router MAC from self-profiling and ignore a specific host/subnet
+argos-sniffer -i br-lan -r aa:bb:cc:00:11:22 -x 'host 192.168.1.10' -a
+
+# Mode 1: Live packet inspector (replaces tcpdump, auto-promiscuous)
+argos-sniffer -i br-lan -z 'ether host aa:bb:cc:00:11:22' -c 50
+
+# Mode 2: Restrict structured telemetry parsing strictly to a target device
+argos-sniffer -i br-lan -Z 'ether host aa:bb:cc:00:11:22' -a -p
+
 ```
 
 ---
 
 ## Options & Flags
 
-* **`[iface]` / `-i <iface>`**: Network interface to monitor (default: `br-lan`). Providing the interface name directly activates `-a` automatically.
-* **`-r <mac>`**: Router MAC address to exclude from self-profiling (can be used multiple times).
-* **`-x <mac>`**: Client MAC address to ignore (can be used multiple times).
-* **`-z <target_mac>`**: **Mode 1 (Live Inspector)** — Dumps raw packet headers to/from the target MAC in `tcpdump` style. Automatically turns on promiscuous mode.
-* **`-Z <target_mac>`**: **Mode 2 (Targeted Profiler)** — Limits structured telemetry parsing strictly to this MAC.
-* **`-c <count>`**: Stop after capturing this many packets (Mode 1 only; `0` = continuous).
-* **`-p`**: Enable **Promiscuous Mode** to catch unicast switch traffic across bridged ports.
-* **`-f <seconds>`**: Deduplication window in seconds (default: `35s`, set to `0` to disable).
+| Option | Description |
+| --- | --- |
+| `[iface]` / `-i <iface>` | Network interface to monitor (`br-lan`, `eth0`, or `any` for per-packet interface context). |
+| `-a` / `-A` | Enable **all** telemetry vectors (`-a` quiet / deduplicated, `-A` fully uncapped). Enables IPv6 automatically. |
+| `-v` / `-V` | Enable IPv6 packet parsing when selecting vectors individually. |
+| `-E` | Enable extended TCP state/latency (`TCPLVL`) and DNS telemetry (`DNSEXT`). |
+| `-W` | Enable bounded stateful QUIC / HTTP/3 inspection. |
+| `-f <seconds>` | Deduplication window in seconds (default: `35s`, `0` = disabled). |
+| `-o <path>` | Stream pipe-delimited records to a Unix-domain socket. |
+| `-U <ip:port>` | Stream pipe-delimited records to a trusted UDP collector. |
+| `-r <mac>` / `-R <mac>` | Soft / hard MAC exclusion for router interfaces. |
+| `-x <expr>` | BPF/expression filter to exclude packets before parsing. |
+| `-z <expr>` | **Mode 1 (Live Inspector):** Dumps packet headers matching filter; forces promiscuous capture. |
+| `-Z <expr>` | **Mode 2 (Targeted Profiler):** Restricts telemetry parsing strictly to matching traffic. |
+| `-c <count>` | Stop after capturing `N` packets (Mode 1 only; `0` = continuous). |
+| `-p` | Enable **Promiscuous Mode** to capture unicast traffic across bridged switch ports. |
 
 ---
 
 ## Telemetry Vectors
 
-Vector flags control which protocols `argos-sniffer` parses. **Lowercase** flags apply the deduplication window (`-f`), while **Uppercase** flags stream raw, uncapped events.
+Lowercase vector flags enforce the deduplication window (`-f`), while uppercase flags stream raw, uncapped events.
 
-| Vector / Protocol | Deduplicated | Uncapped | What It Captures |
-| :--- | :---: | :---: | :--- |
-| **TCP SYN / p0f** | `-s` | `-S` | Passive OS fingerprinting (MSS, Window Scale, SACK, TS) & SYN-ACK port discovery. |
-| **DHCP Options** | `-d` | `-D` | Hostnames (Opt 12), Vendor Class (Opt 60), and Parameter Lists (Opt 55). |
-| **TLS ClientHello** | `-t` | `-T` | SNI (Server Name Indication) domains from HTTPS connection starts. |
-| **HTTP User-Agent** | `-h` | `-H` | Browser, OS, and client strings over plain HTTP (ports 80/8080). |
-| **L7 Multicast** | `-m` | `-M` | mDNS (port 5353) and SSDP/UPnP (port 1900) device announcements. |
-| **DNS Queries** | `-q` | `-Q` | Local DNS lookups over UDP port 53. |
+| Vector / Protocol | Quiet (Dedup) | Verbose (Raw) | Captures & Telemetry Scope |
+| --- | --- | --- | --- |
+| **TCP SYN / p0f** | `-s` | `-S` | OS fingerprinting (MSS, Window Scale, SACK, TS layout, TTL) & SYN-ACK port discovery. |
+| **DHCPv4 & DHCPv6** | `-d` | `-D` | Hostnames (Opt 12), Vendor Class (Opt 60), PRL (Opt 55), DUID, and FQDN. |
+| **TLS & QUIC** | `-t` | `-T` | TLS SNI, JA4-like fingerprint, ALPN negotiation, and HTTP/3 handshake versions. |
+| **HTTP User-Agent** | `-h` | `-H` | Plain HTTP `User-Agent` strings observed on ports 80 and 8080. |
+| **L7 Multicast** | `-m` | `-M` | mDNS (port 5353), SSDP / UPnP (port 1900), and WSD device discovery. |
+| **DNS & Extensions** | `-q` | `-Q` | DNS query domains, response codes, latency metrics, and entropy scoring. |
 | **NetBIOS (NBNS)** | `-n` | `-N` | NetBIOS Name Service queries and registrations (UDP 137). |
-| **LLDP Discovery** | `-l` | `-L` | Switch/system names and descriptions via LLDP (`0x88cc`). |
-| **All Vectors** | `-a` | `-A` | Enables every vector above (`-a` deduplicated, `-A` raw). |
-| **IPv6 Inspection** | `-v` | `-V` | Parses IPv6 traffic (filters link-local `fe80::/10`, ULA `fc00::/7`, and `::`). |
+| **Link & Identity** | `-l` | `-L` | LLDP switch identity, ARP ownership, NDP neighbor discovery, and IPv6 RA. |
+| **All Vectors** | `-a` | `-A` | Enables all vectors above simultaneously (also enables IPv6 parsing). |
+| **IPv6 Inspection** | `-v` | `-V` | Enables IPv6 inspection when selecting vectors individually. |
 
 ---
 
 ## Telemetry Output Format
 
-In daemon mode, `argos-sniffer` outputs UTF-8 pipe-delimited (`|`) lines ready for scripts and logging daemons:
+Every event is emitted as a single UTF-8 newline-delimited, pipe-separated (`|`) record. If a source is determined to be behind a downstream router or sub-gateway, the optional `routed` tag is appended at the end:
 
 ```text
-SYN|mac|src_ip|ttl|window|wscale|mss|opts_layout|dst_port
-SYNACK|mac|src_ip|ttl|window|wscale|mss|opts_layout|src_port
-HTTP|mac|src_ip|user_agent
-SNI|mac|src_ip|hostname
-LLDP|mac|sysname|sysdesc
-NBNS|mac|src_ip|netbios_name
-DHCP|mac|src_ip|hostname|vendor_class|prl
-DNS|mac|src_ip|query_domain
-MDNS|mac|src_ip|port|qname
-L7|mac|src_ip|dst_port|payload
+SYN|mac|src_ip|ttl|window|wscale|mss|opts_layout|dst_port[|routed]
+SYNACK|mac|src_ip|ttl|window|wscale|mss|opts_layout|src_port[|routed]
+TCPLVL|mac|src_ip|dst_ip|dst_port|rtt_us|retrans_count|state_event[|routed]
+TLS|mac|src_ip|dst_ip|dst_port|sni|ja4|alpn[|routed]
+QUIC|mac|src_ip|dst_ip|dst_port|sni|version[|routed]
+HTTP|mac|src_ip|user_agent[|routed]
+DNS|mac|src_ip|query_domain[|routed]
+DNSEXT|mac|src_ip|dst_ip|query_domain|qtype|rcode|latency_ms|entropy[|routed]
+ALERT|mac|src_ip|HIGH_DNS_ENTROPY|query_domain|entropy[|routed]
+DHCP|mac|src_ip|hostname|vendor_class|prl[|routed]
+DHCP6|mac|src_ip|msg_type|duid_type|vendor_class|oro|fqdn[|routed]
+MDNS|mac|src_ip|port|qname[|routed]
+NBNS|mac|src_ip|netbios_name[|routed]
+LLDP|mac|sysname|sysdesc[|routed]
+ARP|mac|sender_ip|target_ip|op[|routed]
+NDP|mac|src_ip|type|target_ip|flags[|routed]
+RA|mac|src_ip|hop_limit|flags|router_lifetime|prefix|prefix_len|mtu[|routed]
+L7|mac|src_ip|dst_port|payload[|routed]
+
 ```
 
 ### Sample Output Stream
 
 ```text
-root@router ~ # argos-sniffer br-lan
-SYN|aa:bb:cc:dd:ee:01|10.0.0.254|64|64240|10|1460|M*,S,T,N,W*|1
-DNS|aa:bb:cc:dd:ee:02|10.0.0.101|optimizationguide-pa.googleapis.com
-MDNS|aa:bb:cc:dd:ee:03|10.0.0.187|5353|device-alpha.local
-LLDP|aa:bb:cc:dd:ee:01|server-home.dnsprovider.org|Linux Distro 13 (codename) Linux 7.1.8+generic x86_64
-SYN|aa:bb:cc:dd:ee:02|fd00:1234:5678:0:d050:6d30:f0c6:5232|64|65535|8|1432|M*,N,W*,N,N,S|443
-SYNACK|aa:bb:cc:dd:ee:04|fd00:1234:5678::1|64|64440|7|1432|M*,N,N,S,N,W*|443
-SNI|aa:bb:cc:dd:ee:02|fd00:1234:5678:0:d050:6d30:f0c6:5232|adguard.internal.dnsprovider.org
-DNS|aa:bb:cc:dd:ee:02|10.0.0.101|wpad.lan
-DNS|aa:bb:cc:dd:ee:03|fd00:1234:5678:0:3c10:2c3e:2824:eb92|teams.events.data.microsoft.com
-SYN|aa:bb:cc:dd:ee:03|10.0.0.187|128|65535|8|1460|M*,N,W*,N,N,S|443
-SNI|aa:bb:cc:dd:ee:03|10.0.0.187|ngep.blackspider.com
-DHCP|aa:bb:cc:dd:ee:05|0.0.0.0|CLIENT-DHCP|android-dhcp-client|1,3,6,15,26,28,51,58,59,43,114,108
-DNS|aa:bb:cc:dd:ee:05|10.0.0.195|connectivitycheck.gstatic.com
-HTTP|aa:bb:cc:dd:ee:05|10.0.0.195|Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.32 Safari/537.36
+root@router ~ # argos-sniffer br-lan -a -E -W
+SYN|aa:bb:cc:01:02:03|192.168.1.150|64|64240|7|1460|M*,S,T,N,W*|443
+SYNACK|aa:bb:cc:01:02:99|192.168.1.1|64|65535|8|1460|M*,N,W*,N,N,S|80
+TCPLVL|aa:bb:cc:01:02:03|192.168.1.150|142.250.180.206|443|18450|0|ESTABLISHED
+TLS|aa:bb:cc:01:02:03|192.168.1.150|142.250.180.206|443|github.com|t13d1516h2_8daaf6152771_002f|h2
+QUIC|aa:bb:cc:01:02:03|192.168.1.150|142.250.180.206|443|youtube.com|00000001
+HTTP|aa:bb:cc:01:02:04|192.168.1.120|Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
+DNS|aa:bb:cc:01:02:03|192.168.1.150|api.github.com
+DNSEXT|aa:bb:cc:01:02:03|192.168.1.1|api.github.com|1|0|14.25|3.12
+ALERT|aa:bb:cc:01:02:08|192.168.1.210|HIGH_DNS_ENTROPY|v8x9a2k1m4z7q0p3l5.dga-botnet.org|4.85
+DHCP|aa:bb:cc:01:02:05|0.0.0.0|DESKTOP-RIG|MSFT 5.0|1,3,6,15,31,33,43,44,46,47,119,121,249,252
+DHCP6|aa:bb:cc:01:02:06|fe80::211:22ff:fe33:4455|SOLICIT|DUID-LLT|android-dhcp6|23,24|pixel-phone.lan
+MDNS|aa:bb:cc:01:02:07|192.168.1.180|5353|Living-Room-Speaker.local
+NBNS|aa:bb:cc:01:02:05|192.168.1.110|WORKGROUP<00>
+LLDP|aa:bb:cc:01:02:99|openwrt-gateway.lan|OpenWrt 23.05.4 Linux 5.15.150 aarch64
+ARP|aa:bb:cc:01:02:03|192.168.1.150|192.168.1.1|REQUEST
+NDP|aa:bb:cc:01:02:06|2001:db8::10|NEIGHBOR_SOLICIT|2001:db8::1|ROUTER
+RA|aa:bb:cc:01:02:99|fe80::1|64|MANAGED,OTHER|1800|2001:db8:cafe::|64|1500
+L7|aa:bb:cc:01:02:10|192.168.1.190|1900|M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"
+SYN|aa:bb:cc:01:02:99|10.10.30.45|64|65535|8|1460|M*,N,W*,N,N,S|443|routed
+
 ```
 
 ---
 
-## Static Build (OpenWrt ARM64 Example)
+## Routed-Source Semantics
 
-Compile a self-contained static binary using an Alpine Docker container:
+The `routed` marker indicates the topological origin of the observed device:
 
-```sh
-docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src alpine:latest sh -c "
-  apk add --no-cache gcc musl-dev linux-headers && \
-  gcc -Os -s -static \
-    -ffunction-sections -fdata-sections -Wl,--gc-sections \
-    -o argos-sniffer argos-sniffer.c"
-```
+* **Classification Criteria:** A packet source is marked as `routed` when its IP belongs to an off-link subnet (private IPv4, IPv6 ULA, or delegated prefix) received through a known LAN next-hop MAC, or when recent ARP/NDP ownership evidence contradicts the observed Ethernet frame MAC.
+* **Bridge Awareness:** When listening explicitly on a bridge interface (`-i br-lan`), classification validates IP addresses against the bridge’s connected prefixes. When running with `-i any`, per-packet interface indexing is used to prevent cross-interface false positives.
+
+---
+
+## Security & Privacy
+
+* **Passive Operation:** `argos-sniffer` never transmits, injects, or alters LAN packets. 
+* **Data Sensitivity:** Use it at a network with devices you own only. Emitted telemetry contains hostnames, DNS queries, SNIs, and MAC addresses. If streaming telemetry via UDP (`-U`), ensure traffic traverses a dedicated VLAN, management interface, or WireGuard/IPsec tunnel.
+
 
 ---
 
 ## License
 
-Distributed under the **GNU General Public License v3.0 (GPLv3)**.
+Distributed under the **GNU General Public License v3.0 (GPLv3)**. Ensure a standard `LICENSE` file is included at the repository root.
+
+
