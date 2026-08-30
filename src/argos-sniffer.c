@@ -2446,7 +2446,12 @@ int main(int argc, char *argv[]) {
                 if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1; /* parse_host_port() already printed why */
                 if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -U"); return 1; }
                 use_remote = 1;
-                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP and stdout; UDP is unencrypted, use only over a trusted path.\n", optarg);
+#ifndef ARGOS_PORTABLE_TEST
+                /* -U is the default distributed fan-out: UDP + stdout + syslog. */
+                use_syslog = 1;
+                openlog("argos-sniffer", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+#endif
+                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP, stdout, and local syslog; UDP is unencrypted, use only over a trusted path.\n", optarg);
                 break;
             case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); return 1; } max_packets = (int)v; break; }
             case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); return 1; } rate_limit_ttl = (int)v; break; }
