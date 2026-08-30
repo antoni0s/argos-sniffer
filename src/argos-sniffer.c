@@ -31,69 +31,6 @@
  *   memory tracking to save CPU cycles on smaller routers, implements 
  *   full-address flow hashing to eliminate synchronization table collisions, 
  *   and incorporates a deduplication engine with configurable TTL windows.
- * ============================================================================
- *
- * PATCH NOTES (bugfix pass):
- *  1. IPv6 filter tokens (-x/-z/-Z with an IPv6 literal) are now actually
- *     evaluated. Previously compile_filter() accepted them but
- *     evaluate_filter() had no case for TOK_IPV6, so IPv6 filters silently
- *     did nothing (or could desync the RPN stack).
- *  2. Raw packet buffers are byte-aligned, not 4-byte aligned (e.g. the IPv4
- *     header starts right after a 14-byte Ethernet header). Casting the
- *     buffer directly to struct iphdr / ip6_hdr / tcphdr / udphdr and
- *     dereferencing multi-byte fields is undefined behavior in C and will
- *     SIGBUS-crash on strict-alignment CPUs (common on MIPS/ARM routers).
- *     Fixed by memcpy()'ing headers into locally-aligned stack copies before
- *     use. Same issue fixed for the QUIC version field.
- *  3. TCP option parsing trusted tcp->doff (claimed header length) without
- *     checking it against the number of bytes actually captured. A crafted
- *     or truncated packet could make the parser read past the real payload
- *     into stale bytes left over from a previous packet in the reused
- *     capture buffer. Fixed with an explicit length check.
- *  4. JA4 fingerprinting used to detect "no SNI" / "no ALPN" by checking
- *     whether the *string value* started with "no" / "n" (the "none"
- *     placeholder text) -- so a real SNI like "notion.so" would be
- *     misclassified as "no SNI present". Replaced with explicit has_sni /
- *     has_alpn flags set at parse time.
- *  5. The JA4 cipher count included GREASE ciphers, while the cipher list
- *     that gets hashed explicitly excludes them -- the two numbers didn't
- *     match, corrupting the fingerprint for any GREASE-sending client
- *     (i.e. virtually all modern Chrome/Edge traffic). Fixed to count only
- *     the non-GREASE ciphers that are actually hashed.
- *  6. The hand-rolled MD5 implementation assumed a little-endian host (both
- *     when reading 32-bit message words and when writing the 64-bit length
- *     field), so JA4 hashes would come out silently wrong on big-endian
- *     targets (some MIPS-based OpenWrt boards). Fixed with explicit
- *     byte-order handling.
- *  7. strdup() return value is now checked before use.
- *
- * 24. The default capture target is now "any" so the same binary works on
- *     OpenWrt as well as conventional Linux gateways without assuming br-lan.
- * 25. The filter compiler now rejects malformed expressions, unmatched
- *     parentheses, missing operators, oversized tokens, and invalid CIDRs;
- *     NOT remains right-associative.
- * 26. IPv4/IPv6 parsing now honors the IP packet length instead of consuming
- *     Ethernet padding or bytes beyond a truncated/malformed IP datagram.
- * 27. Explicit interface link-layer detection now rejects unknown formats
- *     instead of guessing Ethernet headers; loopback is therefore not parsed
- *     as Ethernet by accident.
- * 28. MAC, packet-count and dedup-window command-line arguments are validated
- *     strictly instead of silently accepting partial or out-of-range values.
- * 29. Strict-build portability fixes were applied to allocation/error paths and
- *     the stateful QUIC implementation, including zero-length DCIDs and
- *     reconstruction of truncated QUIC packet numbers.
- *
- * NEW FEATURE:
- *  8. Native Remote Socket (-U <ip>:<port> / -U [ipv6]:<port>): streams
- *     telemetry directly to a remote UDP collector via sendto(), no local
- *     relay process required. Accepts a hostname or a numeric IPv4/IPv6
- *     address; resolved once at startup via getaddrinfo(). Can be combined
- *     with -o to fan out to both a local Unix socket and a remote UDP
- *     target simultaneously -- see emit_telemetry() below. Fire-and-forget
- *     (MSG_DONTWAIT, unconnected socket): a slow or unreachable remote
- *     collector never stalls packet capture. Telemetry sent this way is
- *     plaintext/unauthenticated, so -U prints a one-time warning reminding
- *     the operator to only point it at a trusted destination/path.
  * ============================================================================ */
 
 #define _GNU_SOURCE
@@ -173,6 +110,9 @@
 #include "argos_quic_heavy.h"
 #endif
 
+/* ============================================================================
+ * SECTION: Global Configuration & Version Constants
+ * ============================================================================ */
 int opt_quic_heavy = 0;          /* Flag to enable heavy stateful QUIC reassembly */
 int opt_ext_metrics = 0;         /* Default: Heavy metrics (entropy, RTT, latency) disabled */
 
@@ -1174,9 +1114,6 @@ static int precedence(filter_tok_type op) {
 /**
  * Checks whether `addr` matches an IPv6 filter token, i.e. whether
  * (addr & mask) == (token.ip & mask), compared 16 bytes at a time.
- * (BUGFIX: this helper + its use in evaluate_filter() were previously
- * missing entirely, so IPv6 address/CIDR filters compiled fine but never
- * actually matched anything at evaluation time.)
  */
 static int ipv6_masked_match(const struct in6_addr *addr, const struct in6_addr *filter_ip, const struct in6_addr *filter_mask) {
     for (int i = 0; i < 16; i++) {
@@ -1444,9 +1381,6 @@ static int compile_filter(const char *expr_in, filter_program_t *prog) {
  * src_ip6/dst_ip6 may be NULL when the current packet is not IPv6 (e.g. an
  * IPv4 or ARP packet) -- in that case any TOK_IPV6 token in the program
  * simply evaluates to "no match" instead of dereferencing a NULL pointer.
- *
- * (BUGFIX: this function previously had no case at all for TOK_IPV6, so
- * IPv6 literals in a -x/-z/-Z filter expression were silently ignored.)
  */
 static inline int evaluate_filter(filter_program_t *prog, const uint8_t *src_mac, const uint8_t *dst_mac,
                                    uint32_t src_ip, uint32_t dst_ip,
@@ -1519,11 +1453,7 @@ static void parse_tls_sni(const unsigned char *payload, int len, const char *mac
      * these as random noise to prevent protocol ossification, so they carry
      * no fingerprinting signal and would make otherwise-identical clients
      * hash differently run to run. `real_cipher_count` counts exactly the
-     * entries that end up in the hash.
-     * (BUGFIX: the JA4 "a" section digit used to be built from the raw wire
-     * cipher_count, which *includes* GREASE values, while the hash itself
-     * excluded them -- the two numbers didn't match for any GREASE-sending
-     * client, i.e. virtually all modern Chrome/Edge traffic.) */
+     * entries that end up in the hash. */
     char cipher_hex[4096] = {0}; int chex_pos = 0; int real_cipher_count = 0;
     for (int i = 0; i < cipher_count && chex_pos < (int)sizeof(cipher_hex) - 5; i++) {
         uint16_t c = read_be16(payload + pos + 2 + (i * 2));
@@ -1550,13 +1480,8 @@ static void parse_tls_sni(const unsigned char *payload, int len, const char *mac
     char sni[256] = {0}, alpn[32] = {0}; int ext_count = 0;
     uint16_t ext_arr[128] = {0};
     /* Track whether the SNI / ALPN extensions were actually present in this
-     * ClientHello, independent of the parsed string contents.
-     * (BUGFIX: the JA4 "d"/"i" no-SNI flag, and the ALPN first/last chars,
-     * used to be derived by checking whether the *string value* started
-     * with the "none" placeholder text (e.g. sni[0]=='n' && sni[1]=='o').
-     * That misclassifies any real hostname/protocol starting with those
-     * letters -- e.g. "notion.so" or "nordvpn.com" would have been reported
-     * as having no SNI at all. Explicit flags fix this.) */
+     * ClientHello, independent of the parsed string contents, so valid values
+     * that happen to start with placeholder-like text remain distinguishable. */
     int has_sni = 0, has_alpn = 0;
 
     /* Legacy client_version at bytes 9-10 (see layout above); len>=44 was
@@ -1638,8 +1563,7 @@ static void parse_tls_sni(const unsigned char *payload, int len, const char *mac
         case 0x0300: ja4_ver = "s3"; break;
         default:     ja4_ver = "00"; break;
     }
-    /* BUGFIX: use real_cipher_count (GREASE excluded, matches ja4_b's
-     * input) instead of the raw wire cipher_count. */
+    /* Keep the JA4 cipher count consistent with ja4_b by excluding GREASE. */
     int a_cipher_count = real_cipher_count > 99 ? 99 : real_cipher_count;
     int a_ext_count = ext_count > 99 ? 99 : ext_count;
 
@@ -2287,9 +2211,8 @@ static void dump_target_packet(const unsigned char *buffer, int len, int l3_offs
         uint16_t ip_total_len = 0;
         if (!ipv4_header_info(buffer + l3_offset, ip_available, &ip_total_len, &ip_header_len)) return;
         ip_packet_len = (int)ip_total_len;
-        /* BUGFIX: aligned local copies instead of casting the raw
-         * (misaligned) buffer pointer to struct iphdr / tcphdr / udphdr --
-         * see the PATCH NOTES at the top of the file. */
+        /* Use aligned local header copies instead of casting the raw,
+         * potentially misaligned packet buffer to protocol header structs. */
         struct iphdr ip_hdr; memcpy(&ip_hdr, buffer + l3_offset, sizeof(ip_hdr));
         struct iphdr *ip = &ip_hdr;
         char s_ip[INET_ADDRSTRLEN], d_ip[INET_ADDRSTRLEN];
@@ -2568,7 +2491,7 @@ int main(int argc, char *argv[]) {
     /* -i takes a comma-separated interface list (e.g. "eth0,wlan0"); make a
      * mutable copy since strtok() writes '\0' separators into it in place. */
     char *iface_list = strdup(iface);
-    if (!iface_list) { fprintf(stderr, "Error: out of memory duplicating interface list.\n"); return 1; } /* BUGFIX: strdup() result was previously used unchecked */
+    if (!iface_list) { fprintf(stderr, "Error: out of memory duplicating interface list.\n"); return 1; }
     char *token = strtok(iface_list, ",");
     
     /* Open one AF_PACKET raw socket per requested interface (or the special
@@ -2735,8 +2658,8 @@ int main(int argc, char *argv[]) {
 
             static const unsigned char zero_mac[6] = {0,0,0,0,0,0};
             static const unsigned char bcast_mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
-            /* RAW_IP (PPP/TUN/WireGuard) has no MAC -- strip_l2 zeroes src_mac.
-             * Skipping zero MACs here used to drop 100% of those frames. */
+            /* RAW_IP (PPP/TUN/WireGuard) has no MAC, so zero-MAC validation
+             * applies only to Ethernet and cooked link-layer frames. */
             if (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED) {
                 if (memcmp(src_mac, zero_mac, 6) == 0 || memcmp(src_mac, bcast_mac, 6) == 0) continue;
             }
