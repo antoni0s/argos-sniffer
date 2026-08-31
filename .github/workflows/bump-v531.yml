@@ -1,4 +1,4 @@
-name: Bump Argos version to 5.3.1
+name: Finalize Argos Sniffer v5.3.1
 
 on:
   push:
@@ -11,47 +11,43 @@ permissions:
   contents: write
 
 jobs:
-  bump:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feature/span-sensor
-      - name: Patch source
+      - name: Update release metadata
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('src/argos-sniffer.c')
+          p = Path('README.md')
           s = p.read_text()
-          assert s.count('#define VERSION "5.3.0"') == 1
-          s = s.replace('#define VERSION "5.3.0"', '#define VERSION "5.3.1"', 1)
-          anchor = '#define MAX_EPOLL_EVENTS 16\n'
-          assert s.count(anchor) == 1
-          s = s.replace(anchor, anchor + '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n', 1)
-          old = '        for (int i = 0; i < nfds; i++) {\n            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;\n\n            struct sockaddr_ll from_ll;\n'
-          new = '        for (int i = 0; i < nfds; i++) {\n            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;\n\n            /* Drain a bounded number of queued AF_PACKET frames per readiness\n             * event. Level-triggered epoll reports the fd again if data remains;\n             * the budget preserves fairness across interfaces and maintenance. */\n            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {\n            struct sockaddr_ll from_ll;\n'
+          old = '**Current development release: 5.3.0**'
           assert s.count(old) == 1
-          s = s.replace(old, new, 1)
-          old = '            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);\n            if (len <= 0) continue;\n            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);\n'
-          new = '            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);\n            if (len < 0) {\n                if (errno == EAGAIN || errno == EWOULDBLOCK) break;\n                if (errno == EINTR) continue;\n                break;\n            }\n            if (len == 0) break;\n            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);\n'
+          s = s.replace(old, '**Current development release: 5.3.1**', 1)
+          old = '> v5.3.0 adds native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.'
           assert s.count(old) == 1
-          s = s.replace(old, new, 1)
-          old = '                else if (opt_tls && dport == 443) {\n                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);\n                }\n            }\n        }\n        if (opt_v6) {\n'
-          new = '                else if (opt_tls && dport == 443) {\n                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);\n                }\n            }\n            } /* bounded RX drain */\n        }\n        if (opt_v6) {\n'
-          assert s.count(old) == 1
+          new = '> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer.\n>\n> v5.3.0 added native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.'
           p.write_text(s.replace(old, new, 1))
+          p = Path('.github/workflows/build-sensor.yml')
+          s = p.read_text()
+          assert 'v5.3.0' in s
+          p.write_text(s.replace('v5.3.0', 'v5.3.1'))
           PY
-      - name: Compile check
+      - name: Validate v5.3.1
         run: |
           git diff --check
           gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
           /tmp/argos-sniffer --help | grep -q 'argos-sniffer v5.3.1'
-          grep -q 'RX_DRAIN_BUDGET 64' src/argos-sniffer.c
-          grep -q 'MSG_TRUNC | MSG_DONTWAIT' src/argos-sniffer.c
-      - name: Commit source
+          grep -q 'Current development release: 5.3.1' README.md
+          grep -q 'Build Argos Sensor v5.3.1' .github/workflows/build-sensor.yml
+      - name: Commit metadata and remove temporary workflow
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/argos-sniffer.c
-          git commit -m 'Release 5.3.1: improve AF_PACKET burst handling'
+          git rm .github/workflows/bump-v531.yml
+          git add README.md .github/workflows/build-sensor.yml
+          git diff --cached --check
+          git commit -m 'Finalize Argos Sniffer v5.3.1 metadata'
           git push
