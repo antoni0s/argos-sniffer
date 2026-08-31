@@ -4,7 +4,7 @@
 
 **Current development release: 5.3.1**
 
-> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer.
+> v5.3.1 keeps the established level-triggered epoll receive path after runtime testing showed that synchronous bounded RX draining increased AF_PACKET drops under burst traffic.
 >
 > v5.3.0 added native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.
 
