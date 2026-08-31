@@ -1,0 +1,46 @@
+name: SPAN sensor bootstrap
+
+on:
+  push:
+    branches:
+      - feature/span-sensor
+    paths:
+      - tools/apply_span_sensor_mvp.py
+      - .github/workflows/span-sensor-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/span-sensor
+          fetch-depth: 0
+
+      - name: Apply sensor MVP patch
+        run: python3 tools/apply_span_sensor_mvp.py
+
+      - name: Compile full QUIC build
+        run: cc -std=c11 -O2 -Wall -Wextra -Wpedantic src/argos-sniffer.c -lm -o /tmp/argos-sniffer-full
+
+      - name: Compile minimal QUIC-stub build
+        run: cc -std=c11 -O2 -Wall -Wextra -Wpedantic -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Commit implementation
+        run: |
+          if git diff --quiet -- src/argos-sniffer.c; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/argos-sniffer.c
+          git commit -m "Add SPAN sensor MVP"
+          git push origin HEAD:feature/span-sensor
