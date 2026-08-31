@@ -262,14 +262,11 @@ static void emit_telemetry(const char *format, ...) {
         len = (int)sizeof(buffer) - 1;
     }
     if (len > 0) {
-        int sent_anywhere = 0;
         if (use_ipc) {
             sendto(ipc_sock, buffer, (size_t)len, MSG_DONTWAIT, (struct sockaddr *)&ipc_addr, sizeof(ipc_addr));
-            sent_anywhere = 1;
         }
         if (use_remote) {
             sendto(remote_sock, buffer, (size_t)len, MSG_DONTWAIT, (struct sockaddr *)&remote_addr, remote_addr_len);
-            sent_anywhere = 1;
         }
         /* -U is a fan-out sink: keep stdout active for the local daemon while
          * also delivering the same record to the remote UDP collector. */
