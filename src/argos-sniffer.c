@@ -89,7 +89,6 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <syslog.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
@@ -137,23 +136,23 @@ static int decrypt_quic_sni_stateful(const unsigned char *payload, int len, int 
 static void quic_heavy_gc(void) {}
 #endif
 
-#define VERSION "5.2.3"
+#define VERSION "5.2.4"
 
 /* ============================================================================
  * SECTION: Telemetry Output Engine
  * Handles transmission of formatted telemetry strings to any combination of:
  *   - a local Unix domain socket (-o <path>), e.g. a local collector daemon
  *     running on the same router;
- *   - a remote UDP socket (-U <ip>:<port> / -U [ipv6]:<port>), i.e. the
+ *   - a remote UDP socket (-u / -U <ip>:<port>), i.e. the
  *     "Native Remote Socket" feature -- a direct, dependency-free way to
  *     ship telemetry straight to a central server over the network without
  *     needing a local relay process;
- *   - syslog (-u), a local syslog-only sink for daemon.info telemetry;
- *   - stdout, used for local daemon pipelines (and always retained with -U).
+ *   - stdout, used for local daemon pipelines and enabled by -U.
  * All configured sinks receive every record. The -U path intentionally fans out
- * to both UDP and stdout so a supervising daemon can continue parsing events.
+ * to both UDP and stdout so a supervising daemon can continue parsing events;
+ * -u selects the UDP-only variant.
  * ============================================================================ */
-static int use_syslog = 0;
+static int udp_only = 0;
 
 #ifdef ARGOS_PORTABLE_TEST
 static void emit_telemetry(const char *format, ...) __attribute__((format(printf, 1, 2)));
@@ -172,7 +171,6 @@ static int remote_sock = -1;
 static struct sockaddr_storage remote_addr;
 static socklen_t remote_addr_len = 0;
 static int use_remote = 0;
-static int syslog_priority = LOG_INFO;
 
 /**
  * Parses a "host:port" (or "[host]:port" for an IPv6 literal, per the usual
@@ -273,24 +271,9 @@ static void emit_telemetry(const char *format, ...) {
             sendto(remote_sock, buffer, (size_t)len, MSG_DONTWAIT, (struct sockaddr *)&remote_addr, remote_addr_len);
             sent_anywhere = 1;
         }
-#ifndef ARGOS_PORTABLE_TEST
-        if (use_syslog) {
-            int syslog_len = len;
-            while (syslog_len > 0 &&
-                   (buffer[syslog_len - 1] == '\n' || buffer[syslog_len - 1] == '\r')) {
-                syslog_len--;
-            }
-            if (syslog_len > 0) {
-                syslog(syslog_priority, "%.*s", syslog_len, buffer);
-            }
-            sent_anywhere = 1;
-        }
-#endif
         /* -U is a fan-out sink: keep stdout active for the local daemon while
          * also delivering the same record to the remote UDP collector. */
-        if (use_remote || (!use_ipc && !use_syslog)) {
-            fputs(buffer, stdout);
-        } else if (!sent_anywhere) {
+        if ((use_remote && !udp_only) || (!use_remote && !use_ipc)) {
             fputs(buffer, stdout);
         }
     }
@@ -2307,7 +2290,7 @@ static void print_help(const char *prog) {
     printf(
 "argos-sniffer v" VERSION " - Passive LAN traffic fingerprinter & live inspector\n"
 "                  for OpenWrt and any Linux gateway\n\n"
-"USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
+"USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u ip:port] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
 "  OR:     %s [iface] (Automatically sets -i <iface> and enables all vectors with -a)\n\n"
 "OPTIONS:\n"
 "  -i <iface>      Interface to listen on (default: any). Comma-separated list or any.\n"
@@ -2323,9 +2306,8 @@ static void print_help(const char *prog) {
 "  -f <seconds>    General deduplication window in seconds (default: 35).\n"
 "                  Quiet ARP/NDP use >=900s and RA >=1800s fixed refresh windows.\n"
 "  -o <path>       Stream telemetry output to a Unix domain socket.\n"
-"  -u              Send telemetry only to local syslog (daemon.info).\n"
+"  -u <ip>:<port>  Stream telemetry to a remote UDP collector only.\n"
 "  -U <ip>:<port>  Stream telemetry to a remote UDP collector and stdout.\n"
-"                  Can be combined with -u for UDP + stdout + syslog fan-out.\n"
 "                  (e.g. -U 10.0.0.5:5140 or -U [::1]:5140).\n"
 "                  NOTE: telemetry is sent unencrypted/unauthenticated -- only\n"
 "                  point this at a trusted host reachable over a trusted path\n"
@@ -2396,7 +2378,7 @@ int main(int argc, char *argv[]) {
      * debugging). -a enables everything rate-limited; -A enables everything
      * verbose. -R/-r configure MAC address lists (hard/soft exclude) rather
      * than telemetry categories, and -x/-z/-Z compile capture filters. */
-    while ((opt = getopt(argc, argv, "i:r:R:x:z:Z:o:uU:c:f:sSmMdDnNqQhHtTlLvVpaAWE")) != -1) {
+    while ((opt = getopt(argc, argv, "i:r:R:x:z:Z:o:u:U:c:f:sSmMdDnNqQhHtTlLvVpaAWE")) != -1) {
         switch (opt) {
             case 'E': opt_ext_metrics = 1; break;
             case 'i': iface = optarg; break;
@@ -2431,12 +2413,12 @@ int main(int argc, char *argv[]) {
                 ipc_addr.sun_family = AF_UNIX;
                 strncpy(ipc_addr.sun_path, optarg, sizeof(ipc_addr.sun_path) - 1);
                 break;
-            case 'u':
-#ifndef ARGOS_PORTABLE_TEST
-                use_syslog = 1;
-                syslog_priority = LOG_INFO;
-                openlog("argos-sniffer", LOG_PID | LOG_NDELAY, LOG_DAEMON);
-#endif
+            case 'u': /* UDP-only remote telemetry sink. */
+                if (remote_sock >= 0) close(remote_sock);
+                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1;
+                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -u"); return 1; }
+                use_remote = 1;
+                udp_only = 1;
                 break;
             case 'U': /* Native Remote Socket: ship telemetry directly to a remote UDP collector.
                        * Caution: if the destination is reachable via one of the interfaces this
@@ -2448,15 +2430,8 @@ int main(int argc, char *argv[]) {
                 if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1; /* parse_host_port() already printed why */
                 if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -U"); return 1; }
                 use_remote = 1;
-#ifndef ARGOS_PORTABLE_TEST
-                /* -U is the default distributed fan-out: UDP + stdout + syslog.
-                 * Use LOG_DEBUG for high-volume records so normal info logging
-                 * keeps the OpenWrt ring buffer usable. */
-                use_syslog = 1;
-                syslog_priority = LOG_DEBUG;
-                openlog("argos-sniffer", LOG_PID | LOG_NDELAY, LOG_DAEMON);
-#endif
-                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP, stdout, and local syslog (debug priority); UDP is unencrypted, use only over a trusted path.\n", optarg);
+                udp_only = 0;
+                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP and stdout; UDP is unencrypted, use only over a trusted path.\n", optarg);
                 break;
             case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); return 1; } max_packets = (int)v; break; }
             case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); return 1; } rate_limit_ttl = (int)v; break; }
