@@ -1,4 +1,4 @@
-name: Build Argos Sensor v5.3.0
+name: Build Argos Sensor v5.3.1
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build:
-    name: Build v5.3.0 ${{ matrix.arch }}
+    name: Build v5.3.1 ${{ matrix.arch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -16,10 +16,10 @@ jobs:
         include:
           - arch: linux-amd64
             compiler: gcc
-            output: argos-sniffer-v5.3.0-linux-amd64
+            output: argos-sniffer-v5.3.1-linux-amd64
           - arch: linux-arm64
             compiler: aarch64-linux-gnu-gcc
-            output: argos-sniffer-v5.3.0-linux-arm64
+            output: argos-sniffer-v5.3.1-linux-arm64
 
     steps:
       - name: Checkout selected branch
@@ -31,10 +31,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Build v5.3.0
+      - name: Build v5.3.1
         run: |
-          sed -i 's/#define VERSION "5\.2\.4"/#define VERSION "5.3.0"/' src/argos-sniffer.c
-          grep -q '#define VERSION "5.3.0"' src/argos-sniffer.c
+          grep -q '#define VERSION "5.3.1"' src/argos-sniffer.c
           ${{ matrix.compiler }} \
             -std=c11 -O2 -Wall -Wextra -Wpedantic \
             src/argos-sniffer.c \
@@ -47,16 +46,16 @@ jobs:
           file ${{ matrix.output }}
           ls -lh ${{ matrix.output }}
 
-      - name: Smoke test AMD64 v5.3.0 sensor CLI
+      - name: Smoke test AMD64 v5.3.1 sensor CLI
         if: matrix.arch == 'linux-amd64'
         run: |
           ./${{ matrix.output }} --help >/tmp/argos-help.txt
-          grep -q 'argos-sniffer v5.3.0' /tmp/argos-help.txt
+          grep -q 'argos-sniffer v5.3.1' /tmp/argos-help.txt
           grep -q -- '--sensor' /tmp/argos-help.txt
           grep -q -- '--sensor-name' /tmp/argos-help.txt
           grep -q -- '--inside' /tmp/argos-help.txt
 
-      - name: Upload v5.3.0 binary artifact
+      - name: Upload v5.3.1 binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.output }}
