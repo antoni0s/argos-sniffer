@@ -1,0 +1,91 @@
+name: Validate corrective Argos Sniffer v5.3.1 receive loop
+
+on:
+  push:
+    branches:
+      - feature/span-sensor
+    paths:
+      - .github/workflows/revert-rx-drain.yml
+
+permissions:
+  contents: write
+
+jobs:
+  revert-rx-drain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/span-sensor
+
+      - name: Restore single-packet epoll receive path
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/argos-sniffer.c')
+          s = p.read_text()
+
+          assert '#define VERSION "5.3.1"' in s
+          budget = '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n'
+          assert s.count(budget) == 1
+          s = s.replace(budget, '', 1)
+
+          loop = '''            /* Drain a bounded number of queued AF_PACKET frames per readiness
+             * event. Level-triggered epoll reports the fd again if data remains;
+             * the budget preserves fairness across interfaces and maintenance. */
+            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {
+'''
+          assert s.count(loop) == 1
+          s = s.replace(loop, '', 1)
+
+          recv = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);
+            if (len < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                if (errno == EINTR) continue;
+                break;
+            }
+            if (len == 0) break;
+            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
+'''
+          original = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
+            if (len <= 0) continue;
+            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
+'''
+          assert s.count(recv) == 1
+          s = s.replace(recv, original, 1)
+
+          tail = '            } /* bounded RX drain */\n'
+          assert s.count(tail) == 1
+          s = s.replace(tail, '', 1)
+
+          p.write_text(s)
+
+          r = Path('README.md')
+          t = r.read_text()
+          old = '> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer.'
+          new = '> v5.3.1 keeps the established level-triggered epoll receive path after runtime testing showed that synchronous bounded RX draining increased AF_PACKET drops under burst traffic.'
+          assert t.count(old) == 1
+          r.write_text(t.replace(old, new, 1))
+          PY
+
+      - name: Strict validation
+        shell: bash
+        run: |
+          git diff --check
+          gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          /tmp/argos-sniffer 2>&1 | grep -q 'argos-sniffer v5.3.1'
+          ! grep -q 'RX_DRAIN_BUDGET' src/argos-sniffer.c
+          ! grep -q 'MSG_TRUNC | MSG_DONTWAIT' src/argos-sniffer.c
+          grep -q 'recvmsg(current_iface->fd, &msg, MSG_TRUNC)' src/argos-sniffer.c
+
+      - name: Commit corrective v5.3.1
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/argos-sniffer.c README.md
+          git diff --cached --check
+          git commit -m 'Fix 5.3.1: revert RX drain regression'
+          git push
