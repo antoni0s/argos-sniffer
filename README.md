@@ -2,9 +2,11 @@
 
 **`argos-sniffer`** is a high-performance, lightweight, passive packet capture and network telemetry engine written in C for **OpenWrt/Linux gateways** and dedicated **Linux SPAN/TAP sensors**. It serves as the data-emitter core for the **Argos Network Sentinel** ecosystem, observing traffic passively with no active probing or packet injection.
 
-**Current development release: 5.3.0**
+**Current development release: 5.3.1**
 
-> v5.3.0 adds native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.
+> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer.
+>
+> v5.3.0 added native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.
 
 ---
 
@@ -142,14 +144,14 @@ docker run --rm --platform linux/arm64 -v "$PWD":/src -w /src alpine:latest sh -
 
 ### GitHub Actions — Manual Sensor Builds
 
-The `Build Argos Sensor` workflow is manual (`workflow_dispatch`) and produces:
+The `Build Argos Sensor v5.3.1` workflow is manual (`workflow_dispatch`) and produces:
 
 ```text
-argos-sniffer-linux-amd64
-argos-sniffer-linux-arm64
+argos-sniffer-v5.3.1-linux-amd64
+argos-sniffer-v5.3.1-linux-arm64
 ```
 
-Run it from **Actions → Build Argos Sensor → Run workflow** and select the branch to build. Artifacts are retained for 14 days.
+Run it from **Actions → Build Argos Sensor v5.3.1 → Run workflow** and select the branch to build. Artifacts are retained for 14 days.
 
 ---
 
