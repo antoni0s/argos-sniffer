@@ -2716,7 +2716,7 @@ int main(int argc, char *argv[]) {
             setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
         }
 
-        int rcvbuf = 1024 * 1024; setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+        int rcvbuf = 2 * 1024 * 1024; setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
         int one = 1;
         setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &one, sizeof(one)); /* recover HW-stripped VLAN */
 #ifdef SO_TIMESTAMPNS
