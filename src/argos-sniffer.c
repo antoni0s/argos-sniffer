@@ -148,7 +148,7 @@ static int decrypt_quic_sni_stateful(const unsigned char *payload, int len, int 
 static void quic_heavy_gc(void) {}
 #endif
 
-#define VERSION "5.2.4"
+#define VERSION "5.3.0"
 
 /* ============================================================================
  * SECTION: Telemetry Output Engine
