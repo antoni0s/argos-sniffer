@@ -1,0 +1,48 @@
+name: Experimental flow suppression + AF_PACKET prefilter
+
+on:
+  push:
+    branches:
+      - feature/span-sensor
+    paths:
+      - .github/workflows/experimental-flow-bpf.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/span-sensor
+          fetch-depth: 0
+
+      - name: Apply experimental patch
+        shell: bash
+        run: |
+          echo 'PATCH_B64_PLACEHOLDER' | base64 -d > /tmp/argos_patch.py
+          python3 /tmp/argos_patch.py
+
+      - name: Validate source
+        shell: bash
+        run: |
+          git diff --check
+          grep -q '#define VERSION "5.3.1"' src/argos-sniffer.c
+          grep -q 'APP_FLOW_PACKET_BUDGET 8' src/argos-sniffer.c
+          grep -q 'SO_ATTACH_FILTER' src/argos-sniffer.c
+          grep -q 'int rcvbuf = 2 \* 1024 \* 1024' src/argos-sniffer.c
+          grep -q 'recvmsg(current_iface->fd, &msg, MSG_TRUNC)' src/argos-sniffer.c
+          ! grep -q 'RX_DRAIN_BUDGET' src/argos-sniffer.c
+          gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          /tmp/argos-sniffer -V 2>&1 | grep -q '5.3.1'
+
+      - name: Commit source change
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c
+          git commit -m 'Experiment 5.3.1: suppress completed app flows and prefilter bulk traffic'
+          git push origin HEAD:feature/span-sensor
