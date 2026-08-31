@@ -64,8 +64,8 @@ argos-sniffer -i br-lan -a -E -W -f 35
 # Pipe telemetry directly to a Unix socket or a remote UDP collector
 argos-sniffer -i br-lan -a -o /var/run/argos.sock
 argos-sniffer -i br-lan -a -U 192.168.1.50:51412
-# Send telemetry only to local syslog
-argos-sniffer -i br-lan -a -u
+# Send telemetry to a UDP collector only (no stdout)
+argos-sniffer -i br-lan -a -u 192.168.1.50:51412
 # UDP + stdout + syslog fan-out for a distributed daemon
 argos-sniffer -i br-lan -a -U 192.168.1.50:51412
 
