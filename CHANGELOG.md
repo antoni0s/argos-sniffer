@@ -4,7 +4,7 @@ All notable changes to **Argos Sniffer** are documented in this file.
 
 The project follows release-oriented version history. Development experiments that are reverted before release are recorded when they are useful for explaining later design decisions. Older entries below are reconstructed conservatively from the repository's own commit history and historical source changelog notes; details that cannot be verified from the repository are intentionally omitted.
 
-## [5.3.1] - 2026-08-31
+## [5.3.1]
 
 ### Performance & packet capture
 
@@ -29,7 +29,7 @@ The project follows release-oriented version history. Development experiments th
 - Kernel-filter changes validated with a real Linux `AF_PACKET` + `SO_ATTACH_FILTER` smoke test.
 - Runtime burst testing included sustained HTTPS transfers and `PACKET_STATISTICS` drop monitoring.
 
-## [5.3.0] - 2026-08-31
+## [5.3.0]
 
 ### SPAN / TAP sensor mode
 
@@ -51,7 +51,7 @@ The project follows release-oriented version history. Development experiments th
 - Added Linux SPAN/TAP deployment documentation and examples.
 - Added dedicated amd64 and arm64 sensor build artifacts/workflow support.
 
-## [5.2.4] - 2026-08-31
+## [5.2.4]
 
 ### Telemetry output
 
@@ -61,7 +61,7 @@ The project follows release-oriented version history. Development experiments th
 - Corrected README examples for UDP-only operation.
 - Removed obsolete telemetry sink bookkeeping left behind by the output-path changes.
 
-## [5.2.3] - 2026-08-31
+## [5.2.3]
 
 ### Release
 
@@ -69,7 +69,7 @@ The project follows release-oriented version history. Development experiments th
 - Preserved portable-test compilation without requiring syslog headers.
 - Used debug-priority syslog handling for high-volume distributed telemetry where applicable.
 
-## [5.2.2] - 2026-08-30
+## [5.2.2]
 
 ### Telemetry output
 
@@ -78,7 +78,7 @@ The project follows release-oriented version history. Development experiments th
 - Added remote UDP telemetry fan-out while retaining stdout for a supervising local daemon.
 - Documented the native UDP/stdout/syslog output paths and the trusted-path requirement for unencrypted UDP telemetry.
 
-## [5.2.1] - 2026-08-30
+## [5.2.1]
 
 ### Repository & build layout
 
@@ -98,7 +98,7 @@ The project follows release-oriented version history. Development experiments th
 - Stateful telemetry deduplication/rate limiting.
 - DHCP, DNS, mDNS, SSDP, WSD, NetBIOS, HTTP and TLS-oriented telemetry vectors present in the pre-5.2 codebase.
 
-## [4.9.1] - 2026-08-26
+## [4.9.1]
 
 ### Discovery
 
@@ -109,7 +109,7 @@ The project follows release-oriented version history. Development experiments th
 
 - At this historical point, QUIC/UDP 443 tracking was intentionally not implemented; later 5.x development superseded that decision with stateful QUIC/HTTP3 inspection.
 
-## [4.9] - 2026-08-26
+## [4.9]
 
 ### Targeted telemetry
 
