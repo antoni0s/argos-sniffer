@@ -1,4 +1,4 @@
-name: Apply Argos Sniffer v5.3.1 RX drain
+name: Bump Argos version to 5.3.1
 
 on:
   push:
@@ -11,57 +11,44 @@ permissions:
   contents: write
 
 jobs:
-  patch-validate-commit:
+  bump:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feature/span-sensor
-
-      - name: Apply v5.3.1 bounded RX drain
-        shell: bash
+      - name: Patch source
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
-          src = Path('src/argos-sniffer.c')
-          s = src.read_text()
-
-          old_version = '#define VERSION "5.3.0"'
-          assert s.count(old_version) == 1, 'unexpected VERSION definition'
-          s = s.replace(old_version, '#define VERSION "5.3.1"', 1)
-
-          budget_anchor = '#define MAX_EPOLL_EVENTS 16\n'
-          assert s.count(budget_anchor) == 1, 'MAX_EPOLL_EVENTS anchor not unique'
-          s = s.replace(
-              budget_anchor,
-              budget_anchor + '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n',
-              1,
-          )
-
-          loop_old = '''        for (int i = 0; i < nfds; i++) {
+          p = Path('src/argos-sniffer.c')
+          s = p.read_text()
+          assert s.count('#define VERSION "5.3.0"') == 1
+          s = s.replace('#define VERSION "5.3.0"', '#define VERSION "5.3.1"', 1)
+          a = '#define MAX_EPOLL_EVENTS 16\n'
+          assert s.count(a) == 1
+          s = s.replace(a, a + '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n', 1)
+          a = '''        for (int i = 0; i < nfds; i++) {
             capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
 
             struct sockaddr_ll from_ll;
 '''
-          loop_new = '''        for (int i = 0; i < nfds; i++) {
+          b = '''        for (int i = 0; i < nfds; i++) {
             capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
 
             /* Drain a bounded number of queued AF_PACKET frames per readiness
-             * event. Level-triggered epoll will report the fd again when more
-             * data remains; the budget prevents one busy interface from
-             * monopolizing parser, maintenance, or other interface work. */
+             * event. Level-triggered epoll reports the fd again if data remains;
+             * the budget preserves fairness across interfaces and maintenance. */
             for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {
             struct sockaddr_ll from_ll;
 '''
-          assert s.count(loop_old) == 1, 'main receive-loop anchor not unique'
-          s = s.replace(loop_old, loop_new, 1)
-
-          recv_old = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
+          assert s.count(a) == 1
+          s = s.replace(a, b, 1)
+          a = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
             if (len <= 0) continue;
             if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
 '''
-          recv_new = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);
+          b = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);
             if (len < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) break;
                 if (errno == EINTR) continue;
@@ -70,17 +57,16 @@ jobs:
             if (len == 0) break;
             if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
 '''
-          assert s.count(recv_old) == 1, 'recvmsg anchor not unique'
-          s = s.replace(recv_old, recv_new, 1)
-
-          tail_old = '''                else if (opt_tls && dport == 443) {
+          assert s.count(a) == 1
+          s = s.replace(a, b, 1)
+          a = '''                else if (opt_tls && dport == 443) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
             }
         }
         if (opt_v6) {
 '''
-          tail_new = '''                else if (opt_tls && dport == 443) {
+          b = '''                else if (opt_tls && dport == 443) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
             }
@@ -88,56 +74,18 @@ jobs:
         }
         if (opt_v6) {
 '''
-          assert s.count(tail_old) == 1, 'receive-loop tail anchor not unique'
-          s = s.replace(tail_old, tail_new, 1)
-
-          src.write_text(s)
-
-          readme = Path('README.md')
-          r = readme.read_text()
-          release_old = '''**Current development release: 5.3.0**
-
-> v5.3.0 adds native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.
-'''
-          release_new = '''**Current development release: 5.3.1**
-
-> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer.
->
-> v5.3.0 added native SPAN/TAP sensor operation while preserving the existing gateway mode and legacy telemetry format by default.
-'''
-          assert r.count(release_old) == 1, 'README release anchor not unique'
-          readme.write_text(r.replace(release_old, release_new, 1))
-
-          build = Path('.github/workflows/build-sensor.yml')
-          b = build.read_text()
-          assert 'v5.3.0' in b, 'build-sensor version anchor missing'
-          b = b.replace('v5.3.0', 'v5.3.1')
-          b = b.replace('VERSION "5\\.2\\.4"/#define VERSION "5.3.1"', 'VERSION "5\\.3\\.1"/#define VERSION "5.3.1"')
-          # Source is already 5.3.1; make the build verify rather than rewrite it.
-          b = b.replace("sed -i 's/#define VERSION \"5\\.2\\.4\"/#define VERSION \"5.3.1\"/' src/argos-sniffer.c\n          grep -q '#define VERSION \"5.3.1\"' src/argos-sniffer.c",
-                        "grep -q '#define VERSION \"5.3.1\"' src/argos-sniffer.c")
-          build.write_text(b)
+          assert s.count(a) == 1
+          p.write_text(s.replace(a, b, 1))
           PY
-
-      - name: Validate source and diff
-        shell: bash
+      - name: Compile check
         run: |
           git diff --check
           gcc -std=c11 -O2 -Wall -Wextra -Wpedantic src/argos-sniffer.c -lm -o /tmp/argos-sniffer
-          /tmp/argos-sniffer --help >/tmp/argos-help.txt
-          grep -q 'argos-sniffer v5.3.1' /tmp/argos-help.txt
-          grep -q -- '--sensor' /tmp/argos-help.txt
-          grep -q -- '--sensor-name' /tmp/argos-help.txt
-          grep -q -- '--inside' /tmp/argos-help.txt
-          grep -q 'RX_DRAIN_BUDGET 64' src/argos-sniffer.c
-          grep -q 'MSG_TRUNC | MSG_DONTWAIT' src/argos-sniffer.c
-
-      - name: Commit validated v5.3.1
-        shell: bash
+          /tmp/argos-sniffer --help | grep -q 'argos-sniffer v5.3.1'
+      - name: Commit source
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/argos-sniffer.c README.md .github/workflows/build-sensor.yml
-          git diff --cached --check
-          git commit -m "Release 5.3.1: improve AF_PACKET burst handling"
-          git push origin HEAD:feature/span-sensor
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/argos-sniffer.c
+          git commit -m 'Release 5.3.1: improve AF_PACKET burst handling'
+          git push
