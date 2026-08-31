@@ -21,6 +21,19 @@ jobs:
           ref: feature/span-sensor
           fetch-depth: 0
 
+      - name: Normalize bootstrap C escapes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tools/apply_span_sensor_mvp.py')
+          s = p.read_text(encoding='utf-8')
+          old = "helper_code = helper_anchor + '''"
+          new = "helper_code = helper_anchor + r'''"
+          if old not in s:
+              raise SystemExit('helper_code anchor not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Apply sensor MVP patch
         run: python3 tools/apply_span_sensor_mvp.py
 
