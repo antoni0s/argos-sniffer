@@ -148,7 +148,7 @@ static int decrypt_quic_sni_stateful(const unsigned char *payload, int len, int 
 static void quic_heavy_gc(void) {}
 #endif
 
-#define VERSION "5.3.0"
+#define VERSION "5.3.1"
 
 /* ============================================================================
  * SECTION: Telemetry Output Engine
@@ -657,6 +657,7 @@ static float calculate_entropy(const char *str) {
  * ============================================================================ */
 #define MAX_INTERFACES 8
 #define MAX_EPOLL_EVENTS 16
+#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */
 typedef enum { LINK_UNSUPPORTED = 0, LINK_ETHERNET = 1, LINK_RAW_IP = 2, LINK_COOKED = 3, LINK_PER_PACKET = 4 } link_type_t;
 #define CAPTURE_BUF 65535  /* one full IPv4/IPv6 datagram; PQ ClientHellos need this */
 #ifdef ARGOS_PORTABLE_TEST
@@ -2781,6 +2782,10 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < nfds; i++) {
             capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
 
+            /* Drain a bounded number of queued AF_PACKET frames per readiness
+             * event. Level-triggered epoll reports the fd again if data remains;
+             * the budget preserves fairness across interfaces and maintenance. */
+            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {
             struct sockaddr_ll from_ll;
             memset(&from_ll, 0, sizeof(from_ll));
             struct iovec iov;
@@ -2796,8 +2801,13 @@ int main(int argc, char *argv[]) {
             msg.msg_control = cmsg_buf;
             msg.msg_controllen = sizeof(cmsg_buf);
 
-            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
-            if (len <= 0) continue;
+            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);
+            if (len < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                if (errno == EINTR) continue;
+                break;
+            }
+            if (len == 0) break;
             if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
 
             uint64_t pkt_usec = 0;
@@ -3317,6 +3327,7 @@ int main(int argc, char *argv[]) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
             }
+            } /* bounded RX drain */
         }
         if (opt_v6) {
             uint64_t processing_end_us = get_current_usec();
