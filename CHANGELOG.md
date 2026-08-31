@@ -2,7 +2,7 @@
 
 All notable changes to **Argos Sniffer** are documented in this file.
 
-The project follows release-oriented version history. Development experiments that are reverted before release are recorded when they are useful for explaining later design decisions.
+The project follows release-oriented version history. Development experiments that are reverted before release are recorded when they are useful for explaining later design decisions. Older entries below are reconstructed conservatively from the repository's own commit history and historical source changelog notes; details that cannot be verified from the repository are intentionally omitted.
 
 ## [5.3.1] - 2026-08-31
 
@@ -50,6 +50,73 @@ The project follows release-oriented version history. Development experiments th
 
 - Added Linux SPAN/TAP deployment documentation and examples.
 - Added dedicated amd64 and arm64 sensor build artifacts/workflow support.
+
+## [5.2.4] - 2026-08-31
+
+### Telemetry output
+
+- Finalized the CLI distinction between the two native UDP telemetry modes.
+- `-u <ip>:<port>` is the **UDP-only** remote collector mode and does not retain stdout output.
+- `-U <ip>:<port>` retains the distributed **UDP + stdout** fan-out behavior.
+- Corrected README examples for UDP-only operation.
+- Removed obsolete telemetry sink bookkeeping left behind by the output-path changes.
+
+## [5.2.3] - 2026-08-31
+
+### Release
+
+- Bumped the sniffer release from 5.2.2 to **5.2.3** after the telemetry-output work.
+- Preserved portable-test compilation without requiring syslog headers.
+- Used debug-priority syslog handling for high-volume distributed telemetry where applicable.
+
+## [5.2.2] - 2026-08-30
+
+### Telemetry output
+
+- Added native telemetry sink work for distributed operation.
+- Added local syslog support during the initial 5.2.2 telemetry-output implementation.
+- Added remote UDP telemetry fan-out while retaining stdout for a supervising local daemon.
+- Documented the native UDP/stdout/syslog output paths and the trusted-path requirement for unencrypted UDP telemetry.
+
+## [5.2.1] - 2026-08-30
+
+### Repository & build layout
+
+- Established **5.2.1** as the stable source release in the repository.
+- Moved/standardized the build source path under `src/argos-sniffer.c` and updated README build commands accordingly.
+- Added strict GitHub Actions compile validation for the full QUIC build and the `ARGOS_QUIC_STUB` build.
+- Added static **ARM64** release builds, UPX-compressed ARM64 artifacts and SHA-256 release checksums.
+- Added static **x86_64** builds and UPX-compressed x86_64 release artifacts.
+- Added tagged-release asset publishing with source-version/tag consistency checks.
+
+### Historical baseline carried into 5.2.x
+
+- Passive `AF_PACKET` capture with TCP SYN/SYN-ACK fingerprinting and TCP option extraction.
+- Target packet inspector (`-z`) and target-filtered structured telemetry (`-Z`).
+- IPv4 and IPv6 local/private-source classification.
+- VLAN-aware capture and userspace L2 extraction.
+- Stateful telemetry deduplication/rate limiting.
+- DHCP, DNS, mDNS, SSDP, WSD, NetBIOS, HTTP and TLS-oriented telemetry vectors present in the pre-5.2 codebase.
+
+## [4.9.1] - 2026-08-26
+
+### Discovery
+
+- Added **WS-Discovery (WSD)** payload extraction on UDP/3702 to the `-m` / `-M` discovery vector.
+- Extended L7 discovery handling from mDNS/SSDP to include WSD, improving passive identification opportunities for devices such as ONVIF cameras and printers.
+
+### Design note
+
+- At this historical point, QUIC/UDP 443 tracking was intentionally not implemented; later 5.x development superseded that decision with stateful QUIC/HTTP3 inspection.
+
+## [4.9] - 2026-08-26
+
+### Targeted telemetry
+
+- Added `-Z <mac>` target-filtered telemetry for Mode 2 so structured fingerprinting could be restricted to one device.
+- Added IPv6 private/local source classification as the IPv6 counterpart to the existing IPv4 source-address privacy filter.
+- Increased the telemetry deduplication hash table from **512 to 4096 slots** to reduce collision-driven suppression resets on busy networks.
+- Ignored `SIGPIPE` so a disappearing downstream log consumer no longer silently terminates the sniffer on the next stdout write.
 
 ## History policy
 
