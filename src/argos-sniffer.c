@@ -101,6 +101,7 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <linux/if_packet.h>
+#include <linux/filter.h>
 #include <ifaddrs.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
@@ -999,6 +1000,134 @@ static void source_dedup_signature(char *out, size_t out_cap, const char *src_ip
     snprintf(out, out_cap, "%s|%s|%s", src_ip ? src_ip : "",
              payload ? payload : "", (routed_str && routed_str[0]) ? "routed" : "direct");
 }
+
+/* ============================================================================
+ * SECTION: Application Flow Suppression
+ * Keeps a tiny fixed-size state table for outbound HTTP/TLS flows. Once the
+ * useful application fingerprint has been observed (or a small payload budget
+ * is exhausted), later application-data packets skip deep HTTP/TLS parsing.
+ * SYN/SYNACK/FIN/RST handling stays independent and is never suppressed here.
+ * ============================================================================ */
+#define APP_FLOW_SLOTS 1024
+#define APP_FLOW_PROBES 4
+#define APP_FLOW_TTL_SECS 60
+#define APP_FLOW_PACKET_BUDGET 8
+
+typedef struct {
+    uint64_t key;
+    time_t last_seen;
+    uint8_t src[16];
+    uint8_t dst[16];
+    uint16_t sport;
+    uint16_t dport;
+    uint8_t ip_version;
+    uint8_t payload_packets;
+    uint8_t valid;
+    uint8_t done;
+} app_flow_entry_t;
+
+static app_flow_entry_t app_flow_table[APP_FLOW_SLOTS];
+
+static uint64_t app_flow_key(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                             uint16_t sport, uint16_t dport) {
+    size_t addr_len = ip_version == 6U ? 16U : 4U;
+    uint64_t h = 1469598103934665603ULL;
+    h = hash_update(h, &ip_version, sizeof(ip_version));
+    h = hash_update(h, src, addr_len);
+    h = hash_update(h, dst, addr_len);
+    h = hash_update(h, &sport, sizeof(sport));
+    h = hash_update(h, &dport, sizeof(dport));
+    return h;
+}
+
+static app_flow_entry_t *app_flow_find(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                       uint16_t sport, uint16_t dport, int create) {
+    size_t addr_len = ip_version == 6U ? 16U : 4U;
+    uint64_t key = app_flow_key(ip_version, src, dst, sport, dport);
+    size_t base = (size_t)(key & (APP_FLOW_SLOTS - 1U));
+    time_t now = time(NULL);
+    size_t replace_slot = base;
+    time_t oldest = now;
+
+    for (size_t probe = 0; probe < APP_FLOW_PROBES; ++probe) {
+        size_t slot = (base + probe) & (APP_FLOW_SLOTS - 1U);
+        app_flow_entry_t *e = &app_flow_table[slot];
+        if (e->valid && e->key == key && e->ip_version == ip_version &&
+            e->sport == sport && e->dport == dport &&
+            memcmp(e->src, src, addr_len) == 0 && memcmp(e->dst, dst, addr_len) == 0) {
+            if ((now - e->last_seen) <= APP_FLOW_TTL_SECS) {
+                e->last_seen = now;
+                return e;
+            }
+            e->valid = 0;
+        }
+        if (!e->valid || (now - e->last_seen) > APP_FLOW_TTL_SECS) {
+            replace_slot = slot;
+            break;
+        }
+        if (e->last_seen < oldest) {
+            oldest = e->last_seen;
+            replace_slot = slot;
+        }
+    }
+
+    if (!create) return NULL;
+
+    app_flow_entry_t *e = &app_flow_table[replace_slot];
+    memset(e, 0, sizeof(*e));
+    e->key = key;
+    e->last_seen = now;
+    e->ip_version = ip_version;
+    e->sport = sport;
+    e->dport = dport;
+    memcpy(e->src, src, addr_len);
+    memcpy(e->dst, dst, addr_len);
+    e->valid = 1;
+    return e;
+}
+
+static int app_flow_should_skip(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                uint16_t sport, uint16_t dport) {
+    app_flow_entry_t *e = app_flow_find(ip_version, src, dst, sport, dport, 0);
+    return e && e->done;
+}
+
+/* A complete TLS ClientHello is enough to finish TLS fingerprinting. HTTP is
+ * complete once the request header terminator is present in the captured
+ * payload. The packet that completes the fingerprint is still parsed; DONE is
+ * applied only to subsequent packets. */
+static int app_flow_payload_complete(uint16_t dport, const unsigned char *payload, int payload_len) {
+    if (!payload || payload_len <= 0) return 0;
+
+    if (dport == 443U) {
+        if (payload_len < 9 || payload[0] != 0x16 || payload[5] != 0x01) return 0;
+        uint32_t hs_len = ((uint32_t)payload[6] << 16) |
+                          ((uint32_t)payload[7] << 8) |
+                          (uint32_t)payload[8];
+        return hs_len <= (uint32_t)(payload_len - 9);
+    }
+
+    if (dport == 80U || dport == 8080U) {
+        for (int i = 0; i + 3 < payload_len; ++i) {
+            if (payload[i] == '\r' && payload[i + 1] == '\n' &&
+                payload[i + 2] == '\r' && payload[i + 3] == '\n') return 1;
+        }
+    }
+    return 0;
+}
+
+static void app_flow_note_payload(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                  uint16_t sport, uint16_t dport, int fingerprint_complete) {
+    app_flow_entry_t *e = app_flow_find(ip_version, src, dst, sport, dport, 1);
+    if (!e) return;
+    if (fingerprint_complete) {
+        e->done = 1;
+        return;
+    }
+    if (e->payload_packets < 255U) e->payload_packets++;
+    if (e->payload_packets >= APP_FLOW_PACKET_BUDGET) e->done = 1;
+}
+
 static inline uint16_t read_be16(const unsigned char *p) { return (uint16_t)((p[0] << 8) | p[1]); }
 static void format_mac(const uint8_t mac[6], char out[18]) {
     snprintf(out, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
@@ -2484,6 +2613,72 @@ static void print_help(const char *prog) {
  * Entry point: parses command-line arguments, sets up network interfaces, configures 
  * epoll, and runs the primary packet processing loop.
  * ============================================================================ */
+
+/* ============================================================================
+ * SECTION: Kernel AF_PACKET Prefilter
+ * A deliberately conservative classic-BPF prefilter for Ethernet sockets.
+ * It keeps every frame class Argos currently parses, but drops uninteresting
+ * untagged IPv4 bulk traffic before it consumes AF_PACKET receive-buffer space.
+ *
+ * Safety choices:
+ *   - IPv6 is accepted wholesale (extension-header-safe).
+ *   - VLAN/QinQ and PPPoE are accepted wholesale (offset-safe).
+ *   - live packet-dump mode (-z) bypasses this filter entirely.
+ *   - for untagged IPv4 TCP, SYN/FIN/RST plus HTTP/TLS destination ports pass.
+ *   - for untagged IPv4 UDP, only Argos discovery/DNS/QUIC ports pass.
+ * ============================================================================ */
+static int attach_argos_kernel_filter(int sock) {
+    static const struct sock_filter code[] = {
+        BPF_STMT(BPF_LD  | BPF_H | BPF_ABS, 12),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0806, 35, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x88cc, 34, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x8100, 33, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x88a8, 32, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x8864, 31, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x86dd, 30, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0800, 0, 30),
+
+        BPF_STMT(BPF_LD  | BPF_B | BPF_ABS, 23),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 2, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_UDP, 9, 0),
+        BPF_JUMP(BPF_JMP | BPF_JA, 26, 0, 0),
+
+        BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 14),
+        BPF_STMT(BPF_LD  | BPF_B | BPF_IND, 27),
+        BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, TH_FIN | TH_SYN | TH_RST, 22, 0),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 16),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 80,   20, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 8080, 19, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 443,  18, 0),
+        BPF_JUMP(BPF_JMP | BPF_JA, 18, 0, 0),
+
+        BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 14),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 16),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 67,   14, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 137,  13, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1900, 12, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 3702, 11, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5353, 10, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 53,    9, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 443,   8, 0),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 14),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 67,    6, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 137,   5, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1900,  4, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 3702,  3, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5353,  2, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 53,    1, 0),
+        BPF_JUMP(BPF_JMP | BPF_JA, 1, 0, 0),
+
+        BPF_STMT(BPF_RET | BPF_K, 0x0000ffffU),
+        BPF_STMT(BPF_RET | BPF_K, 0U)
+    };
+    struct sock_fprog prog;
+    prog.len = (unsigned short)(sizeof(code) / sizeof(code[0]));
+    prog.filter = (struct sock_filter *)code;
+    return setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &prog, sizeof(prog));
+}
+
 #ifndef ARGOS_PORTABLE_TEST
 int main(int argc, char *argv[]) {
     const char *iface = "any";
@@ -2709,6 +2904,12 @@ int main(int argc, char *argv[]) {
         }
         
         if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); token = strtok(NULL, ","); continue; }
+
+        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
+            if (attach_argos_kernel_filter(sock) < 0) {
+                fprintf(stderr, "warning: unable to attach AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));
+            }
+        }
 
         if (opt_promisc && active_ifaces[num_ifaces].type == LINK_ETHERNET) {
             struct packet_mreq mr; memset(&mr, 0, sizeof(mr));
@@ -3172,6 +3373,14 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
+                int app_track = payload_len > 0 &&
+                                ((opt_http && (dport == 80U || dport == 8080U)) ||
+                                 (opt_tls && dport == 443U));
+                if (app_track && app_flow_should_skip(flow_ip_version, flow_src_addr, flow_dst_addr,
+                                                      sport, dport)) {
+                    continue;
+                }
+
                 if (opt_http && (dport == 80 || dport == 8080) && payload_len > 16) {
                     const unsigned char *p = buffer + payload_offset;
                     if ((payload_len >= 4 && memcmp(p, "GET ", 4) == 0) || (payload_len >= 5 && memcmp(p, "POST ", 5) == 0)) {
@@ -3191,6 +3400,13 @@ int main(int argc, char *argv[]) {
                 }
                 else if (opt_tls && dport == 443 && payload_len > 44) {
                     parse_tls_sni(buffer + payload_offset, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
+                }
+
+                if (app_track) {
+                    int fingerprint_complete = app_flow_payload_complete(
+                        dport, buffer + payload_offset, payload_len);
+                    app_flow_note_payload(flow_ip_version, flow_src_addr, flow_dst_addr,
+                                          sport, dport, fingerprint_complete);
                 }
             }
             else if (protocol == IPPROTO_UDP) {
