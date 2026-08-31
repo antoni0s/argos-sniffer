@@ -21,54 +21,12 @@ jobs:
       - name: Restore single-packet epoll receive path
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path('src/argos-sniffer.c')
-          s = p.read_text()
-
-          assert '#define VERSION "5.3.1"' in s
-          budget = '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n'
-          assert s.count(budget) == 1
-          s = s.replace(budget, '', 1)
-
-          loop = '''            /* Drain a bounded number of queued AF_PACKET frames per readiness
-             * event. Level-triggered epoll reports the fd again if data remains;
-             * the budget preserves fairness across interfaces and maintenance. */
-            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {
-'''
-          assert s.count(loop) == 1
-          s = s.replace(loop, '', 1)
-
-          recv = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);
-            if (len < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-                if (errno == EINTR) continue;
-                break;
-            }
-            if (len == 0) break;
-            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
-'''
-          original = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
-            if (len <= 0) continue;
-            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
-'''
-          assert s.count(recv) == 1
-          s = s.replace(recv, original, 1)
-
-          tail = '            } /* bounded RX drain */\n'
-          assert s.count(tail) == 1
-          s = s.replace(tail, '', 1)
-
-          p.write_text(s)
-
-          r = Path('README.md')
-          t = r.read_text()
-          old = '> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer.'
-          new = '> v5.3.1 keeps the established level-triggered epoll receive path after runtime testing showed that synchronous bounded RX draining increased AF_PACKET drops under burst traffic.'
-          assert t.count(old) == 1
-          r.write_text(t.replace(old, new, 1))
-          PY
+          grep -q '#define VERSION "5.3.1"' src/argos-sniffer.c
+          sed -i '/#define RX_DRAIN_BUDGET 64/d' src/argos-sniffer.c
+          python3 -c 'from pathlib import Path; p=Path("src/argos-sniffer.c"); s=p.read_text(); old="            /* Drain a bounded number of queued AF_PACKET frames per readiness\n             * event. Level-triggered epoll reports the fd again if data remains;\n             * the budget preserves fairness across interfaces and maintenance. */\n            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {\n"; assert s.count(old)==1; p.write_text(s.replace(old,"",1))'
+          python3 -c 'from pathlib import Path; p=Path("src/argos-sniffer.c"); s=p.read_text(); old="            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);\n            if (len < 0) {\n                if (errno == EAGAIN || errno == EWOULDBLOCK) break;\n                if (errno == EINTR) continue;\n                break;\n            }\n            if (len == 0) break;\n            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);\n"; new="            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);\n            if (len <= 0) continue;\n            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);\n"; assert s.count(old)==1; p.write_text(s.replace(old,new,1))'
+          sed -i '/} \/\* bounded RX drain \*\//d' src/argos-sniffer.c
+          python3 -c 'from pathlib import Path; p=Path("README.md"); s=p.read_text(); old="> v5.3.1 improves AF_PACKET microburst handling with a bounded nonblocking receive drain while preserving interface fairness and the existing 1 MiB socket receive buffer."; new="> v5.3.1 keeps the established level-triggered epoll receive path after runtime testing showed that synchronous bounded RX draining increased AF_PACKET drops under burst traffic."; assert s.count(old)==1; p.write_text(s.replace(old,new,1))'
 
       - name: Strict validation
         shell: bash
