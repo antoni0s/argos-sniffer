@@ -25,63 +25,29 @@ jobs:
           s = p.read_text()
           assert s.count('#define VERSION "5.3.0"') == 1
           s = s.replace('#define VERSION "5.3.0"', '#define VERSION "5.3.1"', 1)
-          a = '#define MAX_EPOLL_EVENTS 16\n'
-          assert s.count(a) == 1
-          s = s.replace(a, a + '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n', 1)
-          a = '''        for (int i = 0; i < nfds; i++) {
-            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
-
-            struct sockaddr_ll from_ll;
-'''
-          b = '''        for (int i = 0; i < nfds; i++) {
-            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
-
-            /* Drain a bounded number of queued AF_PACKET frames per readiness
-             * event. Level-triggered epoll reports the fd again if data remains;
-             * the budget preserves fairness across interfaces and maintenance. */
-            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {
-            struct sockaddr_ll from_ll;
-'''
-          assert s.count(a) == 1
-          s = s.replace(a, b, 1)
-          a = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
-            if (len <= 0) continue;
-            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
-'''
-          b = '''            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);
-            if (len < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-                if (errno == EINTR) continue;
-                break;
-            }
-            if (len == 0) break;
-            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
-'''
-          assert s.count(a) == 1
-          s = s.replace(a, b, 1)
-          a = '''                else if (opt_tls && dport == 443) {
-                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
-                }
-            }
-        }
-        if (opt_v6) {
-'''
-          b = '''                else if (opt_tls && dport == 443) {
-                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
-                }
-            }
-            } /* bounded RX drain */
-        }
-        if (opt_v6) {
-'''
-          assert s.count(a) == 1
-          p.write_text(s.replace(a, b, 1))
+          anchor = '#define MAX_EPOLL_EVENTS 16\n'
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, anchor + '#define RX_DRAIN_BUDGET 64  /* bounded AF_PACKET drain per epoll readiness event */\n', 1)
+          old = '        for (int i = 0; i < nfds; i++) {\n            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;\n\n            struct sockaddr_ll from_ll;\n'
+          new = '        for (int i = 0; i < nfds; i++) {\n            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;\n\n            /* Drain a bounded number of queued AF_PACKET frames per readiness\n             * event. Level-triggered epoll reports the fd again if data remains;\n             * the budget preserves fairness across interfaces and maintenance. */\n            for (int rx = 0; rx < RX_DRAIN_BUDGET && running; rx++) {\n            struct sockaddr_ll from_ll;\n'
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = '            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);\n            if (len <= 0) continue;\n            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);\n'
+          new = '            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC | MSG_DONTWAIT);\n            if (len < 0) {\n                if (errno == EAGAIN || errno == EWOULDBLOCK) break;\n                if (errno == EINTR) continue;\n                break;\n            }\n            if (len == 0) break;\n            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);\n'
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = '                else if (opt_tls && dport == 443) {\n                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);\n                }\n            }\n        }\n        if (opt_v6) {\n'
+          new = '                else if (opt_tls && dport == 443) {\n                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);\n                }\n            }\n            } /* bounded RX drain */\n        }\n        if (opt_v6) {\n'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new, 1))
           PY
       - name: Compile check
         run: |
           git diff --check
-          gcc -std=c11 -O2 -Wall -Wextra -Wpedantic src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
           /tmp/argos-sniffer --help | grep -q 'argos-sniffer v5.3.1'
+          grep -q 'RX_DRAIN_BUDGET 64' src/argos-sniffer.c
+          grep -q 'MSG_TRUNC | MSG_DONTWAIT' src/argos-sniffer.c
       - name: Commit source
         run: |
           git config user.name github-actions[bot]
