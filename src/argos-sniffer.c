@@ -82,6 +82,7 @@
 #endif
 #else
 #include <unistd.h>
+#include <getopt.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -100,6 +101,7 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <linux/if_packet.h>
+#include <linux/filter.h>
 #include <ifaddrs.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
@@ -115,6 +117,17 @@
  * ============================================================================ */
 int opt_quic_heavy = 0;          /* Flag to enable heavy stateful QUIC reassembly */
 int opt_ext_metrics = 0;         /* Default: Heavy metrics (entropy, RTT, latency) disabled */
+
+/* ARGOS SPAN SENSOR MVP ---------------------------------------------------
+ * Gateway mode remains the default and keeps the legacy wire format.
+ * Sensor mode adds only an observation envelope at the telemetry sink. */
+#define SENSOR_NAME_MAX 64
+#define SENSOR_IFACE_MAX 32
+static int opt_sensor_mode = 0;
+static char sensor_name[SENSOR_NAME_MAX] = {0};
+static char sensor_observation_iface[SENSOR_IFACE_MAX] = {0};
+static uint16_t sensor_observation_outer_vlan = 0;
+static uint16_t sensor_observation_inner_vlan = 0;
 
 #ifdef ARGOS_QUIC_STUB
 /* Built-in no-ops so a gateway image can ship without the QUIC decrypt object.
@@ -136,7 +149,7 @@ static int decrypt_quic_sni_stateful(const unsigned char *payload, int len, int 
 static void quic_heavy_gc(void) {}
 #endif
 
-#define VERSION "5.2.4"
+#define VERSION "5.3.1"
 
 /* ============================================================================
  * SECTION: Telemetry Output Engine
@@ -249,30 +262,52 @@ static int parse_host_port(const char *spec, struct sockaddr_storage *out_addr, 
  */
 static void emit_telemetry(const char *format, ...) __attribute__((format(printf, 1, 2)));
 static void emit_telemetry(const char *format, ...) {
-    char buffer[1024];
+    char event[1024];
     va_list args;
     va_start(args, format);
-    int len = vsnprintf(buffer, sizeof(buffer), format, args);
+    int event_len = vsnprintf(event, sizeof(event), format, args);
     va_end(args);
 
-    if (len < 0) return;
-    if (len >= (int)sizeof(buffer)) {
-        /* Still emit a truncated record rather than silently dropping a
-         * long HTTP UA / DNS name -- collectors would otherwise miss the event. */
-        len = (int)sizeof(buffer) - 1;
+    if (event_len < 0) return;
+    if (event_len >= (int)sizeof(event)) {
+        /* Preserve the legacy 1024-byte event bound. The sensor envelope is
+         * added outside this buffer so enabling --sensor cannot reduce the
+         * amount of parser payload that fits in a record. */
+        event_len = (int)sizeof(event) - 1;
     }
-    if (len > 0) {
-        if (use_ipc) {
-            sendto(ipc_sock, buffer, (size_t)len, MSG_DONTWAIT, (struct sockaddr *)&ipc_addr, sizeof(ipc_addr));
+    if (event_len <= 0) return;
+
+    const char *wire = event;
+    int wire_len = event_len;
+    char sensor_wire[1280];
+    if (opt_sensor_mode) {
+        char vlan[24];
+        if (sensor_observation_inner_vlan != 0U) {
+            snprintf(vlan, sizeof(vlan), "%u/%u",
+                     (unsigned)sensor_observation_outer_vlan,
+                     (unsigned)sensor_observation_inner_vlan);
+        } else {
+            snprintf(vlan, sizeof(vlan), "%u", (unsigned)sensor_observation_outer_vlan);
         }
-        if (use_remote) {
-            sendto(remote_sock, buffer, (size_t)len, MSG_DONTWAIT, (struct sockaddr *)&remote_addr, remote_addr_len);
-        }
-        /* -U is a fan-out sink: keep stdout active for the local daemon while
-         * also delivering the same record to the remote UDP collector. */
-        if ((use_remote && !udp_only) || (!use_remote && !use_ipc)) {
-            fputs(buffer, stdout);
-        }
+        int n = snprintf(sensor_wire, sizeof(sensor_wire), "OBS|%s|%s|%s|%.*s",
+                         sensor_name,
+                         sensor_observation_iface[0] ? sensor_observation_iface : "unknown",
+                         vlan, event_len, event);
+        if (n < 0) return;
+        wire_len = n >= (int)sizeof(sensor_wire) ? (int)sizeof(sensor_wire) - 1 : n;
+        wire = sensor_wire;
+    }
+
+    if (use_ipc) {
+        sendto(ipc_sock, wire, (size_t)wire_len, MSG_DONTWAIT, (struct sockaddr *)&ipc_addr, sizeof(ipc_addr));
+    }
+    if (use_remote) {
+        sendto(remote_sock, wire, (size_t)wire_len, MSG_DONTWAIT, (struct sockaddr *)&remote_addr, remote_addr_len);
+    }
+    /* -U is a fan-out sink: keep stdout active for the local daemon while
+     * also delivering the same record to the remote UDP collector. */
+    if ((use_remote && !udp_only) || (!use_remote && !use_ipc)) {
+        fwrite(wire, 1U, (size_t)wire_len, stdout);
     }
 }
 #endif
@@ -657,6 +692,8 @@ typedef struct {
 } lan_pfx_t;
 static lan_pfx_t lan_pfx[MAX_LAN_PFX];
 static int lan_pfx_count = 0;
+static lan_pfx_t configured_inside[MAX_LAN_PFX];
+static int configured_inside_count = 0;
 
 static int lan_pfx_on_captured_iface(const char *ifname) {
     if (num_ifaces == 0) return 1;
@@ -702,6 +739,10 @@ static void learn_lan_prefixes(void) {
 #endif
 
 static int is_lan_ipv4(uint32_t ip_be) {
+    for (int i = 0; i < configured_inside_count; i++) {
+        if (configured_inside[i].family == AF_INET &&
+            (ip_be & configured_inside[i].v4mask) == configured_inside[i].v4) return 1;
+    }
     if (is_private_ipv4(ip_be)) return 1;
     for (int i = 0; i < lan_pfx_count; i++) {
         if (lan_pfx[i].family == AF_INET && (ip_be & lan_pfx[i].v4mask) == lan_pfx[i].v4) return 1;
@@ -710,6 +751,15 @@ static int is_lan_ipv4(uint32_t ip_be) {
 }
 
 static int is_lan_ipv6(const struct in6_addr *addr) {
+    for (int i = 0; i < configured_inside_count; i++) {
+        if (configured_inside[i].family != AF_INET6) continue;
+        int ok = 1;
+        for (int b = 0; b < 16; b++) {
+            if ((addr->s6_addr[b] & configured_inside[i].v6mask.s6_addr[b]) !=
+                configured_inside[i].v6.s6_addr[b]) { ok = 0; break; }
+        }
+        if (ok) return 1;
+    }
     if (is_private_ipv6(addr)) return 1;
     for (int i = 0; i < lan_pfx_count; i++) {
         if (lan_pfx[i].family != AF_INET6) continue;
@@ -950,6 +1000,134 @@ static void source_dedup_signature(char *out, size_t out_cap, const char *src_ip
     snprintf(out, out_cap, "%s|%s|%s", src_ip ? src_ip : "",
              payload ? payload : "", (routed_str && routed_str[0]) ? "routed" : "direct");
 }
+
+/* ============================================================================
+ * SECTION: Application Flow Suppression
+ * Keeps a tiny fixed-size state table for outbound HTTP/TLS flows. Once the
+ * useful application fingerprint has been observed (or a small payload budget
+ * is exhausted), later application-data packets skip deep HTTP/TLS parsing.
+ * SYN/SYNACK/FIN/RST handling stays independent and is never suppressed here.
+ * ============================================================================ */
+#define APP_FLOW_SLOTS 1024
+#define APP_FLOW_PROBES 4
+#define APP_FLOW_TTL_SECS 60
+#define APP_FLOW_PACKET_BUDGET 8
+
+typedef struct {
+    uint64_t key;
+    time_t last_seen;
+    uint8_t src[16];
+    uint8_t dst[16];
+    uint16_t sport;
+    uint16_t dport;
+    uint8_t ip_version;
+    uint8_t payload_packets;
+    uint8_t valid;
+    uint8_t done;
+} app_flow_entry_t;
+
+static app_flow_entry_t app_flow_table[APP_FLOW_SLOTS];
+
+static uint64_t app_flow_key(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                             uint16_t sport, uint16_t dport) {
+    size_t addr_len = ip_version == 6U ? 16U : 4U;
+    uint64_t h = 1469598103934665603ULL;
+    h = hash_update(h, &ip_version, sizeof(ip_version));
+    h = hash_update(h, src, addr_len);
+    h = hash_update(h, dst, addr_len);
+    h = hash_update(h, &sport, sizeof(sport));
+    h = hash_update(h, &dport, sizeof(dport));
+    return h;
+}
+
+static app_flow_entry_t *app_flow_find(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                       uint16_t sport, uint16_t dport, int create) {
+    size_t addr_len = ip_version == 6U ? 16U : 4U;
+    uint64_t key = app_flow_key(ip_version, src, dst, sport, dport);
+    size_t base = (size_t)(key & (APP_FLOW_SLOTS - 1U));
+    time_t now = time(NULL);
+    size_t replace_slot = base;
+    time_t oldest = now;
+
+    for (size_t probe = 0; probe < APP_FLOW_PROBES; ++probe) {
+        size_t slot = (base + probe) & (APP_FLOW_SLOTS - 1U);
+        app_flow_entry_t *e = &app_flow_table[slot];
+        if (e->valid && e->key == key && e->ip_version == ip_version &&
+            e->sport == sport && e->dport == dport &&
+            memcmp(e->src, src, addr_len) == 0 && memcmp(e->dst, dst, addr_len) == 0) {
+            if ((now - e->last_seen) <= APP_FLOW_TTL_SECS) {
+                e->last_seen = now;
+                return e;
+            }
+            e->valid = 0;
+        }
+        if (!e->valid || (now - e->last_seen) > APP_FLOW_TTL_SECS) {
+            replace_slot = slot;
+            break;
+        }
+        if (e->last_seen < oldest) {
+            oldest = e->last_seen;
+            replace_slot = slot;
+        }
+    }
+
+    if (!create) return NULL;
+
+    app_flow_entry_t *e = &app_flow_table[replace_slot];
+    memset(e, 0, sizeof(*e));
+    e->key = key;
+    e->last_seen = now;
+    e->ip_version = ip_version;
+    e->sport = sport;
+    e->dport = dport;
+    memcpy(e->src, src, addr_len);
+    memcpy(e->dst, dst, addr_len);
+    e->valid = 1;
+    return e;
+}
+
+static int app_flow_should_skip(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                uint16_t sport, uint16_t dport) {
+    app_flow_entry_t *e = app_flow_find(ip_version, src, dst, sport, dport, 0);
+    return e && e->done;
+}
+
+/* A complete TLS ClientHello is enough to finish TLS fingerprinting. HTTP is
+ * complete once the request header terminator is present in the captured
+ * payload. The packet that completes the fingerprint is still parsed; DONE is
+ * applied only to subsequent packets. */
+static int app_flow_payload_complete(uint16_t dport, const unsigned char *payload, int payload_len) {
+    if (!payload || payload_len <= 0) return 0;
+
+    if (dport == 443U) {
+        if (payload_len < 9 || payload[0] != 0x16 || payload[5] != 0x01) return 0;
+        uint32_t hs_len = ((uint32_t)payload[6] << 16) |
+                          ((uint32_t)payload[7] << 8) |
+                          (uint32_t)payload[8];
+        return hs_len <= (uint32_t)(payload_len - 9);
+    }
+
+    if (dport == 80U || dport == 8080U) {
+        for (int i = 0; i + 3 < payload_len; ++i) {
+            if (payload[i] == '\r' && payload[i + 1] == '\n' &&
+                payload[i + 2] == '\r' && payload[i + 3] == '\n') return 1;
+        }
+    }
+    return 0;
+}
+
+static void app_flow_note_payload(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                  uint16_t sport, uint16_t dport, int fingerprint_complete) {
+    app_flow_entry_t *e = app_flow_find(ip_version, src, dst, sport, dport, 1);
+    if (!e) return;
+    if (fingerprint_complete) {
+        e->done = 1;
+        return;
+    }
+    if (e->payload_packets < 255U) e->payload_packets++;
+    if (e->payload_packets >= APP_FLOW_PACKET_BUDGET) e->done = 1;
+}
+
 static inline uint16_t read_be16(const unsigned char *p) { return (uint16_t)((p[0] << 8) | p[1]); }
 static void format_mac(const uint8_t mac[6], char out[18]) {
     snprintf(out, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
@@ -1019,6 +1197,9 @@ static void sanitize_field(const unsigned char *src, int len, char *dst, int max
     dst[out] = '\0';
 }
 
+static uint16_t frame_outer_vlan = 0;
+static uint16_t frame_inner_vlan = 0;
+
 /* ============================================================================
  * SECTION: Universal L2 Stripper
  * Strips link-layer headers across Ethernet, cooked packets, and raw IP sockets.
@@ -1034,6 +1215,8 @@ static void sanitize_field(const unsigned char *src, int len, char *dst, int max
  */
 static int strip_l2(link_type_t type, const unsigned char *buffer, int len,
                     unsigned char *src_mac, unsigned char *dst_mac, uint16_t *l3_proto) {
+    frame_outer_vlan = 0;
+    frame_inner_vlan = 0;
     if (type == LINK_ETHERNET) {
         /* Standard Ethernet II frame: dst MAC(6) + src MAC(6) + EtherType(2). */
         if (len < 14) return -1;
@@ -1044,10 +1227,13 @@ static int strip_l2(link_type_t type, const unsigned char *buffer, int len,
          * the real EtherType follows where the TCI would otherwise be read. */
         if (eth_type == 0x8100 || eth_type == 0x88A8) {
             if (len < 18) return -1;
+            frame_outer_vlan = (uint16_t)(read_be16(buffer + 14) & 0x0fffU);
             eth_type = read_be16(buffer + 16); offset = 18;
-            /* QinQ / 802.1ad+802.1Q double tag: a second TPID may follow. */
+            /* QinQ / 802.1ad+802.1Q double tag: retain both VLAN IDs as
+             * outer/inner observation context while parsing the same L3 data. */
             if (eth_type == 0x8100 || eth_type == 0x88A8) {
                 if (len < 22) return -1;
+                frame_inner_vlan = (uint16_t)(read_be16(buffer + 18) & 0x0fffU);
                 eth_type = read_be16(buffer + 20); offset = 22;
             }
         }
@@ -2280,14 +2466,80 @@ static inline int is_hard_excluded_mac(const unsigned char *shost) {
     return 0;
 }
 
+static int valid_sensor_name(const char *name) {
+    if (!name || !*name || strlen(name) >= SENSOR_NAME_MAX) return 0;
+    for (const unsigned char *p = (const unsigned char *)name; *p; ++p) {
+        if (!(isalnum(*p) || *p == '-' || *p == '_' || *p == '.')) return 0;
+    }
+    return 1;
+}
+
+static int add_inside_prefix(const char *spec) {
+    if (!spec || !*spec || configured_inside_count >= MAX_LAN_PFX) {
+        fprintf(stderr, "Error: invalid or too many --inside prefixes\n");
+        return 0;
+    }
+    char buf[INET6_ADDRSTRLEN + 8];
+    size_t n = strlen(spec);
+    if (n >= sizeof(buf)) {
+        fprintf(stderr, "Error: --inside prefix too long: %s\n", spec);
+        return 0;
+    }
+    memcpy(buf, spec, n + 1U);
+    char *slash = strchr(buf, '/');
+    if (slash) {
+        *slash++ = '\0';
+        if (!*slash || strchr(slash, '/')) {
+            fprintf(stderr, "Error: invalid --inside CIDR: %s\n", spec);
+            return 0;
+        }
+    }
+
+    lan_pfx_t e; memset(&e, 0, sizeof(e));
+    struct in_addr a4;
+    struct in6_addr a6;
+    if (inet_pton(AF_INET, buf, &a4) == 1) {
+        int bits = 32;
+        if (slash && !parse_cidr_bits(slash, 32, &bits)) {
+            fprintf(stderr, "Error: invalid IPv4 --inside CIDR: %s\n", spec);
+            return 0;
+        }
+        uint32_t mask_host = bits == 0 ? 0U : (uint32_t)(0xffffffffU << (32 - bits));
+        e.family = AF_INET;
+        e.v4mask = htonl(mask_host);
+        e.v4 = a4.s_addr & e.v4mask;
+    } else if (inet_pton(AF_INET6, buf, &a6) == 1) {
+        int bits = 128;
+        if (slash && !parse_cidr_bits(slash, 128, &bits)) {
+            fprintf(stderr, "Error: invalid IPv6 --inside CIDR: %s\n", spec);
+            return 0;
+        }
+        e.family = AF_INET6;
+        e.v6 = a6;
+        int remain = bits;
+        for (int i = 0; i < 16; i++) {
+            if (remain >= 8) { e.v6mask.s6_addr[i] = 0xffU; remain -= 8; }
+            else if (remain > 0) { e.v6mask.s6_addr[i] = (uint8_t)(0xffU << (8 - remain)); remain = 0; }
+            else e.v6mask.s6_addr[i] = 0U;
+            e.v6.s6_addr[i] &= e.v6mask.s6_addr[i];
+        }
+    } else {
+        fprintf(stderr, "Error: invalid --inside address: %s\n", spec);
+        return 0;
+    }
+    configured_inside[configured_inside_count++] = e;
+    return 1;
+}
+
 /**
  * Prints comprehensive command line help and documentation.
  */
 static void print_help(const char *prog) {
     printf(
 "argos-sniffer v" VERSION " - Passive LAN traffic fingerprinter & live inspector\n"
-"                  for OpenWrt and any Linux gateway\n\n"
+"                  for OpenWrt/Linux gateways and SPAN/TAP sensors\n\n"
 "USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u ip:port] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
+"     [--sensor --sensor-name name [--inside CIDR ...]]\n"
 "  OR:     %s [iface] (Automatically sets -i <iface> and enables all vectors with -a)\n\n"
 "OPTIONS:\n"
 "  -i <iface>      Interface to listen on (default: any). Comma-separated list or any.\n"
@@ -2299,7 +2551,11 @@ static void print_help(const char *prog) {
 "  -z <expr>       Mode 1: Native Live Sniffer (replaces tcpdump). Matches MAC, IP, or logic.\n"
 "  -Z <expr>       Mode 2 target filter: restricts telemetry vectors below to matches.\n"
 "  -c <count>      Maximum packet count before exiting, Mode 1 only (default: 0 for unlimited)\n"
-"  -p              Enable promiscuous mode (auto-enabled if -z is set)\n"
+"  -p              Enable promiscuous mode (auto-enabled by -z and --sensor)\n"
+"  --sensor        SPAN/TAP sensor mode. Requires an explicit -i interface.\n"
+"  --sensor-name   Stable sensor name used in the OBS telemetry envelope.\n"
+"  --inside CIDR   Explicit inside IPv4/IPv6 network; repeat for multiple prefixes.\n"
+"                  Recommended for unnumbered SPAN NICs and required for IPv6 GUA.\n"
 "  -f <seconds>    General deduplication window in seconds (default: 35).\n"
 "                  Quiet ARP/NDP use >=900s and RA >=1800s fixed refresh windows.\n"
 "  -o <path>       Stream telemetry output to a Unix domain socket.\n"
@@ -2324,6 +2580,9 @@ static void print_help(const char *prog) {
 "  -v / -V         Enable IPv6 handling (subject to is_private_ipv6() filtering, see source)\n\n", prog, prog);
     fputs(
 "OUTPUT FORMAT:\n"
+"  Gateway mode keeps the legacy records below unchanged.\n"
+"  Sensor mode: OBS|sensor_name|interface|vlan|<legacy_record>\n"
+"               vlan=0 untagged, N single-tag, outer/inner for QinQ.\n"
 "  SYN|mac|src_ip|ttl|window|wscale|mss|options|dst_port[|routed]\n"
 "  SYNACK|mac|src_ip|ttl|window|wscale|mss|options|src_port[|routed]\n"
 "  DNS|mac|src_ip|query_domain[|routed]\n"
@@ -2354,6 +2613,88 @@ static void print_help(const char *prog) {
  * Entry point: parses command-line arguments, sets up network interfaces, configures 
  * epoll, and runs the primary packet processing loop.
  * ============================================================================ */
+
+/* ============================================================================
+ * SECTION: Kernel AF_PACKET Prefilter
+ * A deliberately conservative classic-BPF prefilter for Ethernet sockets.
+ * It keeps every frame class Argos currently parses, but drops uninteresting
+ * untagged IPv4 bulk traffic before it consumes AF_PACKET receive-buffer space.
+ *
+ * Safety choices:
+ *   - IPv6 is accepted wholesale (extension-header-safe).
+ *   - VLAN/QinQ and PPPoE are accepted wholesale (offset-safe).
+ *   - live packet-dump mode (-z) bypasses this filter entirely.
+ *   - for untagged IPv4 TCP, SYN/FIN/RST plus HTTP/TLS destination ports pass.
+ *   - for untagged IPv4 UDP, only Argos discovery/DNS/QUIC ports pass.
+ * ============================================================================ */
+static int attach_argos_kernel_filter(int sock) {
+    static const struct sock_filter code[] = {
+        BPF_STMT(BPF_LD  | BPF_H | BPF_ABS, 12),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0806, 48, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x88cc, 47, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x8100, 46, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x88a8, 45, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x8864, 44, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x86dd, 43, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0800, 0, 43),
+
+        BPF_STMT(BPF_LD  | BPF_B | BPF_ABS, 23),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 2, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_UDP, 22, 0),
+        BPF_JUMP(BPF_JMP | BPF_JA, 39, 0, 0),
+
+        BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 14),
+        BPF_STMT(BPF_LD  | BPF_B | BPF_IND, 27),
+        BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, TH_FIN | TH_SYN | TH_RST, 35, 0),
+        /* Drop zero-payload ACK/window-update traffic in-kernel. IP total
+         * length must exceed IP-header + TCP-header length before HTTP/TLS
+         * destination-port checks are allowed to pass the packet. */
+        BPF_STMT(BPF_STX, 0),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_ABS, 16),
+        BPF_STMT(BPF_ST, 1),
+        BPF_STMT(BPF_LD  | BPF_B | BPF_IND, 26),
+        BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0xf0),
+        BPF_STMT(BPF_ALU | BPF_RSH | BPF_K, 2),
+        BPF_STMT(BPF_MISC | BPF_TAX, 0),
+        BPF_STMT(BPF_LD  | BPF_W | BPF_MEM, 0),
+        BPF_STMT(BPF_ALU | BPF_ADD | BPF_X, 0),
+        BPF_STMT(BPF_MISC | BPF_TAX, 0),
+        BPF_STMT(BPF_LD  | BPF_W | BPF_MEM, 1),
+        BPF_JUMP(BPF_JMP | BPF_JGT | BPF_X, 0, 0, 24),
+        BPF_STMT(BPF_LDX | BPF_W | BPF_MEM, 0),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 16),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 80,   20, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 8080, 19, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 443,  18, 0),
+        BPF_JUMP(BPF_JMP | BPF_JA, 18, 0, 0),
+
+        BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 14),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 16),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 67,   14, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 137,  13, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1900, 12, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 3702, 11, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5353, 10, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 53,    9, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 443,   8, 0),
+        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 14),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 67,    6, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 137,   5, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1900,  4, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 3702,  3, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5353,  2, 0),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 53,    1, 0),
+        BPF_JUMP(BPF_JMP | BPF_JA, 1, 0, 0),
+
+        BPF_STMT(BPF_RET | BPF_K, 0x0000ffffU),
+        BPF_STMT(BPF_RET | BPF_K, 0U)
+    };
+    struct sock_fprog prog;
+    prog.len = (unsigned short)(sizeof(code) / sizeof(code[0]));
+    prog.filter = (struct sock_filter *)code;
+    return setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &prog, sizeof(prog));
+}
+
 #ifndef ARGOS_PORTABLE_TEST
 int main(int argc, char *argv[]) {
     const char *iface = "any";
@@ -2366,6 +2707,13 @@ int main(int argc, char *argv[]) {
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
     int opt;
+    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE };
+    static const struct option long_options[] = {
+        {"sensor", no_argument, NULL, OPT_SENSOR},
+        {"sensor-name", required_argument, NULL, OPT_SENSOR_NAME},
+        {"inside", required_argument, NULL, OPT_INSIDE},
+        {NULL, 0, NULL, 0}
+    };
 
     if (argc == 1) { print_help(argv[0]); return 0; }
 
@@ -2375,8 +2723,17 @@ int main(int argc, char *argv[]) {
      * debugging). -a enables everything rate-limited; -A enables everything
      * verbose. -R/-r configure MAC address lists (hard/soft exclude) rather
      * than telemetry categories, and -x/-z/-Z compile capture filters. */
-    while ((opt = getopt(argc, argv, "i:r:R:x:z:Z:o:u:U:c:f:sSmMdDnNqQhHtTlLvVpaAWE")) != -1) {
+    while ((opt = getopt_long(argc, argv, "i:r:R:x:z:Z:o:u:U:c:f:sSmMdDnNqQhHtTlLvVpaAWE", long_options, NULL)) != -1) {
         switch (opt) {
+            case OPT_SENSOR: opt_sensor_mode = 1; opt_promisc = 1; break;
+            case OPT_SENSOR_NAME:
+                if (!valid_sensor_name(optarg)) {
+                    fprintf(stderr, "Error: --sensor-name may contain only letters, digits, '.', '_' and '-' (max 63 chars).\n");
+                    return 1;
+                }
+                snprintf(sensor_name, sizeof(sensor_name), "%s", optarg);
+                break;
+            case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
             case 'E': opt_ext_metrics = 1; break;
             case 'i': iface = optarg; break;
             case 'R': 
@@ -2473,6 +2830,21 @@ int main(int argc, char *argv[]) {
 
     if (optind < argc) { fprintf(stderr, "Error: Unrecognized extra argument.\n"); return 1; }
 
+    if (!opt_sensor_mode && (sensor_name[0] || configured_inside_count > 0)) {
+        fprintf(stderr, "Error: --sensor-name/--inside require --sensor.\n");
+        return 1;
+    }
+    if (opt_sensor_mode) {
+        if (!sensor_name[0]) {
+            fprintf(stderr, "Error: --sensor requires --sensor-name.\n");
+            return 1;
+        }
+        if (strcasecmp(iface, "any") == 0) {
+            fprintf(stderr, "Error: --sensor requires an explicit SPAN/TAP interface via -i (not 'any').\n");
+            return 1;
+        }
+    }
+
     if (filter_mode1.is_active && filter_mode2.is_active) {
         fprintf(stderr, "warning: -z and -Z both given; -Z ignored in live sniffer mode.\n");
     }
@@ -2549,13 +2921,19 @@ int main(int argc, char *argv[]) {
         
         if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); token = strtok(NULL, ","); continue; }
 
+        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
+            if (attach_argos_kernel_filter(sock) < 0) {
+                fprintf(stderr, "warning: unable to attach AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));
+            }
+        }
+
         if (opt_promisc && active_ifaces[num_ifaces].type == LINK_ETHERNET) {
             struct packet_mreq mr; memset(&mr, 0, sizeof(mr));
             mr.mr_ifindex = active_ifaces[num_ifaces].ifindex; mr.mr_type = PACKET_MR_PROMISC;
             setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
         }
 
-        int rcvbuf = 1024 * 1024; setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+        int rcvbuf = 2 * 1024 * 1024; setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
         int one = 1;
         setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &one, sizeof(one)); /* recover HW-stripped VLAN */
 #ifdef SO_TIMESTAMPNS
@@ -2640,6 +3018,8 @@ int main(int argc, char *argv[]) {
             if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
 
             uint64_t pkt_usec = 0;
+            uint16_t aux_vlan = 0;
+            int aux_vlan_valid = 0;
             for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
 #ifdef SO_TIMESTAMPNS
                 if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPNS) {
@@ -2648,6 +3028,15 @@ int main(int argc, char *argv[]) {
                     pkt_usec = (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
                 }
 #endif
+                if (c->cmsg_level == SOL_PACKET && c->cmsg_type == PACKET_AUXDATA &&
+                    c->cmsg_len >= CMSG_LEN(sizeof(struct tpacket_auxdata))) {
+                    struct tpacket_auxdata aux;
+                    memcpy(&aux, CMSG_DATA(c), sizeof(aux));
+                    if (aux.tp_status & TP_STATUS_VLAN_VALID) {
+                        aux_vlan = (uint16_t)(aux.tp_vlan_tci & 0x0fffU);
+                        aux_vlan_valid = 1;
+                    }
+                }
             }
             if (pkt_usec == 0) pkt_usec = get_current_usec();
 
@@ -2663,6 +3052,18 @@ int main(int argc, char *argv[]) {
             unsigned char src_mac[6], dst_mac[6]; uint16_t l3_proto = 0;
             int l3_offset = strip_l2(pkt_type, buffer, (int)len, src_mac, dst_mac, &l3_proto);
             if (l3_offset < 0) continue;
+
+            if (opt_sensor_mode) {
+                uint16_t outer = frame_outer_vlan;
+                uint16_t inner = frame_inner_vlan;
+                if (aux_vlan_valid) {
+                    if (outer == 0U) outer = aux_vlan;
+                    else if (aux_vlan != outer) { inner = outer; outer = aux_vlan; }
+                }
+                snprintf(sensor_observation_iface, sizeof(sensor_observation_iface), "%s", current_iface->name);
+                sensor_observation_outer_vlan = outer;
+                sensor_observation_inner_vlan = inner;
+            }
 
             static const unsigned char zero_mac[6] = {0,0,0,0,0,0};
             static const unsigned char bcast_mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
@@ -2988,6 +3389,14 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
+                int app_track = payload_len > 0 &&
+                                ((opt_http && (dport == 80U || dport == 8080U)) ||
+                                 (opt_tls && dport == 443U));
+                if (app_track && app_flow_should_skip(flow_ip_version, flow_src_addr, flow_dst_addr,
+                                                      sport, dport)) {
+                    continue;
+                }
+
                 if (opt_http && (dport == 80 || dport == 8080) && payload_len > 16) {
                     const unsigned char *p = buffer + payload_offset;
                     if ((payload_len >= 4 && memcmp(p, "GET ", 4) == 0) || (payload_len >= 5 && memcmp(p, "POST ", 5) == 0)) {
@@ -3007,6 +3416,13 @@ int main(int argc, char *argv[]) {
                 }
                 else if (opt_tls && dport == 443 && payload_len > 44) {
                     parse_tls_sni(buffer + payload_offset, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
+                }
+
+                if (app_track) {
+                    int fingerprint_complete = app_flow_payload_complete(
+                        dport, buffer + payload_offset, payload_len);
+                    app_flow_note_payload(flow_ip_version, flow_src_addr, flow_dst_addr,
+                                          sport, dport, fingerprint_complete);
                 }
             }
             else if (protocol == IPPROTO_UDP) {
