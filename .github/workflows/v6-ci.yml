@@ -1,4 +1,5 @@
 name: V6 enterprise CI
+# Permanent v6 gate: no staging/migration workflows are required.
 
 on:
   push:
