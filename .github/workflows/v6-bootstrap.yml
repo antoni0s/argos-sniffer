@@ -1,0 +1,49 @@
+name: V6 enterprise bootstrap
+
+on:
+  push:
+    branches: [version-6]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+
+      - name: Apply deterministic source integration
+        run: python3 tools/v6_integrate.py
+
+      - name: Strict compile - full QUIC
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+
+      - name: Strict compile - QUIC stub
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Smoke-check CLI
+        run: |
+          /tmp/argos-sniffer-v6-stub --help | grep -F 'argos-sniffer v6.0.0-dev'
+          /tmp/argos-sniffer-v6-stub --help | grep -F -- '--enterprise'
+
+      - name: Commit validated integration
+        shell: bash
+        run: |
+          if git diff --quiet -- src/argos-sniffer.c; then
+            echo 'No integration changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c
+          git commit -m 'feat(v6): integrate enterprise fingerprint engine'
+          git push origin HEAD:version-6
