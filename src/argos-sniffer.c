@@ -1756,9 +1756,15 @@ static void parse_tls_sni(const unsigned char *payload, int len, const char *mac
         pos += e_len;
     }
 
-    /* Display values fall back to the literal string "none" when absent --
-     * this is only for the human-readable TLS| telemetry line below, and no
-     * longer feeds the JA4 computation (see has_sni/has_alpn above). */
+    /* Capture JA4 ALPN characters BEFORE applying the human-readable
+     * "none" fallback below.  If the ALPN extension is present but its first
+     * protocol identifier is empty/oversized/unparseable, JA4 must keep the
+     * neutral 00 marker rather than fingerprinting the placeholder text. */
+    char alpn_first = '0', alpn_last = '0';
+    if (has_alpn && alpn[0] != '\0') { alpn_first = alpn[0]; alpn_last = alpn[strlen(alpn) - 1]; }
+
+    /* Display values fall back to the literal string "none" when absent.
+     * These placeholders are telemetry-only and never feed JA4. */
     if (sni[0] == '\0') strcpy(sni, "none");
     if (alpn[0] == '\0') strcpy(alpn, "none");
     
@@ -1788,12 +1794,6 @@ static void parse_tls_sni(const unsigned char *payload, int len, const char *mac
     /* Keep the JA4 cipher count consistent with ja4_b by excluding GREASE. */
     int a_cipher_count = real_cipher_count > 99 ? 99 : real_cipher_count;
     int a_ext_count = ext_count > 99 ? 99 : ext_count;
-
-    /* First/last character of the negotiated ALPN value for JA4's "a"
-     * section. Guarded against an empty alpn string (possible if the peer
-     * offered a zero-length protocol identifier) to avoid reading alpn[-1]. */
-    char alpn_first = '0', alpn_last = '0';
-    if (has_alpn && alpn[0] != '\0') { alpn_first = alpn[0]; alpn_last = alpn[strlen(alpn) - 1]; }
 
     char ja4_a[64], ja4_b[33], ja4_c[33];
     snprintf(ja4_a, sizeof(ja4_a), "t%s%c%02d%02d%c%c", ja4_ver,
