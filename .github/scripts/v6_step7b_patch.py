@@ -158,14 +158,13 @@ insert = '''            if (opt_enterprise && l3_proto == 0x8809U) {
 s = replace_once(s, marker, insert + marker, 'LACP dispatch')
 p.write_text(s)
 
-# Add enterprise-only EtherType regression alongside LLDP-MED.
+# Add enterprise-only EtherType regression alongside LLDP-MED, without relying
+# on newline escaping in the staging script itself.
 p = Path('tests/test_dynamic_bpf.c')
 s = p.read_text()
-s = replace_once(s,
-    '    expect(pass(&p, pkt, eth(pkt, 0x88cc)), "enterprise-only admits LLDP-MED EtherType");\n',
-    '    expect(pass(&p, pkt, eth(pkt, 0x88cc)), "enterprise-only admits LLDP-MED EtherType");\n'
-    '    expect(pass(&p, pkt, eth(pkt, 0x8809)), "enterprise-only admits Slow Protocols/LACP EtherType");\n',
-    'LACP BPF fixture')
+marker = '    expect(pass(&p, pkt, 64), "enterprise-only admits LLDP-MED EtherType");'
+addition = marker + '\n    expect(pass(&p, pkt, eth(pkt, 0x8809)), "enterprise-only admits Slow Protocols/LACP EtherType");'
+s = replace_once(s, marker, addition, 'LACP BPF fixture')
 p.write_text(s)
 
 fixture = r'''#include <stdint.h>
