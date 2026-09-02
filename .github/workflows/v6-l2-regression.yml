@@ -1,0 +1,57 @@
+name: V6 enterprise L2 regression
+
+on:
+  push:
+    branches: [version-6]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  l2-parsers:
+    name: L2 parser fixtures and sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Strict parser fixtures
+        run: |
+          set -eu
+          for t in lldp_med lacp stp rstp mstp; do
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "tests/test_${t}.c" -o "/tmp/test-${t}"
+            "/tmp/test-${t}"
+          done
+
+      - name: Sanitized parser fixtures
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -eu
+          for t in lldp_med lacp stp rstp mstp; do
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer \
+              "tests/test_${t}.c" -o "/tmp/test-${t}-san"
+            "/tmp/test-${t}-san"
+          done
+
+      - name: L2 integration and privacy invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text()
+          stp = Path('src/argos_stp.h').read_text()
+          bpf = Path('src/argos_bpf.h').read_text()
+          for proto in ('STP', 'RSTP', 'MSTP', 'LACP', 'LLDP-MED'):
+              assert f'|-|-|{proto}|' in src
+          assert src.count('l3_proto <= 1500U') >= 3
+          assert 'BPF_JGT | BPF_K, 1500' in bpf
+          assert 'argos_rstp_parse' in stp and 'argos_mstp_parse' in stp
+          assert '32-byte MST configuration name is intentionally not emitted' in stp
+          assert 'subtype == 3U' not in Path('src/argos_lldp_med.h').read_text()
+          print('enterprise L2 permanent invariants: PASS')
+          PY
