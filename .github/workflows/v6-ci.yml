@@ -98,6 +98,36 @@ jobs:
             tests/test_lldp_med.c -o /tmp/test-lldp-med-san
           /tmp/test-lldp-med-san
 
+      - name: LACP fingerprint fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_lacp.c -o /tmp/test-lacp
+          /tmp/test-lacp
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text()
+          bpf = Path('src/argos_bpf.h').read_text()
+          lacp = Path('src/argos_lacp.h').read_text()
+          assert 'p[0] != 0x01U' in lacp
+          assert 'p[2] != 0x01U || p[3] != 0x14U' in lacp
+          assert 'p[22] != 0x02U || p[23] != 0x14U' in lacp
+          assert 'alacp_state_add' in lacp
+          assert 'ENT|%s|-|-|LACP|%s' in src
+          assert 'EMIT(abpf_pass_ethertype(p, 0x8809)); /* Slow Protocols / LACP */' in bpf
+          assert src.count('l3_proto == 0x8809U') >= 3
+          print('LACP integration regression: PASS')
+          PY
+
+      - name: LACP sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_lacp.c -o /tmp/test-lacp-san
+          /tmp/test-lacp-san
+
       - name: TLS port policy and DoT regression
         run: |
           python3 - <<'PY'
