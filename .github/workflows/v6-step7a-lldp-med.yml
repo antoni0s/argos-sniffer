@@ -1,0 +1,80 @@
+name: V6 step 7a - LLDP-MED gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step7a_patch.py'
+      - '.github/workflows/v6-step7a-lldp-med.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step7a_patch.py
+
+      - name: LLDP-MED fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lldp_med.c -o /tmp/test-lldp-med
+          /tmp/test-lldp-med
+
+      - name: Dynamic BPF matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+
+      - name: LLDP-MED invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/argos-sniffer.c').read_text()
+          bpf=Path('src/argos_bpf.h').read_text()
+          med=Path('src/argos_lldp_med.h').read_text()
+          assert '0x00U && p[pos + 1U] == 0x12U && p[pos + 2U] == 0xbbU' in med
+          assert 'subtype == 3U' not in med
+          assert 'LLDP-MED|%s' in src
+          assert 'cfg->enterprise' in bpf and '0x88cc' in bpf
+          assert 'if (opt_l2)' in src and 'if (opt_enterprise)' in src
+          print('LLDP-MED integration invariants: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+          git diff --check
+
+      - name: LLDP-MED sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_lldp_med.c -o /tmp/test-lldp-med-san
+          /tmp/test-lldp-med-san
+
+      - name: Existing regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_server.c -o /tmp/test-tlssrv
+          /tmp/test-tlssrv
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c src/argos_bpf.h src/argos_lldp_med.h tests/test_dynamic_bpf.c tests/test_lldp_med.c
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(v6): fingerprint LLDP-MED endpoints and policy'
+          git push origin HEAD:version-6
