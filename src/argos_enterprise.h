@@ -1,6 +1,8 @@
 #ifndef ARGOS_ENTERPRISE_H
 #define ARGOS_ENTERPRISE_H
 
+#include "argos_enterprise_ports.h"
+
 /* Argos Sniffer v6 enterprise fingerprint engine.
  *
  * Design rules:
@@ -93,21 +95,14 @@ static inline void ae_set(argos_enterprise_result_t *r, const char *proto,
 }
 
 static inline int argos_enterprise_tcp_port(uint16_t sport, uint16_t dport) {
-    const uint16_t ports[] = {
-        22, 88, 111, 179, 445, 502, 631, 1433, 1521, 2000, 2049,
-        3260, 3306, 3389, 5060, 5432, 9100
-    };
-    for (size_t i = 0; i < sizeof(ports) / sizeof(ports[0]); ++i)
-        if (sport == ports[i] || dport == ports[i]) return 1;
+    for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i)
+        if (sport == ARGOS_ENTERPRISE_TCP_PORTS[i] || dport == ARGOS_ENTERPRISE_TCP_PORTS[i]) return 1;
     return 0;
 }
 
 static inline int argos_enterprise_udp_port(uint16_t sport, uint16_t dport) {
-    const uint16_t ports[] = {
-        88, 111, 161, 162, 389, 427, 623, 2049, 5060, 5678, 47808, 44818
-    };
-    for (size_t i = 0; i < sizeof(ports) / sizeof(ports[0]); ++i)
-        if (sport == ports[i] || dport == ports[i]) return 1;
+    for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i)
+        if (sport == ARGOS_ENTERPRISE_UDP_PORTS[i] || dport == ARGOS_ENTERPRISE_UDP_PORTS[i]) return 1;
     return 0;
 }
 
@@ -471,6 +466,7 @@ static inline int ae_sccp(const unsigned char *p, int len, argos_enterprise_resu
 /* Defined below with the UDP identity parsers; forward declaration lets TCP/88
  * reuse the exact same bounded Kerberos request parser. */
 static inline int ae_kerberos(const unsigned char *p, int len, argos_enterprise_result_t *r);
+static inline int ae_cip(const unsigned char *p, int len, argos_enterprise_result_t *r);
 
 static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
                                              const unsigned char *p, int len,
@@ -479,10 +475,7 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
     memset(r, 0, sizeof(*r));
     uint16_t port = dport;
     if (!argos_enterprise_tcp_port(sport, dport)) return 0;
-    if (port != 22 && port != 88 && port != 111 && port != 179 && port != 445 &&
-        port != 502 && port != 631 && port != 1433 && port != 1521 && port != 2000 && port != 2049 &&
-        port != 3260 && port != 3306 && port != 3389 && port != 5060 && port != 5432 &&
-        port != 9100) port = sport;
+    if (!argos_enterprise_tcp_port(0, port)) port = sport;
 
     switch (port) {
         case 22: return ae_ssh(p, len, r);
@@ -501,6 +494,7 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
         case 5060: return ae_sip(p, len, r);
         case 5432: return ae_postgres(p, len, r);
         case 9100: return ae_pjl(p, len, r);
+        case 44818: return ae_cip(p, len, r);
         default: return 0;
     }
 }
@@ -806,58 +800,5 @@ static inline int argos_enterprise_parse_ipproto(uint8_t proto, const unsigned c
     }
     return 1;
 }
-
-#ifndef ARGOS_PORTABLE_TEST
-/* Enterprise-mode kernel prefilter. It keeps legacy discovery classes plus the
- * enterprise L2 EtherTypes and only the TCP/UDP ports that a v6 parser needs.
- * VLAN/QinQ, PPPoE and IPv6 remain pass-through because their variable offsets
- * make a tiny classic-BPF program unsafe; user-space still performs strict
- * protocol/flow fast-drop immediately afterwards. */
-static inline int attach_argos_enterprise_kernel_filter(int sock) {
-    struct sock_filter code[220]; size_t n = 0;
-#define AE_STMT(c,k) do { code[n++] = (struct sock_filter){(unsigned short)(c),0,0,(uint32_t)(k)}; } while (0)
-#define AE_JUMP(c,k,t,f) do { code[n++] = (struct sock_filter){(unsigned short)(c),(uint8_t)(t),(uint8_t)(f),(uint32_t)(k)}; } while (0)
-    AE_STMT(BPF_LD|BPF_H|BPF_ABS, 12);
-    const uint16_t l2pass[] = {0x0806,0x88cc,0x888e,0x8892,0x8100,0x88a8,0x8864,0x86dd};
-    for (size_t i=0;i<sizeof(l2pass)/sizeof(l2pass[0]);++i) { AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,l2pass[i],0,1); AE_STMT(BPF_RET|BPF_K,0xffff); }
-    /* IEEE 802.3 length field: pass to LLC/SNAP parser for CDP/IS-IS family. */
-    AE_JUMP(BPF_JMP|BPF_JGT|BPF_K,1500,1,0); AE_STMT(BPF_RET|BPF_K,0xffff);
-    AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,0x0800,0,1); AE_STMT(BPF_RET|BPF_K,0);
-    AE_STMT(BPF_LD|BPF_B|BPF_ABS,23);
-    size_t jt_tcp=n; AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,IPPROTO_TCP,0,0);
-    size_t jt_udp=n; AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,IPPROTO_UDP,0,0);
-    AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,89,0,1); AE_STMT(BPF_RET|BPF_K,0xffff);
-    AE_STMT(BPF_RET|BPF_K,0);
-
-    size_t tcp_start=n;
-    AE_STMT(BPF_LDX|BPF_B|BPF_MSH,14);
-    AE_STMT(BPF_LD|BPF_B|BPF_IND,27);
-    AE_JUMP(BPF_JMP|BPF_JSET|BPF_K,TH_FIN|TH_SYN|TH_RST,0,1); AE_STMT(BPF_RET|BPF_K,0xffff);
-    const uint16_t tports[] = {22,88,111,179,445,502,631,1433,1521,2000,2049,3260,3306,3389,5060,5432,9100};
-    AE_STMT(BPF_LD|BPF_H|BPF_IND,16);
-    for (size_t i=0;i<sizeof(tports)/sizeof(tports[0]);++i) { AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,tports[i],0,1); AE_STMT(BPF_RET|BPF_K,0xffff); }
-    AE_STMT(BPF_LD|BPF_H|BPF_IND,14);
-    for (size_t i=0;i<sizeof(tports)/sizeof(tports[0]);++i) { AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,tports[i],0,1); AE_STMT(BPF_RET|BPF_K,0xffff); }
-    AE_STMT(BPF_RET|BPF_K,0);
-
-    size_t udp_start=n;
-    AE_STMT(BPF_LDX|BPF_B|BPF_MSH,14);
-    const uint16_t uports[] = {53,67,137,443,111,161,162,389,427,623,1900,2049,3702,5060,5353,5678,47808,44818};
-    AE_STMT(BPF_LD|BPF_H|BPF_IND,16);
-    for (size_t i=0;i<sizeof(uports)/sizeof(uports[0]);++i) { AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,uports[i],0,1); AE_STMT(BPF_RET|BPF_K,0xffff); }
-    AE_STMT(BPF_LD|BPF_H|BPF_IND,14);
-    for (size_t i=0;i<sizeof(uports)/sizeof(uports[0]);++i) { AE_JUMP(BPF_JMP|BPF_JEQ|BPF_K,uports[i],0,1); AE_STMT(BPF_RET|BPF_K,0xffff); }
-    AE_STMT(BPF_RET|BPF_K,0);
-
-    if (tcp_start <= jt_tcp || udp_start <= jt_udp || tcp_start-jt_tcp-1U > 255U || udp_start-jt_udp-1U > 255U) return -1;
-    code[jt_tcp].jt = (uint8_t)(tcp_start - jt_tcp - 1U);
-    code[jt_udp].jt = (uint8_t)(udp_start - jt_udp - 1U);
-    struct sock_fprog prog = {(unsigned short)n, code};
-    int rc = setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &prog, sizeof(prog));
-#undef AE_STMT
-#undef AE_JUMP
-    return rc;
-}
-#endif
 
 #endif /* ARGOS_ENTERPRISE_H */

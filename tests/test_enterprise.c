@@ -114,6 +114,15 @@ static void test_fdp(void) {
     check(strstr(r.detail, "sw-core1") != NULL && strstr(r.detail, "ICX-7250") != NULL, "FDP device/model evidence");
 }
 
+static void test_cip_tcp(void) {
+    unsigned char p[24] = {0};
+    argos_enterprise_result_t r;
+    p[0] = 0x63U; p[1] = 0x00U; /* ListIdentity command 0x0063 LE */
+    check(argos_enterprise_tcp_port(40000, 44818) == 1, "EtherNet/IP TCP port admitted");
+    check(argos_enterprise_parse_tcp(40000, 44818, p, (int)sizeof(p), &r) == 1, "EtherNet/IP TCP ListIdentity parsed");
+    check(strcmp(r.proto, "ethernet-ip") == 0, "EtherNet/IP TCP protocol label");
+}
+
 static void test_elephant_fast_drop(void) {
     unsigned char iscsi[48] = {0};
     argos_enterprise_result_t r;
@@ -129,6 +138,7 @@ int main(void) {
     test_isis();
     test_edp();
     test_fdp();
+    test_cip_tcp();
     test_elephant_fast_drop();
     puts("enterprise parser fixtures: PASS");
     return 0;

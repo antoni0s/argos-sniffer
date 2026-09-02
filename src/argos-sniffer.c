@@ -114,6 +114,7 @@
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
+#include "argos_bpf.h"
 #endif
 
 /* ============================================================================
@@ -2721,85 +2722,9 @@ static void print_help(const char *prog) {
 
 /* ============================================================================
  * SECTION: Kernel AF_PACKET Prefilter
- * A deliberately conservative classic-BPF prefilter for Ethernet sockets.
- * It keeps every frame class Argos currently parses, but drops uninteresting
- * untagged IPv4 bulk traffic before it consumes AF_PACKET receive-buffer space.
- *
- * Safety choices:
- *   - IPv6 is accepted wholesale (extension-header-safe).
- *   - VLAN/QinQ and PPPoE are accepted wholesale (offset-safe).
- *   - live packet-dump mode (-z) bypasses this filter entirely.
- *   - for untagged IPv4 TCP, SYN/FIN/RST plus HTTP/TLS destination ports pass.
- *   - for untagged IPv4 UDP, only Argos discovery/DNS/QUIC ports pass.
+ * Vector-aware classic-BPF construction lives in argos_bpf.h so the generated
+ * program can be regression-tested against synthetic packet fixtures.
  * ============================================================================ */
-static int attach_argos_kernel_filter(int sock) {
-    static const struct sock_filter code[] = {
-        BPF_STMT(BPF_LD  | BPF_H | BPF_ABS, 12),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0806, 48, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x88cc, 47, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x8100, 46, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x88a8, 45, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x8864, 44, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x86dd, 43, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x0800, 0, 43),
-
-        BPF_STMT(BPF_LD  | BPF_B | BPF_ABS, 23),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_TCP, 2, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, IPPROTO_UDP, 22, 0),
-        BPF_JUMP(BPF_JMP | BPF_JA, 39, 0, 0),
-
-        BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 14),
-        BPF_STMT(BPF_LD  | BPF_B | BPF_IND, 27),
-        BPF_JUMP(BPF_JMP | BPF_JSET | BPF_K, TH_FIN | TH_SYN | TH_RST, 35, 0),
-        /* Drop zero-payload ACK/window-update traffic in-kernel. IP total
-         * length must exceed IP-header + TCP-header length before HTTP/TLS
-         * destination-port checks are allowed to pass the packet. */
-        BPF_STMT(BPF_STX, 0),
-        BPF_STMT(BPF_LD  | BPF_H | BPF_ABS, 16),
-        BPF_STMT(BPF_ST, 1),
-        BPF_STMT(BPF_LD  | BPF_B | BPF_IND, 26),
-        BPF_STMT(BPF_ALU | BPF_AND | BPF_K, 0xf0),
-        BPF_STMT(BPF_ALU | BPF_RSH | BPF_K, 2),
-        BPF_STMT(BPF_MISC | BPF_TAX, 0),
-        BPF_STMT(BPF_LD  | BPF_W | BPF_MEM, 0),
-        BPF_STMT(BPF_ALU | BPF_ADD | BPF_X, 0),
-        BPF_STMT(BPF_MISC | BPF_TAX, 0),
-        BPF_STMT(BPF_LD  | BPF_W | BPF_MEM, 1),
-        BPF_JUMP(BPF_JMP | BPF_JGT | BPF_X, 0, 0, 24),
-        BPF_STMT(BPF_LDX | BPF_W | BPF_MEM, 0),
-        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 16),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 80,   20, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 8080, 19, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 443,  18, 0),
-        BPF_JUMP(BPF_JMP | BPF_JA, 18, 0, 0),
-
-        BPF_STMT(BPF_LDX | BPF_B | BPF_MSH, 14),
-        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 16),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 67,   14, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 137,  13, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1900, 12, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 3702, 11, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5353, 10, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 53,    9, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 443,   8, 0),
-        BPF_STMT(BPF_LD  | BPF_H | BPF_IND, 14),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 67,    6, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 137,   5, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1900,  4, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 3702,  3, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 5353,  2, 0),
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 53,    1, 0),
-        BPF_JUMP(BPF_JMP | BPF_JA, 1, 0, 0),
-
-        BPF_STMT(BPF_RET | BPF_K, 0x0000ffffU),
-        BPF_STMT(BPF_RET | BPF_K, 0U)
-    };
-    struct sock_fprog prog;
-    prog.len = (unsigned short)(sizeof(code) / sizeof(code[0]));
-    prog.filter = (struct sock_filter *)code;
-    return setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &prog, sizeof(prog));
-}
-
 #ifndef ARGOS_PORTABLE_TEST
 int main(int argc, char *argv[]) {
     const char *iface = "any";
@@ -2974,6 +2899,14 @@ int main(int argc, char *argv[]) {
         opt_v6 = 1;
     }
 
+    argos_bpf_config_t bpf_cfg = {
+        .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
+        .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
+        .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),
+        .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),
+        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0)
+    };
+
     install_signal_handlers();
 
     int epoll_fd = epoll_create1(0);
@@ -3033,8 +2966,9 @@ int main(int argc, char *argv[]) {
         if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); token = strtok(NULL, ","); continue; }
 
         if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
-            if ((opt_enterprise ? attach_argos_enterprise_kernel_filter(sock) : attach_argos_kernel_filter(sock)) < 0) {
-                fprintf(stderr, "warning: unable to attach AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));
+            if (argos_bpf_attach(sock, &bpf_cfg) < 0) {
+                fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\n",
+                        token, strerror(errno));
             }
         }
 
