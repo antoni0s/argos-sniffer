@@ -11,6 +11,7 @@
 #define SO_ATTACH_FILTER 26
 #endif
 #include "argos_enterprise_ports.h"
+#include "argos_tls_ports.h"
 
 #define ARGOS_BPF_MAX_INSNS 256U
 #define ARGOS_BPF_PASS 0x0000ffffU
@@ -62,7 +63,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 #define EMIT(x) do { if (!(x)) return 0; } while (0)
 
     if (cfg->http) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
-    if (cfg->tls)  { ADD(td, td_n, 443); ADD(ud, ud_n, 443); }
+    if (cfg->tls) {
+        for (size_t i = 0; i < ARGOS_TLS_TCP_PORT_COUNT; ++i) ADD(td, td_n, ARGOS_TLS_TCP_PORTS[i]);
+        ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT);
+    }
     if (cfg->dhcp) { ADD(ud, ud_n, 67); ADD(us, us_n, 67); }
     if (cfg->netbios) { ADD(ud, ud_n, 137); ADD(us, us_n, 137); }
     if (cfg->dns) { ADD(ud, ud_n, 53); ADD(us, us_n, 53); }

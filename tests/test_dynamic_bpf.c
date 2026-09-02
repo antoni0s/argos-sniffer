@@ -93,9 +93,16 @@ int main(void) {
     expect(pass(&p, pkt, eth(pkt, 0x8100)), "VLAN remains conservative pass-through");
 
     memset(&c, 0, sizeof(c)); c.tls = 1; expect(argos_bpf_build(&c, &p), "build TLS");
-    expect(pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS ClientHello port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS HTTPS port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 465, 0x18, 20)), "TLS SMTPS port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 853, 0x18, 20)), "DNS-over-TLS port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 993, 0x18, 20)), "TLS IMAPS port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 995, 0x18, 20)), "TLS POP3S port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 8443, 0x18, 20)), "alternate HTTPS port passes");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 587, 0x18, 20)), "STARTTLS 587 stays out of direct-TLS policy");
     expect(pass(&p, pkt, udp4(pkt, 50000, 443, 1200)), "QUIC destination 443 passes");
     expect(!pass(&p, pkt, udp4(pkt, 443, 50000, 1200)), "QUIC server direction drops in client-only TLS mode");
+    expect(!pass(&p, pkt, udp4(pkt, 50000, 853, 1200)), "DoT is TCP; UDP/853 drops in TLS mode");
 
     memset(&c, 0, sizeof(c)); c.enterprise = 1; c.ipv6 = 1; expect(argos_bpf_build(&c, &p), "build enterprise");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 44818, 0x18, 24)), "EtherNet/IP TCP/44818 passes");

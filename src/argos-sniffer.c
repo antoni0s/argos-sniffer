@@ -111,6 +111,7 @@
 #include "argos_quic.h"
 #include "argos_quic_heavy.h"
 #endif
+#include "argos_tls_ports.h"
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
@@ -1156,7 +1157,7 @@ static int app_flow_should_skip(uint8_t ip_version, const uint8_t *src, const ui
 static int app_flow_payload_complete(uint16_t dport, const unsigned char *payload, int payload_len) {
     if (!payload || payload_len <= 0) return 0;
 
-    if (dport == 443U) {
+    if (argos_tls_tcp_port(dport)) {
         if (payload_len < 9 || payload[0] != 0x16 || payload[5] != 0x01) return 0;
         uint32_t hs_len = ((uint32_t)payload[6] << 16) |
                           ((uint32_t)payload[7] << 8) |
@@ -1873,6 +1874,9 @@ static void parse_tls_sni(const unsigned char *payload, int len, const char *mac
     source_dedup_signature(fp_sig, sizeof(fp_sig), src_ip, fp_payload, routed_str);
     if (!dedup_should_suppress(mac, "TLS", fp_sig, rl_enabled)) {
         emit_telemetry("TLS|%s|%s|%s|%u|%s|%s|%s%s\n", mac, src_ip, dst_ip, dport, sni, ja4_full, alpn, routed_str);
+    }
+    if (dport == 853U && !dedup_should_suppress(mac, "DOT", fp_sig, rl_enabled)) {
+        emit_telemetry("DOT|%s|%s|%s|%s|%s|%s%s\n", mac, src_ip, dst_ip, sni, ja4_full, alpn, routed_str);
     }
 }
 
@@ -2677,7 +2681,8 @@ static void print_help(const char *prog) {
 "  -n / -N         NetBIOS Name Service (UDP 137) logging\n"
 "  -q / -Q         DNS Queries & DNSEXT latency/entropy tracking (UDP port 53)\n"
 "  -h / -H         HTTP User-Agent extraction (port 80/8080)\n"
-"  -t / -T         TLS ClientHello (SNI, JA4, ALPN) & QUIC extraction (port 443)\n"
+"  -t / -T         TLS ClientHello (443/465/853/993/995/8443) + QUIC UDP/443\n"
+"                  TCP/853 also emits additive DNS-over-TLS (DOT) classification\n"
 "  -l / -L         LLDP + ARP + IPv6 NDP/Router Advertisement discovery\n"
 "  --enterprise    Enterprise/storage/identity/routing/OT control-plane fingerprints\n"
 "                  (development opt-in; intentionally not implied by -a/-A yet)\n"
@@ -2693,6 +2698,7 @@ static void print_help(const char *prog) {
 "  DNS|mac|src_ip|query_domain[|routed]\n"
 "  TCPLVL|mac|src_ip|dst_ip|dst_port|rtt_us|retrans_count|state_event[|routed]\n"
 "  TLS|mac|src_ip|dst_ip|dst_port|sni|ja4_fingerprint|alpn[|routed]\n"
+"  DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn[|routed]\n"
 "  QUIC|mac|src_ip|dst_ip|dst_port|sni|version[|routed]\n"
 "  DNSEXT|mac|src_ip|dst_ip|query_domain|qtype|rcode|latency_ms|entropy[|routed]\n"
 "  ALERT|mac|src_ip|HIGH_DNS_ENTROPY|query_domain|entropy[|routed]\n"
@@ -3357,7 +3363,7 @@ int main(int argc, char *argv[]) {
                 int payload_offset = l4_offset + tcp_hl, payload_len = l3_packet_end - payload_offset;
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
                                    (opt_http && (dport == 80U || dport == 8080U)) ||
-                                   (opt_tls && dport == 443U) ||
+                                   (opt_tls && argos_tls_tcp_port(dport)) ||
                                    (opt_enterprise && argos_enterprise_tcp_port(sport, dport));
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
@@ -3491,7 +3497,7 @@ int main(int argc, char *argv[]) {
                 int enterprise_tcp = opt_enterprise && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
                                 ((opt_http && (dport == 80U || dport == 8080U)) ||
-                                 (opt_tls && dport == 443U) || enterprise_tcp);
+                                 (opt_tls && argos_tls_tcp_port(dport)) || enterprise_tcp);
                 if (app_track && app_flow_should_skip(flow_ip_version, flow_src_addr, flow_dst_addr,
                                                       sport, dport)) {
                     continue;
@@ -3514,7 +3520,7 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                else if (opt_tls && dport == 443 && payload_len > 44) {
+                else if (opt_tls && argos_tls_tcp_port(dport) && payload_len > 44) {
                     parse_tls_sni(buffer + payload_offset, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
 
