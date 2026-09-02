@@ -114,6 +114,7 @@
 #include "argos_tls_ports.h"
 #include "argos_tls_server.h"
 #include "argos_lldp_med.h"
+#include "argos_lacp.h"
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
@@ -3202,7 +3203,7 @@ int main(int argc, char *argv[]) {
                 ip_ttl = ip6->ip6_hlim;
                 if (skip_ipv6_exthdrs(buffer, (int)len, l3_offset, &ip_protocol, &l4_offset) < 0) continue;
             } else if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
-                       (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                       (opt_enterprise && (l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
                                            l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 /* L2 discovery/control: no IP addresses. Filters can still match on MAC.
@@ -3273,7 +3274,7 @@ int main(int argc, char *argv[]) {
              * Using the destination MAC would turn multicast addresses such as
              * LLDP's 01:80:c2:00:00:0e into fake device identities. */
             if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
-                (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                (opt_enterprise && (l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
                                     l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 memcpy(device_mac, src_mac, 6);
@@ -3308,6 +3309,14 @@ int main(int argc, char *argv[]) {
                         if (!dedup_should_suppress(mac_str, "ENT", med.detail, opt_enterprise_rl))
                             emit_telemetry("ENT|%s|-|-|LLDP-MED|%s\n", mac_str, med.detail);
                     }
+                }
+                continue;
+            }
+            if (opt_enterprise && l3_proto == 0x8809U) {
+                argos_lacp_result_t lacp;
+                if (argos_lacp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &lacp)) {
+                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail, opt_enterprise_rl))
+                        emit_telemetry("ENT|%s|-|-|LACP|%s\n", mac_str, lacp.detail);
                 }
                 continue;
             }

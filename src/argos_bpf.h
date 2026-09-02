@@ -102,6 +102,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
     }
     if (cfg->enterprise) {
         EMIT(abpf_pass_ethertype(p, 0x88cc)); /* LLDP / LLDP-MED */
+        EMIT(abpf_pass_ethertype(p, 0x8809)); /* Slow Protocols / LACP */
         EMIT(abpf_pass_ethertype(p, 0x888e)); /* EAPoL */
         EMIT(abpf_pass_ethertype(p, 0x8892)); /* PROFINET */
     }
