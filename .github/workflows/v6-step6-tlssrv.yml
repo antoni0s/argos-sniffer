@@ -41,7 +41,7 @@ jobs:
           bpf=Path('src/argos_bpf.h').read_text()
           hdr=Path('src/argos_tls_server.h').read_text()
           assert 'ats1_' in hdr
-          assert 'JA4S' not in hdr
+          assert 'JA4S|' not in src
           assert 'ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i])' in bpf
           assert 'argos_tls_tcp_port(sport)' in src
           assert 'TLSSRV|%s|%s|%s|%u|%s|%s%s' in src
