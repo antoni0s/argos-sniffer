@@ -1,5 +1,5 @@
 /* ============================================================================
- * argos_quic_heavy.h - Stateful QUIC v1 Reassembler & Extractor
+ * argos_quic_heavy.h - Stateful QUIC v1/v2 Reassembler & Extractor
  * ============================================================================ */
 #ifndef ARGOS_QUIC_HEAVY_H
 #define ARGOS_QUIC_HEAVY_H
@@ -16,6 +16,7 @@
 typedef struct {
     uint8_t dcid[20];
     int dcid_len;
+    uint32_t version;
     int used;
     uint8_t crypto_buf[8192];
     uint8_t present[8192 / 8];
@@ -59,23 +60,25 @@ static void quic_heavy_gc(void) {
     }
 }
 
-static int quic_heavy_find_session(const uint8_t *dcid, int dcid_len) {
+static int quic_heavy_find_session(uint32_t version, const uint8_t *dcid, int dcid_len) {
     if (!quic_sessions) return -1;
     for (int i = 0; i < QUIC_STATE_SLOTS; i++) {
-        if (quic_sessions[i].used && quic_sessions[i].dcid_len == dcid_len &&
+        if (quic_sessions[i].used && quic_sessions[i].version == version &&
+            quic_sessions[i].dcid_len == dcid_len &&
             memcmp(quic_sessions[i].dcid, dcid, (size_t)dcid_len) == 0) return i;
     }
     return -1;
 }
 
-static int quic_heavy_get_or_create_session(const uint8_t *dcid, int dcid_len) {
+static int quic_heavy_get_or_create_session(uint32_t version, const uint8_t *dcid, int dcid_len) {
     if (!quic_heavy_ensure_table()) return -1;
-    int slot = quic_heavy_find_session(dcid, dcid_len);
+    int slot = quic_heavy_find_session(version, dcid, dcid_len);
     if (slot >= 0) return slot;
     for (int i = 0; i < QUIC_STATE_SLOTS; i++) {
         if (!quic_sessions[i].used) {
             memset(&quic_sessions[i], 0, sizeof(quic_sessions[i]));
             quic_sessions[i].used = 1;
+            quic_sessions[i].version = version;
             quic_sessions[i].dcid_len = dcid_len;
             if (dcid_len > 0) memcpy(quic_sessions[i].dcid, dcid, (size_t)dcid_len);
             return i;
@@ -95,12 +98,12 @@ static uint64_t quic_heavy_reconstruct_pn(int slot, uint32_t truncated_pn, unsig
     return candidate;
 }
 
-static int argos_quic_extract_stateful(const uint8_t *frames, size_t frames_len, const uint8_t *dcid, int dcid_len, uint8_t *hello, size_t hello_cap, size_t *hello_len) {
+static int argos_quic_extract_stateful(const uint8_t *frames, size_t frames_len, uint32_t version, const uint8_t *dcid, int dcid_len, uint8_t *hello, size_t hello_cap, size_t *hello_len) {
     *hello_len = 0;
     if (!frames || !dcid || dcid_len < 0 || dcid_len > 20 || !hello || hello_cap < 4U) return 0;
 
     size_t pos = 0;
-    int slot = quic_heavy_get_or_create_session(dcid, dcid_len);
+    int slot = quic_heavy_get_or_create_session(version, dcid, dcid_len);
     if (slot < 0) return 0;
     time_t now = time(NULL);
     quic_sessions[slot].last_seen = now;
@@ -157,7 +160,8 @@ static int argos_quic_extract_stateful(const uint8_t *frames, size_t frames_len,
 }
 
 static inline int decrypt_quic_sni_stateful(const uint8_t *packet, int pkt_len, int dcid_pos, int dcid_len, uint8_t *fake_tls_buf, int fake_tls_buf_cap, int *fake_tls_len) {
-    uint8_t initial_secret[32], client_secret[32], quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];
+    uint8_t quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];
+    argos_quic_initial_profile_t profile;
     uint8_t *decrypted = NULL, *hello = NULL, unprotected_first;
     size_t pos, packet_end, pn_offset, payload_offset, payload_len, ciphertext_len, hello_len = 0U;
     uint64_t token_len, packet_length; uint32_t truncated_pn; uint64_t pn; unsigned pn_len;
@@ -165,7 +169,7 @@ static inline int decrypt_quic_sni_stateful(const uint8_t *packet, int pkt_len, 
     *fake_tls_len = 0;
     if (fake_tls_buf_cap < 5 || pkt_len <= 0 || dcid_pos < 6 || dcid_len < 0 || dcid_len > 20) return -1;
     if ((size_t)pkt_len < 7U || (size_t)dcid_pos > (size_t)pkt_len || (size_t)dcid_len > (size_t)pkt_len - (size_t)dcid_pos) return -1;
-    if ((packet[0] & 0x80U) == 0U || (packet[0] & 0x40U) == 0U) return -1;
+    if (!argos_quic_packet_profile(packet, (size_t)pkt_len, &profile)) return -1;
     
     pos = (size_t)dcid_pos + (size_t)dcid_len;
     if (pos >= (size_t)pkt_len) return -1;
@@ -184,11 +188,7 @@ static inline int decrypt_quic_sni_stateful(const uint8_t *packet, int pkt_len, 
 
     if (packet_end < pn_offset + 4U + 16U) return -1;
 
-    argos_hkdf_extract_sha256(ARGOS_QUIC_V1_SALT, sizeof(ARGOS_QUIC_V1_SALT), packet + dcid_pos, (size_t)dcid_len, initial_secret);
-    if (!argos_hkdf_expand_label(initial_secret, "client in", 32U, client_secret)) return -1;
-    if (!argos_hkdf_expand_label(client_secret, "quic key", 16U, quic_key)) return -1;
-    if (!argos_hkdf_expand_label(client_secret, "quic iv", 12U, quic_iv)) return -1;
-    if (!argos_hkdf_expand_label(client_secret, "quic hp", 16U, quic_hp)) return -1;
+    if (!argos_quic_derive_client_keys(&profile, packet + dcid_pos, (size_t)dcid_len, quic_key, quic_iv, quic_hp)) return -1;
 
     argos_aes128_expand_key(quic_hp, hp_exp_key);
     memcpy(sample, packet + pn_offset + 4U, 16U); memcpy(mask, sample, 16U);
@@ -206,7 +206,7 @@ static inline int decrypt_quic_sni_stateful(const uint8_t *packet, int pkt_len, 
     memcpy(aad, packet, aad_len); aad[0] = unprotected_first; truncated_pn = 0U;
     for (unsigned i = 0; i < pn_len; ++i) { aad[pn_offset + i] = (uint8_t)(packet[pn_offset + i] ^ mask[1U + i]); truncated_pn = (truncated_pn << 8) | aad[pn_offset + i]; }
 
-    int session_slot = quic_heavy_get_or_create_session(packet + dcid_pos, dcid_len);
+    int session_slot = quic_heavy_get_or_create_session(profile.version, packet + dcid_pos, dcid_len);
     if (session_slot < 0) { free(aad); return -1; }
     pn = quic_heavy_reconstruct_pn(session_slot, truncated_pn, pn_len);
 
@@ -230,7 +230,7 @@ static inline int decrypt_quic_sni_stateful(const uint8_t *packet, int pkt_len, 
     hello = (uint8_t *)malloc(8192U);
     if (!hello) { free(decrypted); return -1; }
     /* Stateful extraction reassembles CRYPTO frames across Initial packets. */
-    if (!argos_quic_extract_stateful(decrypted, payload_len - 16U, packet + dcid_pos, dcid_len, hello, 8192U, &hello_len)) {
+    if (!argos_quic_extract_stateful(decrypted, payload_len - 16U, profile.version, packet + dcid_pos, dcid_len, hello, 8192U, &hello_len)) {
         /* Authenticated Initial, but the CRYPTO stream is not complete yet. */
         free(hello);
         free(decrypted);

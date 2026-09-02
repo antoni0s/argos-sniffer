@@ -1,5 +1,5 @@
 /* ============================================================================
- * argos_quic.h - QUIC v1 Initial Packet Decryptor & TLS ClientHello Extractor
+ * argos_quic.h - QUIC v1/v2 Initial Packet Decryptor & TLS ClientHello Extractor
  * Pure C / no OpenSSL dependency. (PRODUCTION - SILENT)
  * ============================================================================ */
 
@@ -242,11 +242,66 @@ static int argos_aes128_gcm_decrypt(const uint8_t key[16], const uint8_t iv[12],
 }
 
 /* -------------------------------------------------------------------------- */
-/* QUIC v1 Initial                                                             */
+/* QUIC Initial version profiles (RFC 9001 v1 + RFC 9369 v2)                  */
 /* -------------------------------------------------------------------------- */
+#define ARGOS_QUIC_VERSION_V1 0x00000001U
+#define ARGOS_QUIC_VERSION_V2 0x6b3343cfU
 static const uint8_t ARGOS_QUIC_V1_SALT[20] = { 0x38,0x76,0x2c,0xf7,0xf5,0x59,0x34,0xb3,0x4d,0x17,0x9a,0xe6,0xa4,0xc8,0x0c,0xad,0xcc,0xbb,0x7f,0x0a };
+static const uint8_t ARGOS_QUIC_V2_SALT[20] = { 0x0d,0xed,0xe3,0xde,0xf7,0x00,0xa6,0xdb,0x81,0x93,0x81,0xbe,0x6e,0x26,0x9d,0xcb,0xf9,0xbd,0x2e,0xd9 };
 #define ARGOS_QUIC_MAX_CRYPTO 8192U
 #define ARGOS_QUIC_FAKE_TLS_HEADER 5U
+
+typedef struct {
+    uint32_t version;
+    uint8_t initial_type;
+    const uint8_t *salt;
+    size_t salt_len;
+    const char *key_label;
+    const char *iv_label;
+    const char *hp_label;
+} argos_quic_initial_profile_t;
+
+static int argos_quic_initial_profile(uint32_t version, argos_quic_initial_profile_t *profile) {
+    if (profile == NULL) return 0;
+    memset(profile, 0, sizeof(*profile));
+    profile->version = version;
+    if (version == ARGOS_QUIC_VERSION_V1) {
+        profile->initial_type = 0U;
+        profile->salt = ARGOS_QUIC_V1_SALT; profile->salt_len = sizeof(ARGOS_QUIC_V1_SALT);
+        profile->key_label = "quic key"; profile->iv_label = "quic iv"; profile->hp_label = "quic hp";
+        return 1;
+    }
+    if (version == ARGOS_QUIC_VERSION_V2) {
+        profile->initial_type = 1U;
+        profile->salt = ARGOS_QUIC_V2_SALT; profile->salt_len = sizeof(ARGOS_QUIC_V2_SALT);
+        profile->key_label = "quicv2 key"; profile->iv_label = "quicv2 iv"; profile->hp_label = "quicv2 hp";
+        return 1;
+    }
+    return 0;
+}
+
+static int argos_quic_packet_profile(const uint8_t *packet, size_t packet_len,
+                                     argos_quic_initial_profile_t *profile) {
+    if (packet == NULL || packet_len < 5U || profile == NULL) return 0;
+    if ((packet[0] & 0xc0U) != 0xc0U) return 0;
+    uint32_t version = ((uint32_t)packet[1] << 24) | ((uint32_t)packet[2] << 16) |
+                       ((uint32_t)packet[3] << 8) | (uint32_t)packet[4];
+    if (!argos_quic_initial_profile(version, profile)) return 0;
+    return ((packet[0] & 0x30U) >> 4) == profile->initial_type;
+}
+
+static int argos_quic_derive_client_keys(const argos_quic_initial_profile_t *profile,
+                                         const uint8_t *dcid, size_t dcid_len,
+                                         uint8_t key[16], uint8_t iv[12], uint8_t hp[16]) {
+    uint8_t initial_secret[32], client_secret[32];
+    if (profile == NULL || profile->salt == NULL || dcid == NULL || key == NULL || iv == NULL || hp == NULL) return 0;
+    argos_hkdf_extract_sha256(profile->salt, profile->salt_len, dcid, dcid_len, initial_secret);
+    if (!argos_hkdf_expand_label(initial_secret, "client in", 32U, client_secret)) return 0;
+    if (!argos_hkdf_expand_label(client_secret, profile->key_label, 16U, key)) return 0;
+    if (!argos_hkdf_expand_label(client_secret, profile->iv_label, 12U, iv)) return 0;
+    if (!argos_hkdf_expand_label(client_secret, profile->hp_label, 16U, hp)) return 0;
+    return 1;
+}
 
 static int argos_quic_read_varint(const uint8_t *buf, size_t len, size_t *pos, uint64_t *value) {
     if (buf == NULL || pos == NULL || value == NULL || *pos >= len) return 0;
@@ -318,7 +373,8 @@ fail:
 }
 
 static inline int decrypt_quic_sni(const uint8_t *packet, int pkt_len, int dcid_pos, int dcid_len, uint8_t *fake_tls_buf, int fake_tls_buf_cap, int *fake_tls_len) {
-    uint8_t initial_secret[32], client_secret[32], quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];
+    uint8_t quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];
+    argos_quic_initial_profile_t profile;
     uint8_t *decrypted = NULL, *hello = NULL, unprotected_first;
     size_t pos, packet_end, pn_offset, payload_offset, payload_len, ciphertext_len, hello_len = 0U;
     uint64_t token_len, packet_length; uint32_t pn; unsigned pn_len;
@@ -328,7 +384,7 @@ static inline int decrypt_quic_sni(const uint8_t *packet, int pkt_len, int dcid_
     if (fake_tls_buf_cap < (int)ARGOS_QUIC_FAKE_TLS_HEADER || pkt_len <= 0 || dcid_pos < 6 || dcid_len < 0 || dcid_len > 20) return 0;
     if ((size_t)pkt_len < 7U || (size_t)dcid_pos > (size_t)pkt_len || (size_t)dcid_len > (size_t)pkt_len - (size_t)dcid_pos) return 0;
 
-    if ((packet[0] & 0x80U) == 0U || (packet[0] & 0x40U) == 0U) return 0;
+    if (!argos_quic_packet_profile(packet, (size_t)pkt_len, &profile)) return 0;
     
     pos = (size_t)dcid_pos + (size_t)dcid_len;
     if (pos >= (size_t)pkt_len) return 0;
@@ -347,11 +403,7 @@ static inline int decrypt_quic_sni(const uint8_t *packet, int pkt_len, int dcid_
 
     if (packet_end < pn_offset + 4U + 16U) return 0;
 
-    argos_hkdf_extract_sha256(ARGOS_QUIC_V1_SALT, sizeof(ARGOS_QUIC_V1_SALT), packet + dcid_pos, (size_t)dcid_len, initial_secret);
-    if (!argos_hkdf_expand_label(initial_secret, "client in", 32U, client_secret)) return 0;
-    if (!argos_hkdf_expand_label(client_secret, "quic key", 16U, quic_key)) return 0;
-    if (!argos_hkdf_expand_label(client_secret, "quic iv", 12U, quic_iv)) return 0;
-    if (!argos_hkdf_expand_label(client_secret, "quic hp", 16U, quic_hp)) return 0;
+    if (!argos_quic_derive_client_keys(&profile, packet + dcid_pos, (size_t)dcid_len, quic_key, quic_iv, quic_hp)) return 0;
 
     argos_aes128_expand_key(quic_hp, hp_exp_key);
     memcpy(sample, packet + pn_offset + 4U, 16U); memcpy(mask, sample, 16U);

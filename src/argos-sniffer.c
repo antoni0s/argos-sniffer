@@ -1835,18 +1835,24 @@ static int quic_read_varint_local(const unsigned char *buf, int len, int *pos, u
     return 1;
 }
 
-/* Returns the complete byte span of a QUIC v1 Initial packet inside a UDP
- * datagram. This lets the caller walk coalesced Initial packets without
- * treating the entire datagram as one cryptographic packet. */
-static int quic_v1_initial_span(const unsigned char *payload, int len, int offset,
-                                int *dcid_pos, uint8_t *dcid_len, int *packet_span) {
-    if (!payload || !dcid_pos || !dcid_len || !packet_span || offset < 0 || len - offset < 7) return 0;
+/* Returns the complete byte span of a supported QUIC Initial packet inside
+ * a UDP datagram. QUIC v1 uses long-header type 00; RFC 9369 QUIC v2 uses
+ * type 01, so packet-type validation is version-specific. */
+static int quic_initial_span(const unsigned char *payload, int len, int offset,
+                             int *dcid_pos, uint8_t *dcid_len, int *packet_span,
+                             uint32_t *quic_version) {
+    if (!payload || !dcid_pos || !dcid_len || !packet_span || !quic_version ||
+        offset < 0 || len - offset < 7) return 0;
     const unsigned char *p = payload + offset;
     int rem = len - offset;
-    if ((p[0] & 0xC0U) != 0xC0U || ((p[0] & 0x30U) >> 4) != 0U) return 0;
+    if ((p[0] & 0xc0U) != 0xc0U) return 0;
     uint32_t version = ((uint32_t)p[1] << 24) | ((uint32_t)p[2] << 16) |
                        ((uint32_t)p[3] << 8) | (uint32_t)p[4];
-    if (version != 0x00000001U) return 0;
+    unsigned initial_type;
+    if (version == 0x00000001U) initial_type = 0U;
+    else if (version == 0x6b3343cfU) initial_type = 1U;
+    else return 0;
+    if (((p[0] & 0x30U) >> 4) != initial_type) return 0;
 
     int pos = 5;
     uint8_t dlen = p[pos++];
@@ -1867,6 +1873,7 @@ static int quic_v1_initial_span(const unsigned char *payload, int len, int offse
     *dcid_pos = dpos;
     *dcid_len = dlen;
     *packet_span = pos + (int)packet_length;
+    *quic_version = version;
     return *packet_span > 0 && *packet_span <= rem;
 }
 
@@ -1913,10 +1920,12 @@ static void parse_quic(const unsigned char *payload, int len, const char *mac, c
     int offset = 0;
     int saw_initial = 0;
     int saw_failure = 0;
+    uint32_t failure_version = 0U;
     while (offset < len) {
         int dcid_pos = 0, packet_span = 0;
         uint8_t dcid_len = 0;
-        if (!quic_v1_initial_span(payload, len, offset, &dcid_pos, &dcid_len, &packet_span)) break;
+        uint32_t packet_version = 0U;
+        if (!quic_initial_span(payload, len, offset, &dcid_pos, &dcid_len, &packet_span, &packet_version)) break;
         saw_initial = 1;
 
         uint8_t fake_tls_buf[8192];
@@ -1936,7 +1945,7 @@ static void parse_quic(const unsigned char *payload, int len, const char *mac, c
             quic_mark_success(success_key);
             return;
         }
-        if (result < 0) saw_failure = 1;
+        if (result < 0) { saw_failure = 1; failure_version = packet_version; }
         /* result == 0 is normal stateful reassembly pending: stay silent. */
         offset += packet_span;
     }
@@ -1944,10 +1953,12 @@ static void parse_quic(const unsigned char *payload, int len, const char *mac, c
     if (saw_initial && saw_failure && !quic_success_recent(success_key)) {
         /* Failure fallback is intentionally coarse and rate-limited per device
          * and QUIC version, so repeated Initial packets cannot spam telemetry. */
-        char failure_sig[192];
-        source_dedup_signature(failure_sig, sizeof(failure_sig), src_ip, "v1-failure", routed_str);
+        const char *version_label = failure_version == 0x6b3343cfU ? "v2" : "v1";
+        char failure_sig[192], failure_kind[32];
+        snprintf(failure_kind, sizeof(failure_kind), "%s-failure", version_label);
+        source_dedup_signature(failure_sig, sizeof(failure_sig), src_ip, failure_kind, routed_str);
         if (!dedup_should_suppress(mac, "QUIC", failure_sig, rl_enabled)) {
-            emit_telemetry("QUIC|%s|%s|%s|%u|encrypted|v1%s\n", mac, src_ip, dst_ip, dport, routed_str);
+            emit_telemetry("QUIC|%s|%s|%s|%u|encrypted|%s%s\n", mac, src_ip, dst_ip, dport, version_label, routed_str);
         }
     }
 }
