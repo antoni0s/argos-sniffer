@@ -99,6 +99,9 @@ int main(void) {
     expect(pass(&p, pkt, tcp4(pkt, 50000, 993, 0x18, 20)), "TLS IMAPS port passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 995, 0x18, 20)), "TLS POP3S port passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 8443, 0x18, 20)), "alternate HTTPS port passes");
+    expect(pass(&p, pkt, tcp4(pkt, 443, 50000, 0x18, 80)), "TLS server-direction payload passes");
+    expect(pass(&p, pkt, tcp4(pkt, 853, 50000, 0x18, 80)), "DoT server-direction payload passes");
+    expect(!pass(&p, pkt, tcp4(pkt, 587, 50000, 0x18, 80)), "STARTTLS server direction stays out");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 587, 0x18, 20)), "STARTTLS 587 stays out of direct-TLS policy");
     expect(pass(&p, pkt, udp4(pkt, 50000, 443, 1200)), "QUIC destination 443 passes");
     expect(!pass(&p, pkt, udp4(pkt, 443, 50000, 1200)), "QUIC server direction drops in client-only TLS mode");

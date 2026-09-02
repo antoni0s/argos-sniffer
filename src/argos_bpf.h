@@ -64,7 +64,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 
     if (cfg->http) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
     if (cfg->tls) {
-        for (size_t i = 0; i < ARGOS_TLS_TCP_PORT_COUNT; ++i) ADD(td, td_n, ARGOS_TLS_TCP_PORTS[i]);
+        for (size_t i = 0; i < ARGOS_TLS_TCP_PORT_COUNT; ++i) {
+            ADD(td, td_n, ARGOS_TLS_TCP_PORTS[i]);
+            ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i]);
+        }
         ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT);
     }
     if (cfg->dhcp) { ADD(ud, ud_n, 67); ADD(us, us_n, 67); }

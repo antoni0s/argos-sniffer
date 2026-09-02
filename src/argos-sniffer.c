@@ -112,6 +112,7 @@
 #include "argos_quic_heavy.h"
 #endif
 #include "argos_tls_ports.h"
+#include "argos_tls_server.h"
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
@@ -1154,8 +1155,13 @@ static int app_flow_should_skip(uint8_t ip_version, const uint8_t *src, const ui
  * complete once the request header terminator is present in the captured
  * payload. The packet that completes the fingerprint is still parsed; DONE is
  * applied only to subsequent packets. */
-static int app_flow_payload_complete(uint16_t dport, const unsigned char *payload, int payload_len) {
+static int app_flow_payload_complete(uint16_t sport, uint16_t dport, const unsigned char *payload, int payload_len) {
     if (!payload || payload_len <= 0) return 0;
+
+    if (argos_tls_tcp_port(sport)) {
+        argos_tls_server_result_t server;
+        return argos_tls_server_parse(payload, (size_t)payload_len, &server);
+    }
 
     if (argos_tls_tcp_port(dport)) {
         if (payload_len < 9 || payload[0] != 0x16 || payload[5] != 0x01) return 0;
@@ -2699,6 +2705,7 @@ static void print_help(const char *prog) {
 "  TCPLVL|mac|src_ip|dst_ip|dst_port|rtt_us|retrans_count|state_event[|routed]\n"
 "  TLS|mac|src_ip|dst_ip|dst_port|sni|ja4_fingerprint|alpn[|routed]\n"
 "  DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn[|routed]\n"
+"  TLSSRV|mac|server_ip|client_ip|server_port|ats1_fingerprint|alpn[|routed]\n"
 "  QUIC|mac|src_ip|dst_ip|dst_port|sni|version[|routed]\n"
 "  DNSEXT|mac|src_ip|dst_ip|query_domain|qtype|rcode|latency_ms|entropy[|routed]\n"
 "  ALERT|mac|src_ip|HIGH_DNS_ENTROPY|query_domain|entropy[|routed]\n"
@@ -3363,7 +3370,7 @@ int main(int argc, char *argv[]) {
                 int payload_offset = l4_offset + tcp_hl, payload_len = l3_packet_end - payload_offset;
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
                                    (opt_http && (dport == 80U || dport == 8080U)) ||
-                                   (opt_tls && argos_tls_tcp_port(dport)) ||
+                                   (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) ||
                                    (opt_enterprise && argos_enterprise_tcp_port(sport, dport));
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
@@ -3497,7 +3504,7 @@ int main(int argc, char *argv[]) {
                 int enterprise_tcp = opt_enterprise && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
                                 ((opt_http && (dport == 80U || dport == 8080U)) ||
-                                 (opt_tls && argos_tls_tcp_port(dport)) || enterprise_tcp);
+                                 (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) || enterprise_tcp);
                 if (app_track && app_flow_should_skip(flow_ip_version, flow_src_addr, flow_dst_addr,
                                                       sport, dport)) {
                     continue;
@@ -3523,6 +3530,15 @@ int main(int argc, char *argv[]) {
                 else if (opt_tls && argos_tls_tcp_port(dport) && payload_len > 44) {
                     parse_tls_sni(buffer + payload_offset, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
+                else if (opt_tls && argos_tls_tcp_port(sport) && payload_len > 44) {
+                    argos_tls_server_result_t server;
+                    if (argos_tls_server_parse(buffer + payload_offset, (size_t)payload_len, &server)) {
+                        char srv_sig[256];
+                        source_dedup_signature(srv_sig, sizeof(srv_sig), src_ip_str, server.fingerprint, routed_str);
+                        if (!dedup_should_suppress(mac_str, "TLSSRV", srv_sig, opt_tls_rl))
+                            emit_telemetry("TLSSRV|%s|%s|%s|%u|%s|%s%s\n", mac_str, src_ip_str, dst_ip_str, sport, server.fingerprint, server.alpn, routed_str);
+                    }
+                }
 
                 argos_enterprise_result_t ent_tcp;
                 int ent_tcp_seen = 0;
@@ -3540,7 +3556,7 @@ int main(int argc, char *argv[]) {
 
                 if (app_track) {
                     int fingerprint_complete = app_flow_payload_complete(
-                        dport, buffer + payload_offset, payload_len);
+                        sport, dport, buffer + payload_offset, payload_len);
                     if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
                     app_flow_note_payload(flow_ip_version, flow_src_addr, flow_dst_addr,
                                           sport, dport, fingerprint_complete);
