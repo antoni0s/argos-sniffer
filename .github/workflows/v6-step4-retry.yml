@@ -24,6 +24,7 @@ jobs:
           python3 .github/scripts/v6_step4_patch.py
           python3 - <<'PY'
           from pathlib import Path
+
           p = Path('src/argos_bpf.h')
           s = p.read_text()
           needle = '#include <linux/filter.h>\n'
@@ -31,6 +32,13 @@ jobs:
           if s.count(needle) != 1:
               raise SystemExit('unexpected linux/filter include count')
           p.write_text(s.replace(needle, fallback, 1))
+
+          t = Path('tests/test_dynamic_bpf.c')
+          s = t.read_text()
+          needle = 'unsigned char pkt[256];'
+          if s.count(needle) != 1:
+              raise SystemExit('unexpected packet-buffer declaration count')
+          t.write_text(s.replace(needle, 'unsigned char pkt[2048];', 1))
           PY
 
       - name: Dynamic BPF functional matrix
