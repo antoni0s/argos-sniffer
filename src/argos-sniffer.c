@@ -117,6 +117,7 @@
 #include "argos_lacp.h"
 #include "argos_stp.h"
 #include "argos_vrrp.h"
+#include "argos_hsrp.h"
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
@@ -3740,6 +3741,18 @@ int main(int argc, char *argv[]) {
                 }
                 else if (opt_tls && dport == 443) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
+                }
+                if (opt_enterprise && ttl == 1U && (sport == 1985U || dport == 1985U)) {
+                    argos_hsrp1_result_t hsrp;
+                    if (argos_hsrp1_parse(payload, (size_t)payload_len, &hsrp)) {
+                        char ent_mac[18], ent_sig[384];
+                        if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
+                        else format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP|%s", src_ip_str, hsrp.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            emit_telemetry("ENT|%s|%s|%s|HSRP|%s%s\n",
+                                           ent_mac, src_ip_str, dst_ip_str, hsrp.detail, routed_str);
+                    }
                 }
                 if (opt_enterprise && argos_enterprise_udp_port(sport, dport)) {
                     argos_enterprise_result_t ent_udp;
