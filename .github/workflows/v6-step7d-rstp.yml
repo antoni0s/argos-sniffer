@@ -1,0 +1,66 @@
+name: V6 step 7d - RSTP gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step7d_rstp_patch.py'
+      - '.github/workflows/v6-step7d-rstp.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step7d_rstp_patch.py
+      - name: RSTP fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_rstp.c -o /tmp/test-rstp
+          /tmp/test-rstp
+      - name: Classic STP regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stp.c -o /tmp/test-stp
+          /tmp/test-stp
+      - name: RSTP integration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/argos-sniffer.c').read_text(); stp=Path('src/argos_stp.h').read_text()
+          assert 'p[5] != 0x02U || p[6] != 0x02U' in stp
+          assert 'p[38] != 0x00U' in stp
+          assert 'role=%s;proposal=%u;learning=%u;forwarding=%u;agreement=%u' in stp
+          assert 'ENT|%s|-|-|RSTP|%s' in src
+          print('RSTP integration invariants: PASS')
+          PY
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+          git diff --check
+      - name: RSTP sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_rstp.c -o /tmp/test-rstp-san
+          /tmp/test-rstp-san
+      - name: Existing L2 regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lacp.c -o /tmp/test-lacp && /tmp/test-lacp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lldp_med.c -o /tmp/test-lldp-med && /tmp/test-lldp-med
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c src/argos_stp.h tests/test_rstp.c
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(v6): fingerprint RSTP bridge role and state'
+          git push origin HEAD:version-6
