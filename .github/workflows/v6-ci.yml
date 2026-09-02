@@ -1,0 +1,75 @@
+name: V6 enterprise CI
+
+on:
+  push:
+    branches: [version-6]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native strict build and parser tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Strict compile - full QUIC
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+
+      - name: Strict compile - QUIC stub
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Enterprise parser fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+
+      - name: Enterprise parser sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_enterprise.c -o /tmp/test-enterprise-san
+          /tmp/test-enterprise-san
+
+      - name: CLI contract
+        run: |
+          /tmp/argos-sniffer-v6-stub --help | grep -F 'argos-sniffer v6.0.0-dev'
+          /tmp/argos-sniffer-v6-stub --help | grep -F -- '--enterprise'
+          /tmp/argos-sniffer-v6-stub --help | grep -F 'ENT|mac|src_ip|dst_ip|protocol|fingerprint'
+
+  arm64:
+    name: ARM64 strict cross-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ARM64 compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Cross-compile full QUIC
+        run: |
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-arm64-full
+          file /tmp/argos-sniffer-v6-arm64-full | grep -F 'ARM aarch64'
+
+      - name: Cross-compile QUIC stub
+        run: |
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-arm64-stub
+          file /tmp/argos-sniffer-v6-arm64-stub | grep -F 'ARM aarch64'
