@@ -1,0 +1,81 @@
+name: V6 step 6 - Argos TLS ServerHello gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step6_patch.py'
+      - '.github/workflows/v6-step6-tlssrv.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step6_patch.py
+
+      - name: ServerHello golden fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_server.c -o /tmp/test-tlssrv
+          /tmp/test-tlssrv
+
+      - name: Dynamic BPF matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+
+      - name: Server fingerprint invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/argos-sniffer.c').read_text()
+          bpf=Path('src/argos_bpf.h').read_text()
+          hdr=Path('src/argos_tls_server.h').read_text()
+          assert 'ats1_' in hdr
+          assert 'JA4S' not in hdr
+          assert 'ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i])' in bpf
+          assert 'argos_tls_tcp_port(sport)' in src
+          assert 'TLSSRV|%s|%s|%s|%u|%s|%s%s' in src
+          assert 'app_flow_payload_complete(\n                        sport, dport,' in src
+          print('Argos TLS ServerHello invariants: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+          git diff --check
+
+      - name: Sanitizer ServerHello fixtures
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_tls_server.c -o /tmp/test-tlssrv-san
+          /tmp/test-tlssrv-san
+
+      - name: Existing regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_v2.c -o /tmp/test-quic-v2
+          /tmp/test-quic-v2
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c src/argos_bpf.h src/argos_tls_server.h tests/test_dynamic_bpf.c tests/test_tls_server.c
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(v6): fingerprint TLS ServerHello responses'
+          git push origin HEAD:version-6
