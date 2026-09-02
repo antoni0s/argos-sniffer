@@ -45,14 +45,12 @@ jobs:
 
       - name: QUIC v2 RFC 9369 vectors
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_quic_v2.c -o /tmp/test-quic-v2
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_v2.c -o /tmp/test-quic-v2
           /tmp/test-quic-v2
 
       - name: Netlink prefix refresh fixture
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_netlink_refresh.c -o /tmp/test-netlink-refresh
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_netlink_refresh.c -o /tmp/test-netlink-refresh
           /tmp/test-netlink-refresh
           grep -F 'RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR' src/argos-sniffer.c
           grep -F 'lan_netlink_drain(lan_netlink_fd)' src/argos-sniffer.c
@@ -60,8 +58,7 @@ jobs:
 
       - name: Dynamic BPF functional matrix
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
           /tmp/test-dynamic-bpf
           grep -F 'argos_bpf_attach(sock, &bpf_cfg)' src/argos-sniffer.c
           grep -F 'ARGOS_ENTERPRISE_TCP_PORTS' src/argos_bpf.h
@@ -72,14 +69,11 @@ jobs:
 
       - name: LLDP-MED fingerprint fixtures
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_lldp_med.c -o /tmp/test-lldp-med
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lldp_med.c -o /tmp/test-lldp-med
           /tmp/test-lldp-med
           python3 - <<'PY'
           from pathlib import Path
-          src = Path('src/argos-sniffer.c').read_text()
-          bpf = Path('src/argos_bpf.h').read_text()
-          med = Path('src/argos_lldp_med.h').read_text()
+          src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); med = Path('src/argos_lldp_med.h').read_text()
           assert 'p[pos] == 0x00U && p[pos + 1U] == 0x12U && p[pos + 2U] == 0xbbU' in med
           assert 'subtype == 3U' not in med
           assert 'ENT|%s|-|-|LLDP-MED|%s' in src
@@ -89,25 +83,39 @@ jobs:
           PY
 
       - name: LLDP-MED sanitizers
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_lldp_med.c -o /tmp/test-lldp-med-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_lldp_med.c -o /tmp/test-lldp-med-san
           /tmp/test-lldp-med-san
+
+      - name: Classic STP fingerprint fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stp.c -o /tmp/test-stp
+          /tmp/test-stp
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/argos-sniffer.c').read_text(); stp=Path('src/argos_stp.h').read_text(); bpf=Path('src/argos_bpf.h').read_text()
+          assert 'p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U' in stp
+          assert 'r->version != 0U' in stp
+          assert 'ENT|%s|-|-|STP|%s' in src
+          assert src.count('l3_proto <= 1500U') >= 3
+          assert 'BPF_JGT | BPF_K, 1500' in bpf
+          print('classic STP integration regression: PASS')
+          PY
+
+      - name: Classic STP sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_stp.c -o /tmp/test-stp-san
+          /tmp/test-stp-san
 
       - name: LACP fingerprint fixtures
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_lacp.c -o /tmp/test-lacp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lacp.c -o /tmp/test-lacp
           /tmp/test-lacp
           python3 - <<'PY'
           from pathlib import Path
-          src = Path('src/argos-sniffer.c').read_text()
-          bpf = Path('src/argos_bpf.h').read_text()
-          lacp = Path('src/argos_lacp.h').read_text()
+          src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); lacp = Path('src/argos_lacp.h').read_text()
           assert 'p[0] != 0x01U' in lacp
           assert 'p[2] != 0x01U || p[3] != 0x14U' in lacp
           assert 'p[22] != 0x02U || p[23] != 0x14U' in lacp
@@ -119,24 +127,17 @@ jobs:
           PY
 
       - name: LACP sanitizers
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_lacp.c -o /tmp/test-lacp-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_lacp.c -o /tmp/test-lacp-san
           /tmp/test-lacp-san
 
       - name: TLS port policy and DoT regression
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          ports = Path('src/argos_tls_ports.h').read_text()
-          src = Path('src/argos-sniffer.c').read_text()
-          bpf = Path('src/argos_bpf.h').read_text()
-          for port in ('443U', '465U', '853U', '993U', '995U', '8443U'):
-              assert port in ports
+          ports = Path('src/argos_tls_ports.h').read_text(); src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text()
+          for port in ('443U', '465U', '853U', '993U', '995U', '8443U'): assert port in ports
           assert '587U' not in ports
           assert 'ARGOS_TLS_TCP_PORTS' in bpf
           assert 'ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT)' in bpf
@@ -150,14 +151,11 @@ jobs:
 
       - name: TLS ServerHello golden fixtures
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_tls_server.c -o /tmp/test-tlssrv
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_server.c -o /tmp/test-tlssrv
           /tmp/test-tlssrv
           python3 - <<'PY'
           from pathlib import Path
-          src=Path('src/argos-sniffer.c').read_text()
-          bpf=Path('src/argos_bpf.h').read_text()
-          hdr=Path('src/argos_tls_server.h').read_text()
+          src=Path('src/argos-sniffer.c').read_text(); bpf=Path('src/argos_bpf.h').read_text(); hdr=Path('src/argos_tls_server.h').read_text()
           assert 'ats1_' in hdr
           assert 'JA4S|' not in src
           assert 'ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i])' in bpf
@@ -167,39 +165,26 @@ jobs:
           PY
 
       - name: TLS ServerHello sanitizers
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_tls_server.c -o /tmp/test-tlssrv-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_tls_server.c -o /tmp/test-tlssrv-san
           /tmp/test-tlssrv-san
 
       - name: Dynamic BPF sanitizers
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf-san
           /tmp/test-dynamic-bpf-san
 
       - name: Enterprise parser fixtures
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_enterprise.c -o /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
           /tmp/test-enterprise
 
       - name: Enterprise parser sanitizers
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_enterprise.c -o /tmp/test-enterprise-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_enterprise.c -o /tmp/test-enterprise-san
           /tmp/test-enterprise-san
 
       - name: CLI contract
@@ -216,20 +201,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Install ARM64 compiler
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Cross-compile full QUIC
         run: |
-          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-arm64-full
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-arm64-full
           file /tmp/argos-sniffer-v6-arm64-full | grep -F 'ARM aarch64'
-
       - name: Cross-compile QUIC stub
         run: |
-          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-arm64-stub
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-arm64-stub
           file /tmp/argos-sniffer-v6-arm64-stub | grep -F 'ARM aarch64'
