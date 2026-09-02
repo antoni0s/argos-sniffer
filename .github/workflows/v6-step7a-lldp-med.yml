@@ -27,8 +27,8 @@ jobs:
           from pathlib import Path
           p=Path('tests/test_dynamic_bpf.c')
           s=p.read_text()
-          old='memset(&cfg, 0, sizeof(cfg)); cfg.enterprise = 1;'
-          new='memset(&c, 0, sizeof(c)); c.enterprise = 1;'
+          old='memset(&cfg, 0, sizeof(cfg)); cfg.enterprise = 1;\n    expect(argos_bpf_build(&cfg, &p), "enterprise-only BPF builds");'
+          new='memset(&c, 0, sizeof(c)); c.enterprise = 1;\n    expect(argos_bpf_build(&c, &p), "enterprise-only BPF builds");'
           assert s.count(old) == 1
           p.write_text(s.replace(old,new,1))
           PY
