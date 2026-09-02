@@ -21,7 +21,41 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged patch
-        run: python3 .github/scripts/v6_step7b_patch.py
+        run: |
+          python3 .github/scripts/v6_step7b_patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/argos_lacp.h')
+          s = p.read_text()
+          start = s.index('static inline void alacp_state(')
+          end = s.index('\n/* IEEE 802.1AX', start)
+          safe = r'''static inline void alacp_state_add(char out[80], size_t *used, const char *name) {
+              if (!out || !used || !name || *used >= 79U) return;
+              if (*used != 0U && *used < 79U) out[(*used)++] = ',';
+              size_t room = 79U - *used;
+              size_t n = strlen(name);
+              if (n > room) n = room;
+              if (n > 0U) memcpy(out + *used, name, n);
+              *used += n;
+              out[*used] = '\0';
+          }
+
+          static inline void alacp_state(char out[80], uint8_t s) {
+              size_t used = 0U;
+              out[0] = '\0';
+              if (s & 0x01U) alacp_state_add(out, &used, "active");
+              if (s & 0x02U) alacp_state_add(out, &used, "short");
+              if (s & 0x04U) alacp_state_add(out, &used, "agg");
+              if (s & 0x08U) alacp_state_add(out, &used, "sync");
+              if (s & 0x10U) alacp_state_add(out, &used, "collect");
+              if (s & 0x20U) alacp_state_add(out, &used, "dist");
+              if (s & 0x40U) alacp_state_add(out, &used, "defaulted");
+              if (s & 0x80U) alacp_state_add(out, &used, "expired");
+              if (!out[0]) strcpy(out, "none");
+          }
+          '''
+          p.write_text(s[:start] + safe + s[end:])
+          PY
 
       - name: LACP fixtures
         run: |
@@ -43,6 +77,7 @@ jobs:
           assert 'p[0] != 0x01U' in lacp
           assert 'p[2] != 0x01U || p[3] != 0x14U' in lacp
           assert 'p[22] != 0x02U || p[23] != 0x14U' in lacp
+          assert 'alacp_state_add' in lacp
           assert 'EMIT(abpf_pass_ethertype(p, 0x8809)); /* Slow Protocols / LACP */' in bpf
           assert 'ENT|%s|-|-|LACP|%s' in src
           assert src.count('l3_proto == 0x8809U') >= 3
