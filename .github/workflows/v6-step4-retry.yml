@@ -20,7 +20,18 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged patch
-        run: python3 .github/scripts/v6_step4_patch.py
+        run: |
+          python3 .github/scripts/v6_step4_patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/argos_bpf.h')
+          s = p.read_text()
+          needle = '#include <linux/filter.h>\n'
+          fallback = '#include <linux/filter.h>\n\n#ifndef SO_ATTACH_FILTER\n#define SO_ATTACH_FILTER 26\n#endif\n'
+          if s.count(needle) != 1:
+              raise SystemExit('unexpected linux/filter include count')
+          p.write_text(s.replace(needle, fallback, 1))
+          PY
 
       - name: Dynamic BPF functional matrix
         run: |
