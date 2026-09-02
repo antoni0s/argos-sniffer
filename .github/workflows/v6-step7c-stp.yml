@@ -1,0 +1,82 @@
+name: V6 step 7c - classic STP gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step7c_stp_patch.py'
+      - '.github/workflows/v6-step7c-stp.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step7c_stp_patch.py
+
+      - name: Classic STP fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stp.c -o /tmp/test-stp
+          /tmp/test-stp
+
+      - name: Dynamic BPF regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+
+      - name: STP integration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/argos-sniffer.c').read_text()
+          bpf=Path('src/argos_bpf.h').read_text()
+          stp=Path('src/argos_stp.h').read_text()
+          assert 'p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U' in stp
+          assert 'r->version != 0U' in stp
+          assert 'ENT|%s|-|-|STP|%s' in src
+          assert src.count('l3_proto <= 1500U') >= 3
+          assert 'BPF_JGT | BPF_K, 1500' in bpf
+          print('classic STP integration invariants: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+          git diff --check
+
+      - name: STP sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_stp.c -o /tmp/test-stp-san
+          /tmp/test-stp-san
+
+      - name: Existing regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lacp.c -o /tmp/test-lacp
+          /tmp/test-lacp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lldp_med.c -o /tmp/test-lldp-med
+          /tmp/test-lldp-med
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c src/argos_stp.h tests/test_stp.c
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(v6): fingerprint classic STP bridge state'
+          git push origin HEAD:version-6
