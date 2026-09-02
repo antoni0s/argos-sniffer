@@ -112,6 +112,9 @@
 #include "argos_quic_heavy.h"
 #endif
 #include "argos_enterprise.h"
+#ifndef ARGOS_PORTABLE_TEST
+#include "argos_netlink.h"
+#endif
 
 /* ============================================================================
  * SECTION: Global Configuration & Version Constants
@@ -736,6 +739,58 @@ static void learn_lan_prefixes(void) {
     }
     freeifaddrs(ifa);
     fprintf(stderr, "argos: learned %d LAN prefix(es) from captured interfaces\n", lan_pfx_count);
+}
+
+/* Route-netlink is integrated into the same epoll loop as AF_PACKET capture.
+ * The socket subscribes only to IPv4/IPv6 address changes. A readable burst is
+ * drained completely and collapsed into one getifaddrs() refresh, keeping this
+ * work out of the per-packet hot path. */
+static unsigned char lan_netlink_epoll_tag;
+
+static int lan_netlink_open(void) {
+    int fd = socket(AF_NETLINK, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, NETLINK_ROUTE);
+    if (fd < 0) return -1;
+
+    struct sockaddr_nl addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.nl_family = AF_NETLINK;
+    addr.nl_groups = RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        int saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return fd;
+}
+
+static int lan_netlink_drain(int fd) {
+    int refresh = 0;
+    unsigned char buf[8192];
+
+    for (;;) {
+        ssize_t n = recv(fd, buf, sizeof(buf), MSG_DONTWAIT);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            /* ENOBUFS means notifications may have been dropped. Force a
+             * full resnapshot so stale prefixes cannot persist silently. */
+            if (errno == ENOBUFS) refresh = 1;
+            break;
+        }
+        if (n == 0) break;
+
+        int rem = (int)n;
+        for (struct nlmsghdr *nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, rem);
+             nh = NLMSG_NEXT(nh, rem)) {
+            if (nh->nlmsg_type == NLMSG_ERROR) {
+                refresh = 1;
+                continue;
+            }
+            if (argos_netlink_prefix_event_type((uint16_t)nh->nlmsg_type)) refresh = 1;
+        }
+    }
+    return refresh;
 }
 #endif
 
@@ -2923,6 +2978,7 @@ int main(int argc, char *argv[]) {
 
     int epoll_fd = epoll_create1(0);
     if (epoll_fd < 0) { perror("epoll_create1"); return 1; }
+    int lan_netlink_fd = -1;
 
     /* -i takes a comma-separated interface list (e.g. "eth0,wlan0"); make a
      * mutable copy since strtok() writes '\0' separators into it in place. */
@@ -3008,6 +3064,22 @@ int main(int argc, char *argv[]) {
 
     if (num_ifaces == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\n"); return 1; }
     learn_lan_prefixes();
+
+    lan_netlink_fd = lan_netlink_open();
+    if (lan_netlink_fd >= 0) {
+        struct epoll_event nev;
+        memset(&nev, 0, sizeof(nev));
+        nev.events = EPOLLIN;
+        nev.data.ptr = &lan_netlink_epoll_tag;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lan_netlink_fd, &nev) < 0) {
+            fprintf(stderr, "warning: unable to add route-netlink listener to epoll: %s\n", strerror(errno));
+            close(lan_netlink_fd);
+            lan_netlink_fd = -1;
+        }
+    } else {
+        fprintf(stderr, "warning: route-netlink prefix refresh unavailable: %s\n", strerror(errno));
+    }
+
     /* Keep stdout line-buffered whenever it is active. With -U it is a
      * deliberate local fan-out alongside the remote UDP sink. */
     if (!use_ipc || use_remote) setvbuf(stdout, NULL, _IOLBF, 0);
@@ -3051,6 +3123,12 @@ int main(int argc, char *argv[]) {
         uint64_t processing_start_us = opt_v6 ? get_current_usec() : 0;
 
         for (int i = 0; i < nfds; i++) {
+            if (events[i].data.ptr == &lan_netlink_epoll_tag) {
+                if (lan_netlink_fd >= 0 && lan_netlink_drain(lan_netlink_fd))
+                    learn_lan_prefixes();
+                continue;
+            }
+
             capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
 
             struct sockaddr_ll from_ll;
@@ -3674,6 +3752,7 @@ int main(int argc, char *argv[]) {
 
     /* Cleanup sockets and resources */
     for (int i = 0; i < num_ifaces; i++) close(active_ifaces[i].fd);
+    if (lan_netlink_fd >= 0) close(lan_netlink_fd);
     if (ipc_sock >= 0) close(ipc_sock);
     if (remote_sock >= 0) close(remote_sock);
     free(syn_table); free(dns_table); free(dedup_table); free(owner4_table); free(owner6_table);
