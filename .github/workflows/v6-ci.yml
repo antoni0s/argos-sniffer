@@ -57,6 +57,28 @@ jobs:
           grep -F 'lan_netlink_drain(lan_netlink_fd)' src/argos-sniffer.c
           ! grep -F 'RTMGRP_LINK' src/argos-sniffer.c
 
+      - name: Dynamic BPF functional matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+          grep -F 'argos_bpf_attach(sock, &bpf_cfg)' src/argos-sniffer.c
+          grep -F 'ARGOS_ENTERPRISE_TCP_PORTS' src/argos_bpf.h
+          grep -F '44818' src/argos_enterprise_ports.h
+          grep -F 'case 44818: return ae_cip' src/argos_enterprise.h
+          ! grep -F 'attach_argos_kernel_filter' src/argos-sniffer.c
+          ! grep -F 'attach_argos_enterprise_kernel_filter' src/argos_enterprise.h
+
+      - name: Dynamic BPF sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf-san
+          /tmp/test-dynamic-bpf-san
+
       - name: Enterprise parser fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
