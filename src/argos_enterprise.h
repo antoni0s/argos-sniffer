@@ -505,7 +505,8 @@ static inline int ae_snmp(const unsigned char *p, int len, argos_enterprise_resu
         size_t used = 0; value[0] = '\0';
         for (int i = 0; i < vl && used + 3U < sizeof(value); ++i) {
             int w = snprintf(value + used, sizeof(value) - used, "%s%02x", i ? ":" : "", q[2+i]);
-            if (w < 0 || (size_t)w >= sizeof(value) - used) break; used += (size_t)w;
+            if (w < 0 || (size_t)w >= sizeof(value) - used) break;
+            used += (size_t)w;
         }
     }
     ae_set(r, "snmp", 0, "%s=%s", label, value[0] ? value : "-");

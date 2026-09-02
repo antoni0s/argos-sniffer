@@ -111,6 +111,7 @@
 #include "argos_quic.h"
 #include "argos_quic_heavy.h"
 #endif
+#include "argos_enterprise.h"
 
 /* ============================================================================
  * SECTION: Global Configuration & Version Constants
@@ -149,7 +150,7 @@ static int decrypt_quic_sni_stateful(const unsigned char *payload, int len, int 
 static void quic_heavy_gc(void) {}
 #endif
 
-#define VERSION "5.3.1"
+#define VERSION "6.0.0-dev"
 
 /* ============================================================================
  * SECTION: Telemetry Output Engine
@@ -1236,6 +1237,24 @@ static int strip_l2(link_type_t type, const unsigned char *buffer, int len,
                 frame_inner_vlan = (uint16_t)(read_be16(buffer + 18) & 0x0fffU);
                 eth_type = read_be16(buffer + 20); offset = 22;
             }
+        }
+        /* IEEE 802.3 + LLC/SNAP control protocols. The 16-bit field at
+         * Ethernet offset 12 is a payload length (<=1500), not an EtherType.
+         * CDP uses SNAP OUI 00:00:0c + PID 0x2000. IS-IS uses LLC FE:FE:03. */
+        if (eth_type <= 1500U) {
+            if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
+                buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
+                buffer[offset + 4] == 0x00U && buffer[offset + 5] == 0x0cU &&
+                read_be16(buffer + offset + 6) == 0x2000U) {
+                *l3_proto = 0x2000U;
+                return offset + 8;
+            }
+            if (len >= offset + 3 && buffer[offset] == 0xfeU && buffer[offset + 1] == 0xfeU &&
+                buffer[offset + 2] == 0x03U) {
+                *l3_proto = 0x00feU;
+                return offset + 3;
+            }
+            return -1;
         }
         /* PPPoE Session stage (common on DSL/fiber ONTs): 6-byte PPPoE
          * header + 2-byte PPP protocol ID, which maps to the real L3
@@ -2539,7 +2558,7 @@ static void print_help(const char *prog) {
 "argos-sniffer v" VERSION " - Passive LAN traffic fingerprinter & live inspector\n"
 "                  for OpenWrt/Linux gateways and SPAN/TAP sensors\n\n"
 "USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u ip:port] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
-"     [--sensor --sensor-name name [--inside CIDR ...]]\n"
+"     [--sensor --sensor-name name [--inside CIDR ...]] [--enterprise|--enterprise-verbose]\n"
 "  OR:     %s [iface] (Automatically sets -i <iface> and enables all vectors with -a)\n\n"
 "OPTIONS:\n"
 "  -i <iface>      Interface to listen on (default: any). Comma-separated list or any.\n"
@@ -2565,6 +2584,8 @@ static void print_help(const char *prog) {
 "                  NOTE: telemetry is sent unencrypted/unauthenticated -- only\n"
 "                  point this at a trusted host reachable over a trusted path\n"
 "                  (management VLAN, VPN, etc).\n"
+"  --enterprise    Enable v6 enterprise handshake/discovery fingerprints (rate-limited).\n"
+"  --enterprise-verbose  Enable enterprise fingerprints without telemetry deduplication.\n"
 "  -W              Enable Stateful QUIC Inspection (reassembles fragmented Kyber ClientHellos)\n"
 "  -E              Enable Extended Metrics (TCPLVL RTT, DNSEXT Latency, DNS Entropy)\n\n"
 "TELEMETRY VECTORS (Lowercase = ENABLE WITH RATE LIMIT | Uppercase = ENABLE NO LIMIT):\n"
@@ -2576,7 +2597,9 @@ static void print_help(const char *prog) {
 "  -h / -H         HTTP User-Agent extraction (port 80/8080)\n"
 "  -t / -T         TLS ClientHello (SNI, JA4, ALPN) & QUIC extraction (port 443)\n"
 "  -l / -L         LLDP + ARP + IPv6 NDP/Router Advertisement discovery\n"
-"  -a / -A         Enable ALL vectors above (a = with limits, A = without limits)\n"
+"  --enterprise    Enterprise/storage/identity/routing/OT control-plane fingerprints\n"
+"                  (development opt-in; intentionally not implied by -a/-A yet)\n"
+"  -a / -A         Enable ALL legacy vectors above (a = with limits, A = without limits)\n"
 "  -v / -V         Enable IPv6 handling (subject to is_private_ipv6() filtering, see source)\n\n", prog, prog);
     fputs(
 "OUTPUT FORMAT:\n"
@@ -2600,7 +2623,8 @@ static void print_help(const char *prog) {
 "  NDP|mac|src_ip|type|target_ip|flags[|routed]\n"
 "  RA|mac|src_ip|hop_limit|flags|router_lifetime|prefix|prefix_len|mtu[|routed]\n"
 "  MDNS|mac|src_ip|port|qname[|routed]\n"
-"  L7|mac|src_ip|dst_port|payload[|routed]\n\n"
+"  L7|mac|src_ip|dst_port|payload[|routed]\n"
+"  ENT|mac|src_ip|dst_ip|protocol|fingerprint[|routed]\n\n"
 "FEATURES EXPLAINED:\n"
 "  [|routed]       Source is off-link behind a next-hop MAC or conflicts with ARP/NDP ownership.\n"
 "  JA4-like FP     MD5-derived TLS cipher/extension fingerprint used for client correlation.\n"
@@ -2706,12 +2730,15 @@ int main(int argc, char *argv[]) {
     int max_packets = 0, packet_count = 0;
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
+    int opt_enterprise = 0, opt_enterprise_rl = 1;
     int opt;
-    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE };
+    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE };
     static const struct option long_options[] = {
         {"sensor", no_argument, NULL, OPT_SENSOR},
         {"sensor-name", required_argument, NULL, OPT_SENSOR_NAME},
         {"inside", required_argument, NULL, OPT_INSIDE},
+        {"enterprise", no_argument, NULL, OPT_ENTERPRISE},
+        {"enterprise-verbose", no_argument, NULL, OPT_ENTERPRISE_VERBOSE},
         {NULL, 0, NULL, 0}
     };
 
@@ -2734,6 +2761,8 @@ int main(int argc, char *argv[]) {
                 snprintf(sensor_name, sizeof(sensor_name), "%s", optarg);
                 break;
             case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
+            case OPT_ENTERPRISE: opt_enterprise = 1; opt_enterprise_rl = 1; opt_v6 = 1; break;
+            case OPT_ENTERPRISE_VERBOSE: opt_enterprise = 1; opt_enterprise_rl = 0; opt_v6 = 1; break;
             case 'E': opt_ext_metrics = 1; break;
             case 'i': iface = optarg; break;
             case 'R': 
@@ -2858,7 +2887,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2) {
+    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !opt_enterprise) {
         opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;
         opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;
         opt_v6 = 1;
@@ -2922,7 +2951,7 @@ int main(int argc, char *argv[]) {
         if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); token = strtok(NULL, ","); continue; }
 
         if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
-            if (attach_argos_kernel_filter(sock) < 0) {
+            if ((opt_enterprise ? attach_argos_enterprise_kernel_filter(sock) : attach_argos_kernel_filter(sock)) < 0) {
                 fprintf(stderr, "warning: unable to attach AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));
             }
         }
@@ -3120,8 +3149,10 @@ int main(int argc, char *argv[]) {
                 is_ip_packet = 1;
                 ip_ttl = ip6->ip6_hlim;
                 if (skip_ipv6_exthdrs(buffer, (int)len, l3_offset, &ip_protocol, &l4_offset) < 0) continue;
-            } else if (l3_proto == 0x88cc || l3_proto == 0x0806) {
-                /* LLDP / ARP: no IP addresses. Filters can still match on MAC.
+            } else if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
+                       (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                                           l3_proto == 0x2000U || l3_proto == 0x00feU))) {
+                /* L2 discovery/control: no IP addresses. Filters can still match on MAC.
                  * Do NOT `continue` -- that was why -l never produced output. */
                 is_ip_packet = 0;
             } else {
@@ -3188,7 +3219,9 @@ int main(int argc, char *argv[]) {
             /* L2 discovery/control frames identify their sender by source MAC.
              * Using the destination MAC would turn multicast addresses such as
              * LLDP's 01:80:c2:00:00:0e into fake device identities. */
-            if (l3_proto == 0x88cc || l3_proto == 0x0806) {
+            if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
+                (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                                    l3_proto == 0x2000U || l3_proto == 0x00feU))) {
                 memcpy(device_mac, src_mac, 6);
             } else if (pkt_type == LINK_RAW_IP) {
                 memset(device_mac, 0, 6);
@@ -3214,6 +3247,17 @@ int main(int argc, char *argv[]) {
             /* L2 vectors must run even when there is no IP header. */
             if (opt_l2 && l3_proto == 0x88cc) {
                 parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str, opt_l2_rl);
+                continue;
+            }
+            if (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                                   l3_proto == 0x2000U || l3_proto == 0x00feU)) {
+                argos_enterprise_result_t ent;
+                if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, (int)len - l3_offset, &ent) && ent.emit) {
+                    char ent_sig[640];
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|%s", ent.proto, ent.detail);
+                    if (!dedup_should_suppress(mac_str, "ENT", ent_sig, opt_enterprise_rl))
+                        emit_telemetry("ENT|%s|-|-|%s|%s\n", mac_str, ent.proto, ent.detail);
+                }
                 continue;
             }
             if (l3_proto == 0x0806) {
@@ -3249,6 +3293,19 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            if (opt_enterprise && protocol == 89U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                argos_enterprise_result_t ent;
+                if (argos_enterprise_parse_ipproto(protocol, buffer + l4_offset, l3_packet_end - l4_offset, &ent) && ent.emit) {
+                    char ent_mac[18], ent_sig[640];
+                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
+                    else format_mac(src_mac, ent_mac);
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent.proto, ent.detail);
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent.proto, ent.detail, routed_str);
+                }
+                continue;
+            }
+
             if (protocol == IPPROTO_TCP) {
                 if (l4_offset + 20 > l3_packet_end) continue;
                 struct tcphdr tcp_hdr; memcpy(&tcp_hdr, buffer + l4_offset, sizeof(tcp_hdr));
@@ -3259,7 +3316,8 @@ int main(int argc, char *argv[]) {
                 int payload_offset = l4_offset + tcp_hl, payload_len = l3_packet_end - payload_offset;
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
                                    (opt_http && (dport == 80U || dport == 8080U)) ||
-                                   (opt_tls && dport == 443U);
+                                   (opt_tls && dport == 443U) ||
+                                   (opt_enterprise && argos_enterprise_tcp_port(sport, dport));
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
                     if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
@@ -3389,9 +3447,10 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
+                int enterprise_tcp = opt_enterprise && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
                                 ((opt_http && (dport == 80U || dport == 8080U)) ||
-                                 (opt_tls && dport == 443U));
+                                 (opt_tls && dport == 443U) || enterprise_tcp);
                 if (app_track && app_flow_should_skip(flow_ip_version, flow_src_addr, flow_dst_addr,
                                                       sport, dport)) {
                     continue;
@@ -3418,9 +3477,24 @@ int main(int argc, char *argv[]) {
                     parse_tls_sni(buffer + payload_offset, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
 
+                argos_enterprise_result_t ent_tcp;
+                int ent_tcp_seen = 0;
+                if (enterprise_tcp && payload_len > 0) {
+                    ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
+                    if (ent_tcp_seen && ent_tcp.emit) {
+                        char ent_mac[18], ent_sig[768];
+                        if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
+                        else format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_tcp.proto, ent_tcp.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
+                    }
+                }
+
                 if (app_track) {
                     int fingerprint_complete = app_flow_payload_complete(
                         dport, buffer + payload_offset, payload_len);
+                    if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
                     app_flow_note_payload(flow_ip_version, flow_src_addr, flow_dst_addr,
                                           sport, dport, fingerprint_complete);
                 }
@@ -3436,7 +3510,8 @@ int main(int argc, char *argv[]) {
                                    (opt_multi && (dport == 1900U || sport == 1900U || dport == 3702U || sport == 3702U ||
                                                   dport == 5353U || sport == 5353U)) ||
                                    (opt_dns && (dport == 53U || sport == 53U)) ||
-                                   (opt_tls && dport == 443U);
+                                   (opt_tls && dport == 443U) ||
+                                   (opt_enterprise && argos_enterprise_udp_port(sport, dport));
                 if (!udp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
                     if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
@@ -3547,6 +3622,17 @@ int main(int argc, char *argv[]) {
                 }
                 else if (opt_tls && dport == 443) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
+                }
+                if (opt_enterprise && argos_enterprise_udp_port(sport, dport)) {
+                    argos_enterprise_result_t ent_udp;
+                    if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
+                        char ent_mac[18], ent_sig[768];
+                        if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
+                        else format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
+                    }
                 }
             }
         }
