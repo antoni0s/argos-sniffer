@@ -1240,8 +1240,23 @@ static int strip_l2(link_type_t type, const unsigned char *buffer, int len,
         }
         /* IEEE 802.3 + LLC/SNAP control protocols. The 16-bit field at
          * Ethernet offset 12 is a payload length (<=1500), not an EtherType.
-         * CDP uses SNAP OUI 00:00:0c + PID 0x2000. IS-IS uses LLC FE:FE:03. */
+         * CDP: OUI 00:00:0c/PID 0x2000; EDP: OUI 00:e0:2b/PID 0x00bb;
+         * FDP: OUI 00:e0:52/PID 0x2000; IS-IS uses LLC FE:FE:03. */
         if (eth_type <= 1500U) {
+            if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
+                buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
+                buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x2bU &&
+                read_be16(buffer + offset + 6) == 0x00bbU) {
+                *l3_proto = 0x00bbU; /* internal EDP discriminator */
+                return offset + 8;
+            }
+            if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
+                buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
+                buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x52U &&
+                read_be16(buffer + offset + 6) == 0x2000U) {
+                *l3_proto = 0xf200U; /* internal FDP discriminator */
+                return offset + 8;
+            }
             if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
                 buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
                 buffer[offset + 4] == 0x00U && buffer[offset + 5] == 0x0cU &&
@@ -3151,7 +3166,8 @@ int main(int argc, char *argv[]) {
                 if (skip_ipv6_exthdrs(buffer, (int)len, l3_offset, &ip_protocol, &l4_offset) < 0) continue;
             } else if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
                        (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
-                                           l3_proto == 0x2000U || l3_proto == 0x00feU))) {
+                                           l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                                    l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 /* L2 discovery/control: no IP addresses. Filters can still match on MAC.
                  * Do NOT `continue` -- that was why -l never produced output. */
                 is_ip_packet = 0;
@@ -3221,7 +3237,8 @@ int main(int argc, char *argv[]) {
              * LLDP's 01:80:c2:00:00:0e into fake device identities. */
             if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
                 (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
-                                    l3_proto == 0x2000U || l3_proto == 0x00feU))) {
+                                    l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                                    l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 memcpy(device_mac, src_mac, 6);
             } else if (pkt_type == LINK_RAW_IP) {
                 memset(device_mac, 0, 6);
@@ -3250,7 +3267,8 @@ int main(int argc, char *argv[]) {
                 continue;
             }
             if (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
-                                   l3_proto == 0x2000U || l3_proto == 0x00feU)) {
+                                   l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                                    l3_proto == 0x00bbU || l3_proto == 0xf200U)) {
                 argos_enterprise_result_t ent;
                 if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, (int)len - l3_offset, &ent) && ent.emit) {
                     char ent_sig[640];
