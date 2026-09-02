@@ -28,6 +28,20 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
             -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
 
+      - name: JA4 ALPN regression
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('src/argos-sniffer.c').read_text()
+          decl = "char alpn_first = '0', alpn_last = '0';"
+          fallback = 'if (alpn[0] == \'\\0\') strcpy(alpn, "none");'
+          use = "a_cipher_count, a_ext_count, alpn_first, alpn_last"
+          assert s.count(decl) == 1
+          assert s.index(decl) < s.index(fallback) < s.index(use)
+          assert 'These placeholders are telemetry-only and never feed JA4.' in s
+          print('JA4 ALPN fallback ordering: PASS')
+          PY
+
       - name: Enterprise parser fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
