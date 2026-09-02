@@ -1,4 +1,4 @@
-name: V6 step 1 - JA4 ALPN correctness
+name: V6 step 2 - QUIC v2
 
 on:
   push:
@@ -19,37 +19,103 @@ jobs:
           ref: version-6
           fetch-depth: 0
 
-      - name: Apply JA4 ALPN fix
+      - name: Apply QUIC v2 support
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
+          def replace_once(s, old, new, label):
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected one match, found {n}')
+              return s.replace(old, new, 1)
+
+          # --- argos_quic.h: version profiles + RFC 9369 crypto parameters ---
+          p = Path('src/argos_quic.h')
+          s = p.read_text()
+          s = s.replace('argos_quic.h - QUIC v1 Initial Packet Decryptor & TLS ClientHello Extractor',
+                        'argos_quic.h - QUIC v1/v2 Initial Packet Decryptor & TLS ClientHello Extractor', 1)
+          old = '''/* -------------------------------------------------------------------------- */\n/* QUIC v1 Initial                                                             */\n/* -------------------------------------------------------------------------- */\nstatic const uint8_t ARGOS_QUIC_V1_SALT[20] = { 0x38,0x76,0x2c,0xf7,0xf5,0x59,0x34,0xb3,0x4d,0x17,0x9a,0xe6,0xa4,0xc8,0x0c,0xad,0xcc,0xbb,0x7f,0x0a };\n#define ARGOS_QUIC_MAX_CRYPTO 8192U\n#define ARGOS_QUIC_FAKE_TLS_HEADER 5U\n'''
+          new = '''/* -------------------------------------------------------------------------- */\n/* QUIC Initial version profiles (RFC 9001 v1 + RFC 9369 v2)                  */\n/* -------------------------------------------------------------------------- */\n#define ARGOS_QUIC_VERSION_V1 0x00000001U\n#define ARGOS_QUIC_VERSION_V2 0x6b3343cfU\nstatic const uint8_t ARGOS_QUIC_V1_SALT[20] = { 0x38,0x76,0x2c,0xf7,0xf5,0x59,0x34,0xb3,0x4d,0x17,0x9a,0xe6,0xa4,0xc8,0x0c,0xad,0xcc,0xbb,0x7f,0x0a };\nstatic const uint8_t ARGOS_QUIC_V2_SALT[20] = { 0x0d,0xed,0xe3,0xde,0xf7,0x00,0xa6,0xdb,0x81,0x93,0x81,0xbe,0x6e,0x26,0x9d,0xcb,0xf9,0xbd,0x2e,0xd9 };\n#define ARGOS_QUIC_MAX_CRYPTO 8192U\n#define ARGOS_QUIC_FAKE_TLS_HEADER 5U\n\ntypedef struct {\n    uint32_t version;\n    uint8_t initial_type;\n    const uint8_t *salt;\n    size_t salt_len;\n    const char *key_label;\n    const char *iv_label;\n    const char *hp_label;\n} argos_quic_initial_profile_t;\n\nstatic int argos_quic_initial_profile(uint32_t version, argos_quic_initial_profile_t *profile) {\n    if (profile == NULL) return 0;\n    memset(profile, 0, sizeof(*profile));\n    profile->version = version;\n    if (version == ARGOS_QUIC_VERSION_V1) {\n        profile->initial_type = 0U;\n        profile->salt = ARGOS_QUIC_V1_SALT; profile->salt_len = sizeof(ARGOS_QUIC_V1_SALT);\n        profile->key_label = "quic key"; profile->iv_label = "quic iv"; profile->hp_label = "quic hp";\n        return 1;\n    }\n    if (version == ARGOS_QUIC_VERSION_V2) {\n        profile->initial_type = 1U;\n        profile->salt = ARGOS_QUIC_V2_SALT; profile->salt_len = sizeof(ARGOS_QUIC_V2_SALT);\n        profile->key_label = "quicv2 key"; profile->iv_label = "quicv2 iv"; profile->hp_label = "quicv2 hp";\n        return 1;\n    }\n    return 0;\n}\n\nstatic int argos_quic_packet_profile(const uint8_t *packet, size_t packet_len,\n                                     argos_quic_initial_profile_t *profile) {\n    if (packet == NULL || packet_len < 5U || profile == NULL) return 0;\n    if ((packet[0] & 0xc0U) != 0xc0U) return 0;\n    uint32_t version = ((uint32_t)packet[1] << 24) | ((uint32_t)packet[2] << 16) |\n                       ((uint32_t)packet[3] << 8) | (uint32_t)packet[4];\n    if (!argos_quic_initial_profile(version, profile)) return 0;\n    return ((packet[0] & 0x30U) >> 4) == profile->initial_type;\n}\n\nstatic int argos_quic_derive_client_keys(const argos_quic_initial_profile_t *profile,\n                                         const uint8_t *dcid, size_t dcid_len,\n                                         uint8_t key[16], uint8_t iv[12], uint8_t hp[16]) {\n    uint8_t initial_secret[32], client_secret[32];\n    if (profile == NULL || profile->salt == NULL || dcid == NULL || key == NULL || iv == NULL || hp == NULL) return 0;\n    argos_hkdf_extract_sha256(profile->salt, profile->salt_len, dcid, dcid_len, initial_secret);\n    if (!argos_hkdf_expand_label(initial_secret, "client in", 32U, client_secret)) return 0;\n    if (!argos_hkdf_expand_label(client_secret, profile->key_label, 16U, key)) return 0;\n    if (!argos_hkdf_expand_label(client_secret, profile->iv_label, 12U, iv)) return 0;\n    if (!argos_hkdf_expand_label(client_secret, profile->hp_label, 16U, hp)) return 0;\n    return 1;\n}\n'''
+          s = replace_once(s, old, new, 'quic profile section')
+          s = replace_once(s,
+              '    uint8_t initial_secret[32], client_secret[32], quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];\n',
+              '    uint8_t quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];\n    argos_quic_initial_profile_t profile;\n',
+              'stateless key locals')
+          s = replace_once(s,
+              '    if ((packet[0] & 0x80U) == 0U || (packet[0] & 0x40U) == 0U) return 0;\n',
+              '    if (!argos_quic_packet_profile(packet, (size_t)pkt_len, &profile)) return 0;\n',
+              'stateless profile check')
+          old_hkdf = '''    argos_hkdf_extract_sha256(ARGOS_QUIC_V1_SALT, sizeof(ARGOS_QUIC_V1_SALT), packet + dcid_pos, (size_t)dcid_len, initial_secret);\n    if (!argos_hkdf_expand_label(initial_secret, "client in", 32U, client_secret)) return 0;\n    if (!argos_hkdf_expand_label(client_secret, "quic key", 16U, quic_key)) return 0;\n    if (!argos_hkdf_expand_label(client_secret, "quic iv", 12U, quic_iv)) return 0;\n    if (!argos_hkdf_expand_label(client_secret, "quic hp", 16U, quic_hp)) return 0;\n'''
+          s = replace_once(s, old_hkdf,
+              '    if (!argos_quic_derive_client_keys(&profile, packet + dcid_pos, (size_t)dcid_len, quic_key, quic_iv, quic_hp)) return 0;\n',
+              'stateless key derivation')
+          p.write_text(s)
+
+          # --- stateful QUIC: keep version in reassembly identity and use profile keys ---
+          p = Path('src/argos_quic_heavy.h')
+          s = p.read_text()
+          s = s.replace('argos_quic_heavy.h - Stateful QUIC v1 Reassembler & Extractor',
+                        'argos_quic_heavy.h - Stateful QUIC v1/v2 Reassembler & Extractor', 1)
+          s = replace_once(s, '    int dcid_len;\n    int used;\n', '    int dcid_len;\n    uint32_t version;\n    int used;\n', 'session version field')
+          old_funcs = '''static int quic_heavy_find_session(const uint8_t *dcid, int dcid_len) {\n    if (!quic_sessions) return -1;\n    for (int i = 0; i < QUIC_STATE_SLOTS; i++) {\n        if (quic_sessions[i].used && quic_sessions[i].dcid_len == dcid_len &&\n            memcmp(quic_sessions[i].dcid, dcid, (size_t)dcid_len) == 0) return i;\n    }\n    return -1;\n}\n\nstatic int quic_heavy_get_or_create_session(const uint8_t *dcid, int dcid_len) {\n    if (!quic_heavy_ensure_table()) return -1;\n    int slot = quic_heavy_find_session(dcid, dcid_len);\n    if (slot >= 0) return slot;\n    for (int i = 0; i < QUIC_STATE_SLOTS; i++) {\n        if (!quic_sessions[i].used) {\n            memset(&quic_sessions[i], 0, sizeof(quic_sessions[i]));\n            quic_sessions[i].used = 1;\n            quic_sessions[i].dcid_len = dcid_len;\n            if (dcid_len > 0) memcpy(quic_sessions[i].dcid, dcid, (size_t)dcid_len);\n            return i;\n        }\n    }\n    return -1;\n}\n'''
+          new_funcs = '''static int quic_heavy_find_session(uint32_t version, const uint8_t *dcid, int dcid_len) {\n    if (!quic_sessions) return -1;\n    for (int i = 0; i < QUIC_STATE_SLOTS; i++) {\n        if (quic_sessions[i].used && quic_sessions[i].version == version &&\n            quic_sessions[i].dcid_len == dcid_len &&\n            memcmp(quic_sessions[i].dcid, dcid, (size_t)dcid_len) == 0) return i;\n    }\n    return -1;\n}\n\nstatic int quic_heavy_get_or_create_session(uint32_t version, const uint8_t *dcid, int dcid_len) {\n    if (!quic_heavy_ensure_table()) return -1;\n    int slot = quic_heavy_find_session(version, dcid, dcid_len);\n    if (slot >= 0) return slot;\n    for (int i = 0; i < QUIC_STATE_SLOTS; i++) {\n        if (!quic_sessions[i].used) {\n            memset(&quic_sessions[i], 0, sizeof(quic_sessions[i]));\n            quic_sessions[i].used = 1;\n            quic_sessions[i].version = version;\n            quic_sessions[i].dcid_len = dcid_len;\n            if (dcid_len > 0) memcpy(quic_sessions[i].dcid, dcid, (size_t)dcid_len);\n            return i;\n        }\n    }\n    return -1;\n}\n'''
+          s = replace_once(s, old_funcs, new_funcs, 'state session functions')
+          s = replace_once(s,
+              'static int argos_quic_extract_stateful(const uint8_t *frames, size_t frames_len, const uint8_t *dcid, int dcid_len, uint8_t *hello, size_t hello_cap, size_t *hello_len) {\n',
+              'static int argos_quic_extract_stateful(const uint8_t *frames, size_t frames_len, uint32_t version, const uint8_t *dcid, int dcid_len, uint8_t *hello, size_t hello_cap, size_t *hello_len) {\n',
+              'stateful extractor signature')
+          s = replace_once(s, '    int slot = quic_heavy_get_or_create_session(dcid, dcid_len);\n',
+                           '    int slot = quic_heavy_get_or_create_session(version, dcid, dcid_len);\n', 'stateful extractor session')
+          s = replace_once(s,
+              '    uint8_t initial_secret[32], client_secret[32], quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];\n',
+              '    uint8_t quic_key[16], quic_iv[12], quic_hp[16], hp_exp_key[176], sample[16], mask[16];\n    argos_quic_initial_profile_t profile;\n',
+              'stateful key locals')
+          s = replace_once(s,
+              '    if ((packet[0] & 0x80U) == 0U || (packet[0] & 0x40U) == 0U) return -1;\n',
+              '    if (!argos_quic_packet_profile(packet, (size_t)pkt_len, &profile)) return -1;\n',
+              'stateful profile check')
+          old_hkdf2 = '''    argos_hkdf_extract_sha256(ARGOS_QUIC_V1_SALT, sizeof(ARGOS_QUIC_V1_SALT), packet + dcid_pos, (size_t)dcid_len, initial_secret);\n    if (!argos_hkdf_expand_label(initial_secret, "client in", 32U, client_secret)) return -1;\n    if (!argos_hkdf_expand_label(client_secret, "quic key", 16U, quic_key)) return -1;\n    if (!argos_hkdf_expand_label(client_secret, "quic iv", 12U, quic_iv)) return -1;\n    if (!argos_hkdf_expand_label(client_secret, "quic hp", 16U, quic_hp)) return -1;\n'''
+          s = replace_once(s, old_hkdf2,
+              '    if (!argos_quic_derive_client_keys(&profile, packet + dcid_pos, (size_t)dcid_len, quic_key, quic_iv, quic_hp)) return -1;\n',
+              'stateful key derivation')
+          s = replace_once(s,
+              '    int session_slot = quic_heavy_get_or_create_session(packet + dcid_pos, dcid_len);\n',
+              '    int session_slot = quic_heavy_get_or_create_session(profile.version, packet + dcid_pos, dcid_len);\n',
+              'stateful decrypt session')
+          s = replace_once(s,
+              '    if (!argos_quic_extract_stateful(decrypted, payload_len - 16U, packet + dcid_pos, dcid_len, hello, 8192U, &hello_len)) {\n',
+              '    if (!argos_quic_extract_stateful(decrypted, payload_len - 16U, profile.version, packet + dcid_pos, dcid_len, hello, 8192U, &hello_len)) {\n',
+              'stateful extractor call')
+          p.write_text(s)
+
+          # --- capture layer: recognize both v1 and v2 Initial packet types ---
           p = Path('src/argos-sniffer.c')
           s = p.read_text()
-          fallback = '''    /* Display values fall back to the literal string "none" when absent --\n     * this is only for the human-readable TLS| telemetry line below, and no\n     * longer feeds the JA4 computation (see has_sni/has_alpn above). */\n    if (sni[0] == '\\0') strcpy(sni, "none");\n    if (alpn[0] == '\\0') strcpy(alpn, "none");\n    \n'''
-          alpn_block = '''    /* First/last character of the negotiated ALPN value for JA4's "a"\n     * section. Guarded against an empty alpn string (possible if the peer\n     * offered a zero-length protocol identifier) to avoid reading alpn[-1]. */\n    char alpn_first = '0', alpn_last = '0';\n    if (has_alpn && alpn[0] != '\\0') { alpn_first = alpn[0]; alpn_last = alpn[strlen(alpn) - 1]; }\n\n'''
-          if s.count(fallback) != 1:
-              raise SystemExit(f'expected one JA4 fallback block, found {s.count(fallback)}')
-          if s.count(alpn_block) != 1:
-              raise SystemExit(f'expected one JA4 ALPN block, found {s.count(alpn_block)}')
-          s = s.replace(alpn_block, '', 1)
-          fixed = '''    /* Capture JA4 ALPN characters BEFORE applying the human-readable\n     * "none" fallback below.  If the ALPN extension is present but its first\n     * protocol identifier is empty/oversized/unparseable, JA4 must keep the\n     * neutral 00 marker rather than fingerprinting the placeholder text. */\n    char alpn_first = '0', alpn_last = '0';\n    if (has_alpn && alpn[0] != '\\0') { alpn_first = alpn[0]; alpn_last = alpn[strlen(alpn) - 1]; }\n\n    /* Display values fall back to the literal string "none" when absent.\n     * These placeholders are telemetry-only and never feed JA4. */\n    if (sni[0] == '\\0') strcpy(sni, "none");\n    if (alpn[0] == '\\0') strcpy(alpn, "none");\n    \n'''
-          s = s.replace(fallback, fixed, 1)
+          start = s.index('/* Returns the complete byte span of a QUIC v1 Initial packet inside a UDP')
+          end = s.index('\n\n#define QUIC_SUCCESS_SLOTS', start)
+          new_span = '''/* Returns the complete byte span of a supported QUIC Initial packet inside\n * a UDP datagram. QUIC v1 uses long-header type 00; RFC 9369 QUIC v2 uses\n * type 01, so packet-type validation is version-specific. */\nstatic int quic_initial_span(const unsigned char *payload, int len, int offset,\n                             int *dcid_pos, uint8_t *dcid_len, int *packet_span,\n                             uint32_t *quic_version) {\n    if (!payload || !dcid_pos || !dcid_len || !packet_span || !quic_version ||\n        offset < 0 || len - offset < 7) return 0;\n    const unsigned char *p = payload + offset;\n    int rem = len - offset;\n    if ((p[0] & 0xc0U) != 0xc0U) return 0;\n    uint32_t version = ((uint32_t)p[1] << 24) | ((uint32_t)p[2] << 16) |\n                       ((uint32_t)p[3] << 8) | (uint32_t)p[4];\n    unsigned initial_type;\n    if (version == 0x00000001U) initial_type = 0U;\n    else if (version == 0x6b3343cfU) initial_type = 1U;\n    else return 0;\n    if (((p[0] & 0x30U) >> 4) != initial_type) return 0;\n\n    int pos = 5;\n    uint8_t dlen = p[pos++];\n    if (dlen > 20U || pos + (int)dlen >= rem) return 0;\n    int dpos = pos;\n    pos += (int)dlen;\n    uint8_t slen = p[pos++];\n    if (slen > 20U || pos + (int)slen > rem) return 0;\n    pos += (int)slen;\n\n    uint64_t token_len = 0, packet_length = 0;\n    if (!quic_read_varint_local(p, rem, &pos, &token_len)) return 0;\n    if (token_len > (uint64_t)(rem - pos)) return 0;\n    pos += (int)token_len;\n    if (!quic_read_varint_local(p, rem, &pos, &packet_length)) return 0;\n    if (packet_length > (uint64_t)(rem - pos)) return 0;\n\n    *dcid_pos = dpos;\n    *dcid_len = dlen;\n    *packet_span = pos + (int)packet_length;\n    *quic_version = version;\n    return *packet_span > 0 && *packet_span <= rem;\n}\n'''
+          s = s[:start] + new_span + s[end:]
+          s = replace_once(s, '    int saw_failure = 0;\n', '    int saw_failure = 0;\n    uint32_t failure_version = 0U;\n', 'failure version state')
+          s = replace_once(s,
+              '        int dcid_pos = 0, packet_span = 0;\n        uint8_t dcid_len = 0;\n        if (!quic_v1_initial_span(payload, len, offset, &dcid_pos, &dcid_len, &packet_span)) break;\n',
+              '        int dcid_pos = 0, packet_span = 0;\n        uint8_t dcid_len = 0;\n        uint32_t packet_version = 0U;\n        if (!quic_initial_span(payload, len, offset, &dcid_pos, &dcid_len, &packet_span, &packet_version)) break;\n',
+              'parse_quic span call')
+          s = replace_once(s, '        if (result < 0) saw_failure = 1;\n',
+                           '        if (result < 0) { saw_failure = 1; failure_version = packet_version; }\n', 'failure version capture')
+          old_fail = '''        char failure_sig[192];\n        source_dedup_signature(failure_sig, sizeof(failure_sig), src_ip, "v1-failure", routed_str);\n        if (!dedup_should_suppress(mac, "QUIC", failure_sig, rl_enabled)) {\n            emit_telemetry("QUIC|%s|%s|%s|%u|encrypted|v1%s\\n", mac, src_ip, dst_ip, dport, routed_str);\n        }\n'''
+          new_fail = '''        const char *version_label = failure_version == 0x6b3343cfU ? "v2" : "v1";\n        char failure_sig[192], failure_kind[32];\n        snprintf(failure_kind, sizeof(failure_kind), "%s-failure", version_label);\n        source_dedup_signature(failure_sig, sizeof(failure_sig), src_ip, failure_kind, routed_str);\n        if (!dedup_should_suppress(mac, "QUIC", failure_sig, rl_enabled)) {\n            emit_telemetry("QUIC|%s|%s|%s|%u|encrypted|%s%s\\n", mac, src_ip, dst_ip, dport, version_label, routed_str);\n        }\n'''
+          s = replace_once(s, old_fail, new_fail, 'QUIC failure telemetry')
           p.write_text(s)
+
+          # RFC 9369 Appendix A.1 key-derivation fixture.
+          Path('tests/test_quic_v2.c').write_text(r'''#include <stdio.h>\n#include <stdint.h>\n#include <string.h>\n#include "../src/argos_quic.h"\n\nstatic int same(const uint8_t *a, const uint8_t *b, size_t n, const char *name) {\n    if (memcmp(a, b, n) == 0) return 1;\n    fprintf(stderr, "%s mismatch\\n", name);\n    return 0;\n}\n\nint main(void) {\n    argos_quic_initial_profile_t v1, v2, unknown, from_packet;\n    if (!argos_quic_initial_profile(ARGOS_QUIC_VERSION_V1, &v1) || v1.initial_type != 0U) return 1;\n    if (!argos_quic_initial_profile(ARGOS_QUIC_VERSION_V2, &v2) || v2.initial_type != 1U) return 2;\n    if (argos_quic_initial_profile(0x12345678U, &unknown)) return 3;\n\n    const uint8_t protected_v2_header[] = {0xd7,0x6b,0x33,0x43,0xcf};\n    if (!argos_quic_packet_profile(protected_v2_header, sizeof(protected_v2_header), &from_packet)) return 4;\n    if (from_packet.version != ARGOS_QUIC_VERSION_V2 || from_packet.initial_type != 1U) return 5;\n\n    const uint8_t cid[8] = {0x83,0x94,0xc8,0xf0,0x3e,0x51,0x57,0x08};\n    const uint8_t exp_key[16] = {0x8b,0x1a,0x0b,0xc1,0x21,0x28,0x42,0x90,0xa2,0x9e,0x09,0x71,0xb5,0xcd,0x04,0x5d};\n    const uint8_t exp_iv[12] = {0x91,0xf7,0x3e,0x23,0x51,0xd8,0xfa,0x91,0x66,0x0e,0x90,0x9f};\n    const uint8_t exp_hp[16] = {0x45,0xb9,0x5e,0x15,0x23,0x5d,0x6f,0x45,0xa6,0xb1,0x9c,0xbc,0xb0,0x29,0x4b,0xa9};\n    uint8_t key[16], iv[12], hp[16];\n    if (!argos_quic_derive_client_keys(&v2, cid, sizeof(cid), key, iv, hp)) return 6;\n    if (!same(key, exp_key, sizeof(key), "v2 key")) return 7;\n    if (!same(iv, exp_iv, sizeof(iv), "v2 iv")) return 8;\n    if (!same(hp, exp_hp, sizeof(hp), "v2 hp")) return 9;\n\n    puts("QUIC v2 RFC 9369 vectors: PASS");\n    return 0;\n}\n''')
           PY
 
-      - name: Targeted JA4 regression check
+      - name: QUIC v2 RFC fixture
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          s = Path('src/argos-sniffer.c').read_text()
-          decl = "char alpn_first = '0', alpn_last = '0';"
-          fallback = 'if (alpn[0] == \'\\0\') strcpy(alpn, "none");'
-          use = "a_cipher_count, a_ext_count, alpn_first, alpn_last"
-          assert s.count(decl) == 1
-          assert s.index(decl) < s.index(fallback) < s.index(use)
-          assert 'These placeholders are telemetry-only and never feed JA4.' in s
-          print('JA4 ALPN fallback ordering: PASS')
-          PY
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_v2.c -o /tmp/test-quic-v2
+          /tmp/test-quic-v2
 
       - name: Strict native builds
         run: |
@@ -57,11 +123,19 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
           git diff --check
 
-      - name: Commit tested fix
+      - name: Structural QUIC v2 checks
+        run: |
+          grep -F 'ARGOS_QUIC_VERSION_V2 0x6b3343cfU' src/argos_quic.h
+          grep -F 'quicv2 key' src/argos_quic.h
+          grep -F 'quicv2 iv' src/argos_quic.h
+          grep -F 'quicv2 hp' src/argos_quic.h
+          grep -F 'failure_version == 0x6b3343cfU ? "v2" : "v1"' src/argos-sniffer.c
+
+      - name: Commit tested QUIC v2 support
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/argos-sniffer.c
+          git add src/argos-sniffer.c src/argos_quic.h src/argos_quic_heavy.h tests/test_quic_v2.c
           git diff --cached --quiet && exit 0
-          git commit -m 'fix(v6): keep JA4 ALPN placeholder out of fingerprint'
+          git commit -m 'feat(v6): add RFC 9369 QUIC v2 Initial support'
           git push origin HEAD:version-6
