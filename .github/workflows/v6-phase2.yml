@@ -1,0 +1,49 @@
+name: V6 phase-2 parser completion
+
+on:
+  push:
+    branches: [version-6]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  phase2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: version-6
+
+      - name: Apply phase-2 source patch
+        run: python3 tools/v6_phase2_patch.py
+
+      - name: Strict compile - full QUIC
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+
+      - name: Strict compile - QUIC stub
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Enterprise parser fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+
+      - name: Commit validated phase-2 changes
+        shell: bash
+        run: |
+          if git diff --quiet -- src/argos-sniffer.c src/argos_enterprise.h; then
+            echo 'No phase-2 changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c src/argos_enterprise.h
+          git commit -m 'feat(v6): complete enterprise routing and vendor discovery parsers'
+          git push origin HEAD:version-6
