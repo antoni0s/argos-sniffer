@@ -19,11 +19,13 @@ jobs:
           ref: version-6
           fetch-depth: 0
 
-      - name: Apply staged dynamic BPF patch
+      - name: Apply dynamic BPF patch from exact current source
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import textwrap
+
+          staged = Path('.github/workflows/v6-step1-ja4.yml').read_text()
 
           def replace_once(s, old, new, label):
               n = s.count(old)
@@ -31,126 +33,132 @@ jobs:
                   raise SystemExit(f'{label}: expected one match, found {n}')
               return s.replace(old, new, 1)
 
-          staged = Path('.github/workflows/v6-step1-ja4.yml').read_text()
-
           def raw_payload(marker):
               start = staged.index(marker) + len(marker)
               end = staged.index("''')", start)
               return staged[start:end]
 
-          Path('src/argos_enterprise_ports.h').write_text(
-              raw_payload("Path('src/argos_enterprise_ports.h').write_text(r'''"))
-          Path('src/argos_bpf.h').write_text(
-              raw_payload("Path('src/argos_bpf.h').write_text(r'''"))
+          # Reuse the already-reviewed draft data but fix two pre-compile issues:
+          # 1) macro #undef belongs only at textual function end, never in a runtime branch;
+          # 2) payload-present JGT must skip DROP on the true path.
+          ports = raw_payload("Path('src/argos_enterprise_ports.h').write_text(r'''")
+          bpf = raw_payload("Path('src/argos_bpf.h').write_text(r'''")
+          bpf = bpf.replace(
+              "    if (!need_ipv4) {\n        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));\n#undef ADD\n#undef EMIT\n        return p->len > 0;\n    }",
+              "    if (!need_ipv4) {\n        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));\n        return p->len > 0;\n    }")
+          bpf = bpf.replace(
+              "EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_X, 0, 1, 0));",
+              "EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_X, 0, 1, 0));")
+          if '#undef ADD\n#undef EMIT\n        return p->len > 0;' in bpf:
+              raise SystemExit('premature BPF macro undef still present')
+          Path('src/argos_enterprise_ports.h').write_text(ports)
+          Path('src/argos_bpf.h').write_text(bpf)
 
-          # Enterprise parser: shared port lists + restore TCP/44818 CIP path.
+          # Enterprise parser: one shared port source; fix the existing TCP/44818 gap.
           p = Path('src/argos_enterprise.h')
           s = p.read_text()
-          s = replace_once(s, '#define ARGOS_ENTERPRISE_H\n', '#define ARGOS_ENTERPRISE_H\n\n#include "argos_enterprise_ports.h"\n', 'enterprise ports include')
-          start = s.index('static inline int argos_enterprise_tcp_port(')
-          end = s.index('\n\nstatic inline int ae_rpc(', start)
-          helpers = ('static inline int argos_enterprise_tcp_port(uint16_t sport, uint16_t dport) {\n'
-                     '    for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i)\n'
-                     '        if (sport == ARGOS_ENTERPRISE_TCP_PORTS[i] || dport == ARGOS_ENTERPRISE_TCP_PORTS[i]) return 1;\n'
-                     '    return 0;\n}\n\n'
-                     'static inline int argos_enterprise_udp_port(uint16_t sport, uint16_t dport) {\n'
-                     '    for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i)\n'
-                     '        if (sport == ARGOS_ENTERPRISE_UDP_PORTS[i] || dport == ARGOS_ENTERPRISE_UDP_PORTS[i]) return 1;\n'
-                     '    return 0;\n}\n')
-          s = s[:start] + helpers + s[end:]
+          s = replace_once(s, '#define ARGOS_ENTERPRISE_H\n',
+                           '#define ARGOS_ENTERPRISE_H\n\n#include "argos_enterprise_ports.h"\n',
+                           'enterprise ports include')
+          h0 = s.index('static inline int argos_enterprise_tcp_port(')
+          h1 = s.index('\n\nstatic inline int ae_rpc(', h0)
+          helpers = '''static inline int argos_enterprise_tcp_port(uint16_t sport, uint16_t dport) {
+    for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i)
+        if (sport == ARGOS_ENTERPRISE_TCP_PORTS[i] || dport == ARGOS_ENTERPRISE_TCP_PORTS[i]) return 1;
+    return 0;
+}
+
+static inline int argos_enterprise_udp_port(uint16_t sport, uint16_t dport) {
+    for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i)
+        if (sport == ARGOS_ENTERPRISE_UDP_PORTS[i] || dport == ARGOS_ENTERPRISE_UDP_PORTS[i]) return 1;
+    return 0;
+}'''
+          s = s[:h0] + helpers + s[h1:]
           s = replace_once(s,
               'static inline int ae_kerberos(const unsigned char *p, int len, argos_enterprise_result_t *r);\n',
               'static inline int ae_kerberos(const unsigned char *p, int len, argos_enterprise_result_t *r);\nstatic inline int ae_cip(const unsigned char *p, int len, argos_enterprise_result_t *r);\n',
               'CIP forward declaration')
-          old_select = ('    uint16_t port = dport;\n'
-                        '    if (!argos_enterprise_tcp_port(sport, dport)) return 0;\n'
-                        '    if (port != 22 && port != 88 && port != 111 && port != 179 && port != 445 &&\n'
-                        '        port != 502 && port != 631 && port != 1433 && port != 1521 && port != 2000 && port != 2049 &&\n'
-                        '        port != 3260 && port != 3306 && port != 3389 && port != 5060 && port != 5432 &&\n'
-                        '        port != 9100) port = sport;\n')
-          new_select = ('    uint16_t port = dport;\n'
-                        '    if (!argos_enterprise_tcp_port(sport, dport)) return 0;\n'
-                        '    if (!argos_enterprise_tcp_port(0, port)) port = sport;\n')
-          s = replace_once(s, old_select, new_select, 'enterprise TCP port selection')
-          s = replace_once(s,
-              '        case 9100: return ae_pjl(p, len, r);\n        default: return 0;\n',
-              '        case 9100: return ae_pjl(p, len, r);\n        case 44818: return ae_cip(p, len, r);\n        default: return 0;\n',
-              'TCP CIP dispatch')
-          filter_start = s.index('#ifndef ARGOS_PORTABLE_TEST\n/* Enterprise-mode kernel prefilter.')
-          filter_end = s.index('\n#endif\n\n#endif /* ARGOS_ENTERPRISE_H */', filter_start)
-          s = s[:filter_start] + '#endif /* ARGOS_ENTERPRISE_H */' + s[filter_end + len('\n#endif\n\n#endif /* ARGOS_ENTERPRISE_H */'):]
+          tcp_fn = s.index('static inline int argos_enterprise_parse_tcp(')
+          sel0 = s.index('    uint16_t port = dport;', tcp_fn)
+          sw = s.index('    switch (port) {', sel0)
+          s = s[:sel0] + '''    uint16_t port = dport;
+    if (!argos_enterprise_tcp_port(sport, dport)) return 0;
+    if (!argos_enterprise_tcp_port(0, port)) port = sport;
+
+''' + s[sw:]
+          sw = s.index('    switch (port) {', tcp_fn)
+          default = s.index('        default: return 0;', sw)
+          s = s[:default] + '        case 44818: return ae_cip(p, len, r);\n' + s[default:]
+          filt = s.index('#ifndef ARGOS_PORTABLE_TEST\n/* Enterprise-mode kernel prefilter.')
+          # The static enterprise prefilter is the final implementation block.
+          s = s[:filt] + '#endif /* ARGOS_ENTERPRISE_H */\n'
           p.write_text(s)
 
-          # Main capture setup: one vector-aware BPF config built after CLI defaults.
+          # Main source: remove the static legacy filter and use a vector snapshot.
           p = Path('src/argos-sniffer.c')
           s = p.read_text()
           s = replace_once(s,
               '#include "argos_enterprise.h"\n#ifndef ARGOS_PORTABLE_TEST\n#include "argos_netlink.h"\n#endif\n',
               '#include "argos_enterprise.h"\n#ifndef ARGOS_PORTABLE_TEST\n#include "argos_netlink.h"\n#include "argos_bpf.h"\n#endif\n',
-              'dynamic BPF include')
-          filt_start = s.index('/* ============================================================================\n * SECTION: Kernel AF_PACKET Prefilter')
-          main_start = s.index('#ifndef ARGOS_PORTABLE_TEST\nint main(int argc, char *argv[]) {', filt_start)
-          replacement = ('/* ============================================================================\n'
-                         ' * SECTION: Kernel AF_PACKET Prefilter\n'
-                         ' * Vector-aware classic-BPF construction lives in argos_bpf.h so it can be\n'
-                         ' * regression-tested independently with synthetic Ethernet/IPv4 packets.\n'
-                         ' * ============================================================================ */\n')
-          s = s[:filt_start] + replacement + s[main_start:]
-          default_block = ('    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !opt_enterprise) {\n'
-                           '        opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;\n'
-                           '        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;\n'
-                           '        opt_v6 = 1;\n'
-                           '    }\n\n'
-                           '    install_signal_handlers();\n')
-          cfg_block = ('    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !opt_enterprise) {\n'
-                       '        opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;\n'
-                       '        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;\n'
-                       '        opt_v6 = 1;\n'
-                       '    }\n\n'
-                       '    argos_bpf_config_t bpf_cfg = {\n'
-                       '        .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),\n'
-                       '        .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),\n'
-                       '        .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),\n'
-                       '        .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),\n'
-                       '        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0)\n'
-                       '    };\n\n'
-                       '    install_signal_handlers();\n')
-          s = replace_once(s, default_block, cfg_block, 'BPF config snapshot')
-          old_attach = ('        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {\n'
-                        '            if ((opt_enterprise ? attach_argos_enterprise_kernel_filter(sock) : attach_argos_kernel_filter(sock)) < 0) {\n'
-                        '                fprintf(stderr, "warning: unable to attach AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));\n'
-                        '            }\n'
-                        '        }\n')
-          new_attach = ('        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {\n'
-                        '            if (argos_bpf_attach(sock, &bpf_cfg) < 0) {\n'
-                        '                fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));\n'
-                        '            }\n'
-                        '        }\n')
-          s = replace_once(s, old_attach, new_attach, 'dynamic BPF attach')
+              'BPF include')
+          f0 = s.index('/* ============================================================================\n * SECTION: Kernel AF_PACKET Prefilter')
+          m0 = s.index('#ifndef ARGOS_PORTABLE_TEST\nint main(int argc, char *argv[]) {', f0)
+          s = s[:f0] + '''/* ============================================================================
+ * SECTION: Kernel AF_PACKET Prefilter
+ * Vector-aware classic-BPF construction lives in argos_bpf.h so the generated
+ * program can be tested independently against synthetic packet fixtures.
+ * ============================================================================ */
+''' + s[m0:]
+
+          install = s.index('    install_signal_handlers();')
+          cfg = '''    argos_bpf_config_t bpf_cfg = {
+        .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
+        .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
+        .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),
+        .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),
+        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0)
+    };
+
+'''
+          s = s[:install] + cfg + s[install:]
+
+          a0 = s.index('        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {')
+          a1 = s.index('\n\n        if (opt_promisc && active_ifaces[num_ifaces].type == LINK_ETHERNET)', a0)
+          attach = '''        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
+            if (argos_bpf_attach(sock, &bpf_cfg) < 0) {
+                fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\\n",
+                        token, strerror(errno));
+            }
+        }'''
+          s = s[:a0] + attach + s[a1:]
           p.write_text(s)
 
-          # Existing enterprise regression suite gains TCP/44818 coverage.
+          # Direct TCP/44818 regression in the existing enterprise parser suite.
           p = Path('tests/test_enterprise.c')
           s = p.read_text()
           marker = 'static void test_elephant_fast_drop(void) {\n'
-          cip_test = ('static void test_cip_tcp(void) {\n'
-                      '    unsigned char p[24] = {0};\n'
-                      '    argos_enterprise_result_t r;\n'
-                      '    p[0] = 0x63U; p[1] = 0x00U; /* ListIdentity command 0x0063 LE */\n'
-                      '    check(argos_enterprise_tcp_port(40000, 44818) == 1, "EtherNet/IP TCP port admitted");\n'
-                      '    check(argos_enterprise_parse_tcp(40000, 44818, p, (int)sizeof(p), &r) == 1, "EtherNet/IP TCP ListIdentity parsed");\n'
-                      '    check(strcmp(r.proto, "ethernet-ip") == 0, "EtherNet/IP TCP protocol label");\n'
-                      '}\n\n')
-          s = replace_once(s, marker, cip_test + marker, 'CIP TCP test insertion')
+          cip_test = '''static void test_cip_tcp(void) {
+    unsigned char p[24] = {0};
+    argos_enterprise_result_t r;
+    p[0] = 0x63U; p[1] = 0x00U; /* ListIdentity command 0x0063 LE */
+    check(argos_enterprise_tcp_port(40000, 44818) == 1, "EtherNet/IP TCP port admitted");
+    check(argos_enterprise_parse_tcp(40000, 44818, p, (int)sizeof(p), &r) == 1, "EtherNet/IP TCP ListIdentity parsed");
+    check(strcmp(r.proto, "ethernet-ip") == 0, "EtherNet/IP TCP protocol label");
+}
+
+'''
+          s = replace_once(s, marker, cip_test + marker, 'CIP TCP fixture')
           s = replace_once(s, '    test_fdp();\n    test_elephant_fast_drop();\n',
-                           '    test_fdp();\n    test_cip_tcp();\n    test_elephant_fast_drop();\n', 'CIP TCP test call')
+                           '    test_fdp();\n    test_cip_tcp();\n    test_elephant_fast_drop();\n',
+                           'CIP TCP invocation')
           p.write_text(s)
 
-          # Reuse the already staged functional fixture as plain data.
+          # Reuse the staged synthetic cBPF interpreter/matrix as data.
           marker = "          cat > tests/test_dynamic_bpf.c <<'EOF'\n"
-          start = staged.index(marker) + len(marker)
-          end = staged.index('\n          EOF', start)
-          Path('tests/test_dynamic_bpf.c').write_text(textwrap.dedent(staged[start:end]).lstrip() + '\n')
+          x0 = staged.index(marker) + len(marker)
+          x1 = staged.index('\n          EOF', x0)
+          fixture = textwrap.dedent(staged[x0:x1]).lstrip() + '\n'
+          Path('tests/test_dynamic_bpf.c').write_text(fixture)
           PY
 
       - name: Dynamic BPF functional matrix
@@ -169,15 +177,16 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
           git diff --check
 
-      - name: Structural dynamic-filter checks
+      - name: Dynamic-filter invariants
         run: |
           grep -F 'argos_bpf_attach(sock, &bpf_cfg)' src/argos-sniffer.c
           grep -F 'ARGOS_ENTERPRISE_TCP_PORTS' src/argos_bpf.h
           grep -F '44818' src/argos_enterprise_ports.h
+          grep -F 'case 44818: return ae_cip' src/argos_enterprise.h
           ! grep -F 'attach_argos_kernel_filter' src/argos-sniffer.c
           ! grep -F 'attach_argos_enterprise_kernel_filter' src/argos_enterprise.h
 
-      - name: Commit tested dynamic BPF
+      - name: Commit only after every gate passes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
