@@ -78,4 +78,41 @@ static inline int argos_stp_parse(const unsigned char *p, size_t n,
     return 1;
 }
 
+static inline const char *arstp_role(uint8_t flags) {
+    switch ((flags >> 2) & 0x03U) {
+        case 1U: return "alternate-backup";
+        case 2U: return "root";
+        case 3U: return "designated";
+        default: return "unknown";
+    }
+}
+
+/* IEEE 802.1w RSTP BPDU: version 2, type 0x02, same common bridge fields
+ * as configuration BPDUs plus Version 1 Length (normally zero). */
+static inline int argos_rstp_parse(const unsigned char *p, size_t n,
+                                   argos_stp_result_t *r) {
+    if (!p || !r || n < 39U) return 0;
+    memset(r, 0, sizeof(*r));
+    if (p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U) return 0;
+    if (p[3] != 0x00U || p[4] != 0x00U || p[5] != 0x02U || p[6] != 0x02U) return 0;
+    if (p[38] != 0x00U) return 0;
+    r->version=2U; r->type=0x02U; r->flags=p[7];
+    r->root_priority=astp_be16(p+8); memcpy(r->root_mac,p+10,6);
+    r->root_cost=astp_be32(p+16);
+    r->bridge_priority=astp_be16(p+20); memcpy(r->bridge_mac,p+22,6);
+    r->port_id=astp_be16(p+28);
+    r->message_age=astp_be16(p+30); r->max_age=astp_be16(p+32);
+    r->hello_time=astp_be16(p+34); r->forward_delay=astp_be16(p+36);
+    char root[18], bridge[18]; astp_mac(root,r->root_mac); astp_mac(bridge,r->bridge_mac);
+    (void)snprintf(r->detail,sizeof(r->detail),
+        "version=2;type=rstp;flags=0x%02x;role=%s;proposal=%u;learning=%u;forwarding=%u;agreement=%u;"
+        "root_prio=%u;root=%s;cost=%u;bridge_prio=%u;bridge=%s;port=0x%04x;age=%u;max=%u;hello=%u;fwd=%u",
+        (unsigned)r->flags, arstp_role(r->flags), (unsigned)((r->flags>>1)&1U),
+        (unsigned)((r->flags>>4)&1U), (unsigned)((r->flags>>5)&1U), (unsigned)((r->flags>>6)&1U),
+        (unsigned)r->root_priority, root, (unsigned)r->root_cost, (unsigned)r->bridge_priority,
+        bridge, (unsigned)r->port_id, (unsigned)r->message_age, (unsigned)r->max_age,
+        (unsigned)r->hello_time, (unsigned)r->forward_delay);
+    return 1;
+}
+
 #endif /* ARGOS_STP_H */

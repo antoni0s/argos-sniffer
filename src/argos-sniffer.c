@@ -3320,6 +3320,11 @@ int main(int argc, char *argv[]) {
                         emit_telemetry("ENT|%s|-|-|STP|%s\n", mac_str, stp.detail);
                     continue;
                 }
+                if (argos_rstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, opt_enterprise_rl))
+                        emit_telemetry("ENT|%s|-|-|RSTP|%s\n", mac_str, stp.detail);
+                    continue;
+                }
             }
             if (opt_enterprise && l3_proto == 0x8809U) {
                 argos_lacp_result_t lacp;
