@@ -90,6 +90,34 @@ jobs:
           print('TLS port policy / DoT regression: PASS')
           PY
 
+      - name: TLS ServerHello golden fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_tls_server.c -o /tmp/test-tlssrv
+          /tmp/test-tlssrv
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/argos-sniffer.c').read_text()
+          bpf=Path('src/argos_bpf.h').read_text()
+          hdr=Path('src/argos_tls_server.h').read_text()
+          assert 'ats1_' in hdr
+          assert 'JA4S|' not in src
+          assert 'ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i])' in bpf
+          assert 'argos_tls_tcp_port(sport)' in src
+          assert 'TLSSRV|%s|%s|%s|%u|%s|%s%s' in src
+          print('Argos TLS ServerHello integration: PASS')
+          PY
+
+      - name: TLS ServerHello sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_tls_server.c -o /tmp/test-tlssrv-san
+          /tmp/test-tlssrv-san
+
       - name: Dynamic BPF sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -122,6 +150,7 @@ jobs:
           /tmp/argos-sniffer-v6-stub --help | grep -F -- '--enterprise'
           /tmp/argos-sniffer-v6-stub --help | grep -F 'ENT|mac|src_ip|dst_ip|protocol|fingerprint'
           /tmp/argos-sniffer-v6-stub --help | grep -F 'DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn'
+          /tmp/argos-sniffer-v6-stub --help | grep -F 'TLSSRV|mac|server_ip|client_ip|server_port|ats1_fingerprint|alpn'
 
   arm64:
     name: ARM64 strict cross-build
