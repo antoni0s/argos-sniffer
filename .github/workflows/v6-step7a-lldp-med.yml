@@ -21,7 +21,17 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged patch
-        run: python3 .github/scripts/v6_step7a_patch.py
+        run: |
+          python3 .github/scripts/v6_step7a_patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/test_dynamic_bpf.c')
+          s=p.read_text()
+          old='memset(&cfg, 0, sizeof(cfg)); cfg.enterprise = 1;'
+          new='memset(&c, 0, sizeof(c)); c.enterprise = 1;'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old,new,1))
+          PY
 
       - name: LLDP-MED fixtures
         run: |
