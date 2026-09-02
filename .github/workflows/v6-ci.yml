@@ -48,6 +48,15 @@ jobs:
             tests/test_quic_v2.c -o /tmp/test-quic-v2
           /tmp/test-quic-v2
 
+      - name: Netlink prefix refresh fixture
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_netlink_refresh.c -o /tmp/test-netlink-refresh
+          /tmp/test-netlink-refresh
+          grep -F 'RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR' src/argos-sniffer.c
+          grep -F 'lan_netlink_drain(lan_netlink_fd)' src/argos-sniffer.c
+          ! grep -F 'RTMGRP_LINK' src/argos-sniffer.c
+
       - name: Enterprise parser fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
