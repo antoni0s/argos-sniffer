@@ -112,6 +112,7 @@ int main(void) {
     expect(pass(&p, pkt, tcp4(pkt, 44818, 50000, 0x18, 24)), "EtherNet/IP TCP response passes");
     expect(pass(&p, pkt, udp4(pkt, 50000, 47808, 20)), "BACnet/IP passes");
     expect(pass(&p, pkt, proto4(pkt, 89)), "OSPF passes");
+    expect(pass(&p, pkt, proto4(pkt, 112)), "VRRP passes");
     expect(pass(&p, pkt, eth(pkt, 100)), "802.3 LLC enterprise discovery passes");
     expect(pass(&p, pkt, eth(pkt, 0x86dd)), "IPv6 passes when enabled");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 25, 0x18, 20)), "unparsed enterprise TCP port drops");

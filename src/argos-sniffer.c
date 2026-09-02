@@ -116,6 +116,7 @@
 #include "argos_lldp_med.h"
 #include "argos_lacp.h"
 #include "argos_stp.h"
+#include "argos_vrrp.h"
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
@@ -3381,6 +3382,22 @@ int main(int argc, char *argv[]) {
                 if (opt_l2 && l4_offset >= 0 && l4_offset < l3_packet_end) {
                     parse_ndp_vector(buffer + l4_offset, l3_packet_end - l4_offset, src_mac,
                                      &src_ip6_addr, src_ip_str, packet_ifindex, opt_l2_rl);
+                }
+                continue;
+            }
+
+            if (opt_enterprise && protocol == 112U && ttl == 255U &&
+                l4_offset >= 0 && l4_offset < l3_packet_end) {
+                argos_vrrp_result_t vrrp;
+                if (argos_vrrp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset),
+                                     flow_ip_version, &vrrp)) {
+                    char ent_mac[18], ent_sig[384];
+                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
+                    else format_mac(src_mac, ent_mac);
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|VRRP|%s", src_ip_str, vrrp.detail);
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        emit_telemetry("ENT|%s|%s|%s|VRRP|%s%s\n",
+                                       ent_mac, src_ip_str, dst_ip_str, vrrp.detail, routed_str);
                 }
                 continue;
             }
