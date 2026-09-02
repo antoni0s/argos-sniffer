@@ -116,6 +116,11 @@ int main(void) {
     expect(pass(&p, pkt, eth(pkt, 0x86dd)), "IPv6 passes when enabled");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 25, 0x18, 20)), "unparsed enterprise TCP port drops");
 
+    memset(&c, 0, sizeof(c)); c.enterprise = 1;
+    expect(argos_bpf_build(&c, &p), "enterprise-only BPF builds");
+    memset(pkt, 0, sizeof(pkt)); put16(pkt + 12, 0x88cc);
+    expect(pass(&p, pkt, 64), "enterprise-only admits LLDP-MED EtherType");
+
     puts("dynamic BPF functional matrix: PASS");
     return 0;
 }

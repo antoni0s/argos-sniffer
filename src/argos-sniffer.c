@@ -113,6 +113,7 @@
 #endif
 #include "argos_tls_ports.h"
 #include "argos_tls_server.h"
+#include "argos_lldp_med.h"
 #include "argos_enterprise.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
@@ -3298,8 +3299,16 @@ int main(int argc, char *argv[]) {
             }
 
             /* L2 vectors must run even when there is no IP header. */
-            if (opt_l2 && l3_proto == 0x88cc) {
-                parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str, opt_l2_rl);
+            if (l3_proto == 0x88cc) {
+                if (opt_l2)
+                    parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str, opt_l2_rl);
+                if (opt_enterprise) {
+                    argos_lldp_med_result_t med;
+                    if (argos_lldp_med_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &med)) {
+                        if (!dedup_should_suppress(mac_str, "ENT", med.detail, opt_enterprise_rl))
+                            emit_telemetry("ENT|%s|-|-|LLDP-MED|%s\n", mac_str, med.detail);
+                    }
+                }
                 continue;
             }
             if (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
