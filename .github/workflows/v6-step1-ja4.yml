@@ -1,0 +1,67 @@
+name: V6 step 1 - JA4 ALPN correctness
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/workflows/v6-step1-ja4.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply JA4 ALPN fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/argos-sniffer.c')
+          s = p.read_text()
+          fallback = '''    /* Display values fall back to the literal string "none" when absent --\n     * this is only for the human-readable TLS| telemetry line below, and no\n     * longer feeds the JA4 computation (see has_sni/has_alpn above). */\n    if (sni[0] == '\\0') strcpy(sni, "none");\n    if (alpn[0] == '\\0') strcpy(alpn, "none");\n    \n'''
+          alpn_block = '''    /* First/last character of the negotiated ALPN value for JA4's "a"\n     * section. Guarded against an empty alpn string (possible if the peer\n     * offered a zero-length protocol identifier) to avoid reading alpn[-1]. */\n    char alpn_first = '0', alpn_last = '0';\n    if (has_alpn && alpn[0] != '\\0') { alpn_first = alpn[0]; alpn_last = alpn[strlen(alpn) - 1]; }\n\n'''
+          if s.count(fallback) != 1:
+              raise SystemExit(f'expected one JA4 fallback block, found {s.count(fallback)}')
+          if s.count(alpn_block) != 1:
+              raise SystemExit(f'expected one JA4 ALPN block, found {s.count(alpn_block)}')
+          s = s.replace(alpn_block, '', 1)
+          fixed = '''    /* Capture JA4 ALPN characters BEFORE applying the human-readable\n     * "none" fallback below.  If the ALPN extension is present but its first\n     * protocol identifier is empty/oversized/unparseable, JA4 must keep the\n     * neutral 00 marker rather than fingerprinting the placeholder text. */\n    char alpn_first = '0', alpn_last = '0';\n    if (has_alpn && alpn[0] != '\\0') { alpn_first = alpn[0]; alpn_last = alpn[strlen(alpn) - 1]; }\n\n    /* Display values fall back to the literal string "none" when absent.\n     * These placeholders are telemetry-only and never feed JA4. */\n    if (sni[0] == '\\0') strcpy(sni, "none");\n    if (alpn[0] == '\\0') strcpy(alpn, "none");\n    \n'''
+          s = s.replace(fallback, fixed, 1)
+          p.write_text(s)
+          PY
+
+      - name: Targeted JA4 regression check
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('src/argos-sniffer.c').read_text()
+          decl = "char alpn_first = '0', alpn_last = '0';"
+          fallback = 'if (alpn[0] == \'\\0\') strcpy(alpn, "none");'
+          use = "a_cipher_count, a_ext_count, alpn_first, alpn_last"
+          assert s.count(decl) == 1
+          assert s.index(decl) < s.index(fallback) < s.index(use)
+          assert 'These placeholders are telemetry-only and never feed JA4.' in s
+          print('JA4 ALPN fallback ordering: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+          git diff --check
+
+      - name: Commit tested fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos-sniffer.c
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(v6): keep JA4 ALPN placeholder out of fingerprint'
+          git push origin HEAD:version-6
