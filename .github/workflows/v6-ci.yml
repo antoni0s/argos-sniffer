@@ -42,6 +42,12 @@ jobs:
           print('JA4 ALPN fallback ordering: PASS')
           PY
 
+      - name: QUIC v2 RFC 9369 vectors
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_quic_v2.c -o /tmp/test-quic-v2
+          /tmp/test-quic-v2
+
       - name: Enterprise parser fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
