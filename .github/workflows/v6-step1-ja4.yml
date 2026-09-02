@@ -1,4 +1,4 @@
-name: V6 step 3 - netlink prefix refresh
+name: V6 step 4 - dynamic BPF
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
           ref: version-6
           fetch-depth: 0
 
-      - name: Apply netlink prefix refresh
+      - name: Apply dynamic BPF and TCP CIP fix
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -30,45 +30,434 @@ jobs:
                   raise SystemExit(f'{label}: expected one match, found {n}')
               return s.replace(old, new, 1)
 
-          Path('src/argos_netlink.h').write_text('''#ifndef ARGOS_NETLINK_H\n#define ARGOS_NETLINK_H\n\n#include <stdint.h>\n#include <linux/rtnetlink.h>\n\n/* Address changes are the only route-netlink notifications that invalidate\n * the connected-prefix snapshot used by Argos classification. Link-state\n * churn by itself does not require an expensive getifaddrs() rescan. */\nstatic inline int argos_netlink_prefix_event_type(uint16_t type) {\n    return type == RTM_NEWADDR || type == RTM_DELADDR;\n}\n\n#endif /* ARGOS_NETLINK_H */\n''')
+          Path('src/argos_enterprise_ports.h').write_text(r'''#ifndef ARGOS_ENTERPRISE_PORTS_H
+#define ARGOS_ENTERPRISE_PORTS_H
 
-          Path('tests/test_netlink_refresh.c').write_text('''#include <stdio.h>\n#include "../src/argos_netlink.h"\n\nint main(void) {\n    if (!argos_netlink_prefix_event_type(RTM_NEWADDR)) return 1;\n    if (!argos_netlink_prefix_event_type(RTM_DELADDR)) return 2;\n    if (argos_netlink_prefix_event_type(RTM_NEWLINK)) return 3;\n    if (argos_netlink_prefix_event_type(RTM_DELLINK)) return 4;\n    if (argos_netlink_prefix_event_type(NLMSG_NOOP)) return 5;\n    puts("netlink prefix event classifier: PASS");\n    return 0;\n}\n''')
+#include <stddef.h>
+#include <stdint.h>
 
+/* Single source of truth shared by the enterprise parser admission checks and
+ * the vector-aware kernel BPF builder. Keep these lists limited to protocols
+ * for which Argos has a bounded parser. */
+static const uint16_t ARGOS_ENTERPRISE_TCP_PORTS[] = {
+    22, 88, 111, 179, 445, 502, 631, 1433, 1521, 2000, 2049,
+    3260, 3306, 3389, 5060, 5432, 9100, 44818
+};
+static const uint16_t ARGOS_ENTERPRISE_UDP_PORTS[] = {
+    88, 111, 161, 162, 389, 427, 623, 2049, 5060, 5678, 47808, 44818
+};
+#define ARGOS_ENTERPRISE_TCP_PORT_COUNT (sizeof(ARGOS_ENTERPRISE_TCP_PORTS) / sizeof(ARGOS_ENTERPRISE_TCP_PORTS[0]))
+#define ARGOS_ENTERPRISE_UDP_PORT_COUNT (sizeof(ARGOS_ENTERPRISE_UDP_PORTS) / sizeof(ARGOS_ENTERPRISE_UDP_PORTS[0]))
+
+#endif /* ARGOS_ENTERPRISE_PORTS_H */
+''')
+
+          Path('src/argos_bpf.h').write_text(r'''#ifndef ARGOS_BPF_H
+#define ARGOS_BPF_H
+
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <linux/filter.h>
+#include "argos_enterprise_ports.h"
+
+#define ARGOS_BPF_MAX_INSNS 256U
+#define ARGOS_BPF_PASS 0x0000ffffU
+#define ARGOS_BPF_DROP 0U
+#define ARGOS_TCP_CONTROL_MASK 0x07U /* FIN|SYN|RST */
+
+typedef struct {
+    uint8_t syn, multi, dhcp, netbios, dns, http, tls, l2, ipv6, enterprise;
+} argos_bpf_config_t;
+
+typedef struct {
+    struct sock_filter code[ARGOS_BPF_MAX_INSNS];
+    unsigned short len;
+} argos_bpf_program_t;
+
+static inline int abpf_stmt(argos_bpf_program_t *p, unsigned short code, uint32_t k) {
+    if (!p || p->len >= ARGOS_BPF_MAX_INSNS) return 0;
+    p->code[p->len++] = (struct sock_filter){code, 0, 0, k};
+    return 1;
+}
+
+static inline int abpf_jump(argos_bpf_program_t *p, unsigned short code, uint32_t k,
+                            uint8_t jt, uint8_t jf) {
+    if (!p || p->len >= ARGOS_BPF_MAX_INSNS) return 0;
+    p->code[p->len++] = (struct sock_filter){code, jt, jf, k};
+    return 1;
+}
+
+static inline int abpf_pass_ethertype(argos_bpf_program_t *p, uint16_t type) {
+    return abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, type, 0, 1) &&
+           abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS);
+}
+
+static inline int abpf_add_port(uint16_t *ports, size_t *count, size_t cap, uint16_t port) {
+    if (!ports || !count) return 0;
+    for (size_t i = 0; i < *count; ++i) if (ports[i] == port) return 1;
+    if (*count >= cap) return 0;
+    ports[(*count)++] = port;
+    return 1;
+}
+
+static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_program_t *p) {
+    if (!cfg || !p) return 0;
+    memset(p, 0, sizeof(*p));
+
+    uint16_t td[64], ts[64], ud[64], us[64];
+    size_t td_n = 0, ts_n = 0, ud_n = 0, us_n = 0;
+#define ADD(set,n,val) do { if (!abpf_add_port((set), &(n), sizeof(set)/sizeof((set)[0]), (uint16_t)(val))) return 0; } while (0)
+#define EMIT(x) do { if (!(x)) return 0; } while (0)
+
+    if (cfg->http) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
+    if (cfg->tls)  { ADD(td, td_n, 443); ADD(ud, ud_n, 443); }
+    if (cfg->dhcp) { ADD(ud, ud_n, 67); ADD(us, us_n, 67); }
+    if (cfg->netbios) { ADD(ud, ud_n, 137); ADD(us, us_n, 137); }
+    if (cfg->dns) { ADD(ud, ud_n, 53); ADD(us, us_n, 53); }
+    if (cfg->multi) {
+        ADD(ud, ud_n, 1900); ADD(us, us_n, 1900);
+        ADD(ud, ud_n, 3702); ADD(us, us_n, 3702);
+        ADD(ud, ud_n, 5353); ADD(us, us_n, 5353);
+    }
+    if (cfg->enterprise) {
+        for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i) {
+            ADD(td, td_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
+            ADD(ts, ts_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
+        }
+        for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i) {
+            ADD(ud, ud_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
+            ADD(us, us_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
+        }
+    }
+
+    const int need_tcp = cfg->syn || td_n || ts_n;
+    const int need_udp = ud_n || us_n;
+    const int need_ipv4 = need_tcp || need_udp || cfg->enterprise;
+
+    /* Ethernet type admission. Tagged/PPPoE traffic remains conservative
+     * pass-through because classic BPF cannot cheaply follow every stacked
+     * encapsulation without making the filter fragile. */
+    EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_ABS, 12));
+    if (cfg->l2) {
+        EMIT(abpf_pass_ethertype(p, 0x0806)); /* ARP */
+        EMIT(abpf_pass_ethertype(p, 0x88cc)); /* LLDP */
+    }
+    if (cfg->enterprise) {
+        EMIT(abpf_pass_ethertype(p, 0x888e)); /* EAPoL */
+        EMIT(abpf_pass_ethertype(p, 0x8892)); /* PROFINET */
+    }
+    EMIT(abpf_pass_ethertype(p, 0x8100)); /* VLAN */
+    EMIT(abpf_pass_ethertype(p, 0x88a8)); /* QinQ */
+    EMIT(abpf_pass_ethertype(p, 0x8864)); /* PPPoE session */
+    if (cfg->ipv6) EMIT(abpf_pass_ethertype(p, 0x86dd));
+    if (cfg->enterprise) {
+        /* IEEE 802.3 length field <=1500: CDP/EDP/FDP/IS-IS LLC/SNAP. */
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, 1500, 1, 0));
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+    }
+    if (!need_ipv4) {
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+#undef ADD
+#undef EMIT
+        return p->len > 0;
+    }
+
+    /* Untagged IPv4 only beyond this point. */
+    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 0x0800, 1, 0));
+    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+    EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_ABS, 23));
+
+    size_t tcp_ja = (size_t)-1, udp_ja = (size_t)-1;
+    if (need_tcp) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 6, 0, 1));
+        tcp_ja = p->len; EMIT(abpf_stmt(p, BPF_JMP | BPF_JA, 0));
+    }
+    if (need_udp) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 17, 0, 1));
+        udp_ja = p->len; EMIT(abpf_stmt(p, BPF_JMP | BPF_JA, 0));
+    }
+    if (cfg->enterprise) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 89, 0, 1)); /* OSPF */
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+    }
+    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+
+    if (need_tcp) {
+        size_t tcp_start = p->len;
+        p->code[tcp_ja].k = (uint32_t)(tcp_start - tcp_ja - 1U);
+        EMIT(abpf_stmt(p, BPF_LDX | BPF_B | BPF_MSH, 14));
+        if (cfg->syn) {
+            EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_IND, 27));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, ARGOS_TCP_CONTROL_MASK, 0, 1));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+        }
+        if (td_n || ts_n) {
+            /* Drop pure ACK/window updates before application-port checks. */
+            EMIT(abpf_stmt(p, BPF_STX, 0));
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_ABS, 16));
+            EMIT(abpf_stmt(p, BPF_ST, 1));
+            EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_IND, 26));
+            EMIT(abpf_stmt(p, BPF_ALU | BPF_AND | BPF_K, 0xf0));
+            EMIT(abpf_stmt(p, BPF_ALU | BPF_RSH | BPF_K, 2));
+            EMIT(abpf_stmt(p, BPF_MISC | BPF_TAX, 0));
+            EMIT(abpf_stmt(p, BPF_LD | BPF_W | BPF_MEM, 0));
+            EMIT(abpf_stmt(p, BPF_ALU | BPF_ADD | BPF_X, 0));
+            EMIT(abpf_stmt(p, BPF_MISC | BPF_TAX, 0));
+            EMIT(abpf_stmt(p, BPF_LD | BPF_W | BPF_MEM, 1));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_X, 0, 1, 0));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+            EMIT(abpf_stmt(p, BPF_LDX | BPF_W | BPF_MEM, 0));
+            if (td_n) {
+                EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
+                for (size_t i = 0; i < td_n; ++i) {
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, td[i], 0, 1));
+                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                }
+            }
+            if (ts_n) {
+                EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
+                for (size_t i = 0; i < ts_n; ++i) {
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ts[i], 0, 1));
+                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                }
+            }
+        }
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+    }
+
+    if (need_udp) {
+        size_t udp_start = p->len;
+        p->code[udp_ja].k = (uint32_t)(udp_start - udp_ja - 1U);
+        EMIT(abpf_stmt(p, BPF_LDX | BPF_B | BPF_MSH, 14));
+        if (ud_n) {
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
+            for (size_t i = 0; i < ud_n; ++i) {
+                EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ud[i], 0, 1));
+                EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+            }
+        }
+        if (us_n) {
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
+            for (size_t i = 0; i < us_n; ++i) {
+                EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, us[i], 0, 1));
+                EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+            }
+        }
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+    }
+
+#undef ADD
+#undef EMIT
+    return p->len > 0 && p->len <= ARGOS_BPF_MAX_INSNS;
+}
+
+static inline int argos_bpf_attach(int sock, const argos_bpf_config_t *cfg) {
+    argos_bpf_program_t built;
+    if (!argos_bpf_build(cfg, &built)) return -1;
+    struct sock_fprog prog;
+    prog.len = built.len;
+    prog.filter = built.code;
+    return setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, &prog, sizeof(prog));
+}
+
+#endif /* ARGOS_BPF_H */
+''')
+
+          # Enterprise port admission shares the exact same tables as BPF.
+          p = Path('src/argos_enterprise.h')
+          s = p.read_text()
+          s = replace_once(s, '#define ARGOS_ENTERPRISE_H\n', '#define ARGOS_ENTERPRISE_H\n\n#include "argos_enterprise_ports.h"\n', 'enterprise ports include')
+          start = s.index('static inline int argos_enterprise_tcp_port(')
+          end = s.index('\n\nstatic inline int ae_rpc(', start)
+          s = s[:start] + '''static inline int argos_enterprise_tcp_port(uint16_t sport, uint16_t dport) {\n    for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i)\n        if (sport == ARGOS_ENTERPRISE_TCP_PORTS[i] || dport == ARGOS_ENTERPRISE_TCP_PORTS[i]) return 1;\n    return 0;\n}\n\nstatic inline int argos_enterprise_udp_port(uint16_t sport, uint16_t dport) {\n    for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i)\n        if (sport == ARGOS_ENTERPRISE_UDP_PORTS[i] || dport == ARGOS_ENTERPRISE_UDP_PORTS[i]) return 1;\n    return 0;\n}\n''' + s[end:]
+          s = replace_once(s,
+              'static inline int ae_kerberos(const unsigned char *p, int len, argos_enterprise_result_t *r);\n',
+              'static inline int ae_kerberos(const unsigned char *p, int len, argos_enterprise_result_t *r);\nstatic inline int ae_cip(const unsigned char *p, int len, argos_enterprise_result_t *r);\n',
+              'CIP forward declaration')
+          old_select = '''    uint16_t port = dport;\n    if (!argos_enterprise_tcp_port(sport, dport)) return 0;\n    if (port != 22 && port != 88 && port != 111 && port != 179 && port != 445 &&\n        port != 502 && port != 631 && port != 1433 && port != 1521 && port != 2000 && port != 2049 &&\n        port != 3260 && port != 3306 && port != 3389 && port != 5060 && port != 5432 &&\n        port != 9100) port = sport;\n'''
+          new_select = '''    uint16_t port = dport;\n    if (!argos_enterprise_tcp_port(sport, dport)) return 0;\n    if (!argos_enterprise_tcp_port(0, port)) port = sport;\n'''
+          s = replace_once(s, old_select, new_select, 'enterprise TCP port selection')
+          s = replace_once(s,
+              '        case 9100: return ae_pjl(p, len, r);\n        default: return 0;\n',
+              '        case 9100: return ae_pjl(p, len, r);\n        case 44818: return ae_cip(p, len, r);\n        default: return 0;\n',
+              'TCP CIP dispatch')
+          filter_start = s.index('#ifndef ARGOS_PORTABLE_TEST\n/* Enterprise-mode kernel prefilter.')
+          filter_end = s.index('\n#endif\n\n#endif /* ARGOS_ENTERPRISE_H */', filter_start)
+          s = s[:filter_start] + '#endif /* ARGOS_ENTERPRISE_H */' + s[filter_end + len('\n#endif\n\n#endif /* ARGOS_ENTERPRISE_H */'):]
+          p.write_text(s)
+
+          # Main source: use one vector-aware BPF builder for both legacy and enterprise.
           p = Path('src/argos-sniffer.c')
           s = p.read_text()
+          s = replace_once(s,
+              '#include "argos_enterprise.h"\n#ifndef ARGOS_PORTABLE_TEST\n#include "argos_netlink.h"\n#endif\n',
+              '#include "argos_enterprise.h"\n#ifndef ARGOS_PORTABLE_TEST\n#include "argos_netlink.h"\n#include "argos_bpf.h"\n#endif\n',
+              'dynamic BPF include')
+          filt_start = s.index('/* ============================================================================\n * SECTION: Kernel AF_PACKET Prefilter')
+          main_start = s.index('#ifndef ARGOS_PORTABLE_TEST\nint main(int argc, char *argv[]) {', filt_start)
+          s = s[:filt_start] + '''/* ============================================================================\n * SECTION: Kernel AF_PACKET Prefilter\n * Vector-aware classic-BPF construction lives in argos_bpf.h so it can be\n * regression-tested independently with synthetic Ethernet/IPv4 packets.\n * ============================================================================ */\n''' + s[main_start:]
+          default_block = '''    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !opt_enterprise) {\n        opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;\n        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;\n        opt_v6 = 1;\n    }\n\n    install_signal_handlers();\n'''
+          cfg_block = '''    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !opt_enterprise) {\n        opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;\n        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;\n        opt_v6 = 1;\n    }\n\n    argos_bpf_config_t bpf_cfg = {\n        .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),\n        .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),\n        .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),\n        .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),\n        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0)\n    };\n\n    install_signal_handlers();\n'''
+          s = replace_once(s, default_block, cfg_block, 'BPF config snapshot')
+          old_attach = '''        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {\n            if ((opt_enterprise ? attach_argos_enterprise_kernel_filter(sock) : attach_argos_kernel_filter(sock)) < 0) {\n                fprintf(stderr, "warning: unable to attach AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));\n            }\n        }\n'''
+          new_attach = '''        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {\n            if (argos_bpf_attach(sock, &bpf_cfg) < 0) {\n                fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\\n", token, strerror(errno));\n            }\n        }\n'''
+          s = replace_once(s, old_attach, new_attach, 'dynamic BPF attach')
+          p.write_text(s)
 
-          old_inc = '''#include "argos_enterprise.h"\n'''
-          new_inc = '''#include "argos_enterprise.h"\n#ifndef ARGOS_PORTABLE_TEST\n#include "argos_netlink.h"\n#endif\n'''
-          s = replace_once(s, old_inc, new_inc, 'netlink header include')
-
-          old_prefix_end = '''    freeifaddrs(ifa);\n    fprintf(stderr, "argos: learned %d LAN prefix(es) from captured interfaces\\n", lan_pfx_count);\n}\n#endif\n\nstatic int is_lan_ipv4(uint32_t ip_be) {\n'''
-          new_prefix_end = '''    freeifaddrs(ifa);\n    fprintf(stderr, "argos: learned %d LAN prefix(es) from captured interfaces\\n", lan_pfx_count);\n}\n\n/* Route-netlink is integrated into the same epoll loop as AF_PACKET capture.\n * The socket subscribes only to IPv4/IPv6 address changes. A readable burst is\n * drained completely and collapsed into one getifaddrs() refresh, keeping this\n * work out of the per-packet hot path. */\nstatic unsigned char lan_netlink_epoll_tag;\n\nstatic int lan_netlink_open(void) {\n    int fd = socket(AF_NETLINK, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, NETLINK_ROUTE);\n    if (fd < 0) return -1;\n\n    struct sockaddr_nl addr;\n    memset(&addr, 0, sizeof(addr));\n    addr.nl_family = AF_NETLINK;\n    addr.nl_groups = RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;\n    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {\n        int saved_errno = errno;\n        close(fd);\n        errno = saved_errno;\n        return -1;\n    }\n    return fd;\n}\n\nstatic int lan_netlink_drain(int fd) {\n    int refresh = 0;\n    unsigned char buf[8192];\n\n    for (;;) {\n        ssize_t n = recv(fd, buf, sizeof(buf), MSG_DONTWAIT);\n        if (n < 0) {\n            if (errno == EINTR) continue;\n            if (errno == EAGAIN || errno == EWOULDBLOCK) break;\n            /* ENOBUFS means notifications may have been dropped. Force a\n             * full resnapshot so stale prefixes cannot persist silently. */\n            if (errno == ENOBUFS) refresh = 1;\n            break;\n        }\n        if (n == 0) break;\n\n        int rem = (int)n;\n        for (struct nlmsghdr *nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, rem);\n             nh = NLMSG_NEXT(nh, rem)) {\n            if (nh->nlmsg_type == NLMSG_ERROR) {\n                refresh = 1;\n                continue;\n            }\n            if (argos_netlink_prefix_event_type((uint16_t)nh->nlmsg_type)) refresh = 1;\n        }\n    }\n    return refresh;\n}\n#endif\n\nstatic int is_lan_ipv4(uint32_t ip_be) {\n'''
-          s = replace_once(s, old_prefix_end, new_prefix_end, 'netlink helpers')
-
-          old_epoll = '''    int epoll_fd = epoll_create1(0);\n    if (epoll_fd < 0) { perror("epoll_create1"); return 1; }\n'''
-          new_epoll = '''    int epoll_fd = epoll_create1(0);\n    if (epoll_fd < 0) { perror("epoll_create1"); return 1; }\n    int lan_netlink_fd = -1;\n'''
-          s = replace_once(s, old_epoll, new_epoll, 'netlink fd declaration')
-
-          old_start = '''    if (num_ifaces == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\\n"); return 1; }\n    learn_lan_prefixes();\n    /* Keep stdout line-buffered whenever it is active. With -U it is a\n'''
-          new_start = '''    if (num_ifaces == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\\n"); return 1; }\n    learn_lan_prefixes();\n\n    lan_netlink_fd = lan_netlink_open();\n    if (lan_netlink_fd >= 0) {\n        struct epoll_event nev;\n        memset(&nev, 0, sizeof(nev));\n        nev.events = EPOLLIN;\n        nev.data.ptr = &lan_netlink_epoll_tag;\n        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lan_netlink_fd, &nev) < 0) {\n            fprintf(stderr, "warning: unable to add route-netlink listener to epoll: %s\\n", strerror(errno));\n            close(lan_netlink_fd);\n            lan_netlink_fd = -1;\n        }\n    } else {\n        fprintf(stderr, "warning: route-netlink prefix refresh unavailable: %s\\n", strerror(errno));\n    }\n\n    /* Keep stdout line-buffered whenever it is active. With -U it is a\n'''
-          s = replace_once(s, old_start, new_start, 'netlink epoll registration')
-
-          old_event = '''        for (int i = 0; i < nfds; i++) {\n            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;\n\n            struct sockaddr_ll from_ll;\n'''
-          new_event = '''        for (int i = 0; i < nfds; i++) {\n            if (events[i].data.ptr == &lan_netlink_epoll_tag) {\n                if (lan_netlink_fd >= 0 && lan_netlink_drain(lan_netlink_fd))\n                    learn_lan_prefixes();\n                continue;\n            }\n\n            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;\n\n            struct sockaddr_ll from_ll;\n'''
-          s = replace_once(s, old_event, new_event, 'netlink epoll dispatch')
-
-          old_cleanup = '''    for (int i = 0; i < num_ifaces; i++) close(active_ifaces[i].fd);\n    if (ipc_sock >= 0) close(ipc_sock);\n'''
-          new_cleanup = '''    for (int i = 0; i < num_ifaces; i++) close(active_ifaces[i].fd);\n    if (lan_netlink_fd >= 0) close(lan_netlink_fd);\n    if (ipc_sock >= 0) close(ipc_sock);\n'''
-          s = replace_once(s, old_cleanup, new_cleanup, 'netlink cleanup')
-
+          # Add a direct TCP/44818 parser regression fixture.
+          p = Path('tests/test_enterprise.c')
+          s = p.read_text()
+          marker = 'static void test_elephant_fast_drop(void) {\n'
+          cip_test = '''static void test_cip_tcp(void) {\n    unsigned char p[24] = {0};\n    argos_enterprise_result_t r;\n    p[0] = 0x63U; p[1] = 0x00U; /* ListIdentity command 0x0063 LE */\n    check(argos_enterprise_tcp_port(40000, 44818) == 1, "EtherNet/IP TCP port admitted");\n    check(argos_enterprise_parse_tcp(40000, 44818, p, (int)sizeof(p), &r) == 1, "EtherNet/IP TCP ListIdentity parsed");\n    check(strcmp(r.proto, "ethernet-ip") == 0, "EtherNet/IP TCP protocol label");\n}\n\n'''
+          s = replace_once(s, marker, cip_test + marker, 'CIP TCP test insertion')
+          s = replace_once(s, '    test_fdp();\n    test_elephant_fast_drop();\n',
+                           '    test_fdp();\n    test_cip_tcp();\n    test_elephant_fast_drop();\n', 'CIP TCP test call')
           p.write_text(s)
           PY
 
-      - name: Netlink event classifier fixture
+      - name: Write dynamic BPF functional fixture
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
-            tests/test_netlink_refresh.c -o /tmp/test-netlink-refresh
-          /tmp/test-netlink-refresh
+          cat > tests/test_dynamic_bpf.c <<'EOF'
+          #include <stdint.h>
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include "../src/argos_bpf.h"
+
+          static uint16_t be16(const unsigned char *p) { return (uint16_t)(((uint16_t)p[0] << 8) | p[1]); }
+          static uint32_t be32(const unsigned char *p) { return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3]; }
+
+          static uint32_t load_n(const unsigned char *pkt, size_t len, size_t off, unsigned size) {
+              if (off + size > len) return 0;
+              if (size == 1U) return pkt[off];
+              if (size == 2U) return be16(pkt + off);
+              return be32(pkt + off);
+          }
+
+          static uint32_t run_bpf(const argos_bpf_program_t *p, const unsigned char *pkt, size_t len) {
+              uint32_t A = 0, X = 0, M[16] = {0};
+              size_t pc = 0;
+              while (p && pc < p->len) {
+                  struct sock_filter in = p->code[pc];
+                  unsigned cls = BPF_CLASS(in.code), mode = BPF_MODE(in.code), size = BPF_SIZE(in.code);
+                  unsigned bytes = size == BPF_B ? 1U : size == BPF_H ? 2U : 4U;
+                  if (cls == BPF_LD) {
+                      if (mode == BPF_ABS) A = load_n(pkt, len, in.k, bytes);
+                      else if (mode == BPF_IND) A = load_n(pkt, len, (size_t)X + in.k, bytes);
+                      else if (mode == BPF_MEM && in.k < 16U) A = M[in.k];
+                      else return 0;
+                      ++pc; continue;
+                  }
+                  if (cls == BPF_LDX) {
+                      if (mode == BPF_MSH && size == BPF_B) X = 4U * (load_n(pkt, len, in.k, 1U) & 0x0fU);
+                      else if (mode == BPF_MEM && in.k < 16U) X = M[in.k];
+                      else return 0;
+                      ++pc; continue;
+                  }
+                  if (cls == BPF_ST) { if (in.k >= 16U) return 0; M[in.k] = A; ++pc; continue; }
+                  if (cls == BPF_STX) { if (in.k >= 16U) return 0; M[in.k] = X; ++pc; continue; }
+                  if (cls == BPF_ALU) {
+                      unsigned op = BPF_OP(in.code);
+                      uint32_t rhs = BPF_SRC(in.code) == BPF_X ? X : in.k;
+                      if (op == BPF_ADD) A += rhs;
+                      else if (op == BPF_AND) A &= rhs;
+                      else if (op == BPF_RSH) A >>= rhs;
+                      else return 0;
+                      ++pc; continue;
+                  }
+                  if (cls == BPF_MISC) {
+                      if (in.code == (BPF_MISC | BPF_TAX)) X = A;
+                      else return 0;
+                      ++pc; continue;
+                  }
+                  if (cls == BPF_JMP) {
+                      unsigned op = BPF_OP(in.code);
+                      if (op == BPF_JA) { pc += (size_t)in.k + 1U; continue; }
+                      uint32_t rhs = BPF_SRC(in.code) == BPF_X ? X : in.k;
+                      int yes = op == BPF_JEQ ? A == rhs : op == BPF_JGT ? A > rhs :
+                                op == BPF_JSET ? (A & rhs) != 0U : 0;
+                      pc += (size_t)(yes ? in.jt : in.jf) + 1U; continue;
+                  }
+                  if (cls == BPF_RET) return BPF_RVAL(in.code) == BPF_A ? A : in.k;
+                  return 0;
+              }
+              return 0;
+          }
+
+          static void put16(unsigned char *p, uint16_t v) { p[0] = (unsigned char)(v >> 8); p[1] = (unsigned char)v; }
+
+          static size_t tcp4(unsigned char *p, uint16_t sport, uint16_t dport, uint8_t flags, unsigned payload) {
+              size_t n = 14U + 20U + 20U + payload; memset(p, 0, n);
+              put16(p + 12, 0x0800); p[14] = 0x45; put16(p + 16, (uint16_t)(40U + payload)); p[23] = 6;
+              put16(p + 34, sport); put16(p + 36, dport); p[46] = 0x50; p[47] = flags; return n;
+          }
+          static size_t udp4(unsigned char *p, uint16_t sport, uint16_t dport, unsigned payload) {
+              size_t n = 14U + 20U + 8U + payload; memset(p, 0, n);
+              put16(p + 12, 0x0800); p[14] = 0x45; put16(p + 16, (uint16_t)(28U + payload)); p[23] = 17;
+              put16(p + 34, sport); put16(p + 36, dport); put16(p + 38, (uint16_t)(8U + payload)); return n;
+          }
+          static size_t proto4(unsigned char *p, uint8_t proto) {
+              memset(p, 0, 64); put16(p + 12, 0x0800); p[14] = 0x45; put16(p + 16, 20); p[23] = proto; return 34;
+          }
+          static size_t eth(unsigned char *p, uint16_t type) { memset(p, 0, 64); put16(p + 12, type); return 64; }
+
+          static void expect(int ok, const char *what) { if (!ok) { fprintf(stderr, "FAIL: %s\n", what); exit(1); } }
+          static int pass(const argos_bpf_program_t *p, const unsigned char *pkt, size_t n) { return run_bpf(p, pkt, n) != 0U; }
+
+          int main(void) {
+              unsigned char pkt[256]; argos_bpf_program_t p; argos_bpf_config_t c;
+
+              memset(&c, 0, sizeof(c)); c.dns = 1; expect(argos_bpf_build(&c, &p), "build DNS");
+              expect(pass(&p, pkt, udp4(pkt, 50000, 53, 20)), "DNS query passes");
+              expect(pass(&p, pkt, udp4(pkt, 53, 50000, 20)), "DNS response passes");
+              expect(!pass(&p, pkt, udp4(pkt, 50000, 5353, 20)), "mDNS drops in DNS-only mode");
+              expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x10, 20)), "TLS drops in DNS-only mode");
+
+              memset(&c, 0, sizeof(c)); c.http = 1; expect(argos_bpf_build(&c, &p), "build HTTP");
+              expect(pass(&p, pkt, tcp4(pkt, 50000, 80, 0x18, 20)), "HTTP payload passes");
+              expect(!pass(&p, pkt, tcp4(pkt, 50000, 80, 0x10, 0)), "HTTP empty ACK drops");
+              expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS port drops in HTTP-only mode");
+
+              memset(&c, 0, sizeof(c)); c.syn = 1; expect(argos_bpf_build(&c, &p), "build SYN");
+              expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");
+              expect(!pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x10, 20)), "non-control TCP drops in SYN-only mode");
+
+              memset(&c, 0, sizeof(c)); c.l2 = 1; expect(argos_bpf_build(&c, &p), "build L2");
+              expect(pass(&p, pkt, eth(pkt, 0x0806)), "ARP passes in L2 mode");
+              expect(pass(&p, pkt, eth(pkt, 0x88cc)), "LLDP passes in L2 mode");
+              expect(!pass(&p, pkt, udp4(pkt, 50000, 53, 20)), "IPv4 DNS drops in L2-only mode");
+              expect(pass(&p, pkt, eth(pkt, 0x8100)), "VLAN remains conservative pass-through");
+
+              memset(&c, 0, sizeof(c)); c.tls = 1; expect(argos_bpf_build(&c, &p), "build TLS");
+              expect(pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS ClientHello port passes");
+              expect(pass(&p, pkt, udp4(pkt, 50000, 443, 1200)), "QUIC destination 443 passes");
+              expect(!pass(&p, pkt, udp4(pkt, 443, 50000, 1200)), "QUIC server direction drops in client-only TLS mode");
+
+              memset(&c, 0, sizeof(c)); c.enterprise = 1; c.ipv6 = 1; expect(argos_bpf_build(&c, &p), "build enterprise");
+              expect(pass(&p, pkt, tcp4(pkt, 50000, 44818, 0x18, 24)), "EtherNet/IP TCP/44818 passes");
+              expect(pass(&p, pkt, tcp4(pkt, 44818, 50000, 0x18, 24)), "EtherNet/IP TCP response passes");
+              expect(pass(&p, pkt, udp4(pkt, 50000, 47808, 20)), "BACnet/IP passes");
+              expect(pass(&p, pkt, proto4(pkt, 89)), "OSPF passes");
+              expect(pass(&p, pkt, eth(pkt, 100)), "802.3 LLC enterprise discovery passes");
+              expect(pass(&p, pkt, eth(pkt, 0x86dd)), "IPv6 passes when enabled");
+              expect(!pass(&p, pkt, tcp4(pkt, 50000, 25, 0x18, 20)), "unparsed enterprise TCP port drops");
+
+              puts("dynamic BPF functional matrix: PASS");
+              return 0;
+          }
+          EOF
+
+      - name: Dynamic BPF functional matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+
+      - name: Enterprise fixtures including TCP CIP
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
 
       - name: Strict native builds
         run: |
@@ -76,19 +465,19 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
           git diff --check
 
-      - name: Structural netlink checks
+      - name: Structural dynamic-filter checks
         run: |
-          grep -F 'NETLINK_ROUTE' src/argos-sniffer.c
-          grep -F 'RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR' src/argos-sniffer.c
-          grep -F 'lan_netlink_drain(lan_netlink_fd)' src/argos-sniffer.c
-          grep -F 'if (lan_netlink_fd >= 0) close(lan_netlink_fd);' src/argos-sniffer.c
-          ! grep -F 'RTMGRP_LINK' src/argos-sniffer.c
+          grep -F 'argos_bpf_attach(sock, &bpf_cfg)' src/argos-sniffer.c
+          grep -F 'ARGOS_ENTERPRISE_TCP_PORTS' src/argos_bpf.h
+          grep -F '44818' src/argos_enterprise_ports.h
+          ! grep -F 'attach_argos_kernel_filter' src/argos-sniffer.c
+          ! grep -F 'attach_argos_enterprise_kernel_filter' src/argos_enterprise.h
 
-      - name: Commit tested netlink refresh
+      - name: Commit tested dynamic BPF
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/argos-sniffer.c src/argos_netlink.h tests/test_netlink_refresh.c
+          git add src/argos-sniffer.c src/argos_enterprise.h src/argos_enterprise_ports.h src/argos_bpf.h tests/test_enterprise.c tests/test_dynamic_bpf.c
           git diff --cached --quiet && exit 0
-          git commit -m 'feat(v6): refresh LAN prefixes from route netlink'
+          git commit -m 'perf(v6): build AF_PACKET BPF from active vectors'
           git push origin HEAD:version-6
