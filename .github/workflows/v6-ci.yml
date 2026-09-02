@@ -70,6 +70,26 @@ jobs:
           ! grep -F 'attach_argos_kernel_filter' src/argos-sniffer.c
           ! grep -F 'attach_argos_enterprise_kernel_filter' src/argos_enterprise.h
 
+      - name: TLS port policy and DoT regression
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ports = Path('src/argos_tls_ports.h').read_text()
+          src = Path('src/argos-sniffer.c').read_text()
+          bpf = Path('src/argos_bpf.h').read_text()
+          for port in ('443U', '465U', '853U', '993U', '995U', '8443U'):
+              assert port in ports
+          assert '587U' not in ports
+          assert 'ARGOS_TLS_TCP_PORTS' in bpf
+          assert 'ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT)' in bpf
+          assert src.count('argos_tls_tcp_port(dport)') >= 3
+          assert src.count('(opt_tls && dport == 443U)') == 1
+          assert src.count('else if (opt_tls && dport == 443)') == 1
+          assert 'dport == 853U' in src
+          assert 'DOT|%s|%s|%s|%s|%s|%s%s' in src
+          print('TLS port policy / DoT regression: PASS')
+          PY
+
       - name: Dynamic BPF sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -101,6 +121,7 @@ jobs:
           /tmp/argos-sniffer-v6-stub --help | grep -F 'argos-sniffer v6.0.0-dev'
           /tmp/argos-sniffer-v6-stub --help | grep -F -- '--enterprise'
           /tmp/argos-sniffer-v6-stub --help | grep -F 'ENT|mac|src_ip|dst_ip|protocol|fingerprint'
+          /tmp/argos-sniffer-v6-stub --help | grep -F 'DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn'
 
   arm64:
     name: ARM64 strict cross-build
