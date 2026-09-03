@@ -504,36 +504,6 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
     }
 }
 
-static inline int ae_snmp(const unsigned char *p, int len, argos_enterprise_result_t *r) {
-    static const unsigned char sysdescr[] = {0x2b,0x06,0x01,0x02,0x01,0x01,0x01,0x00};
-    static const unsigned char sysobj[]   = {0x2b,0x06,0x01,0x02,0x01,0x01,0x02,0x00};
-    const unsigned char *q = ae_find(p, len, sysdescr, (int)sizeof(sysdescr));
-    const char *label = "sysDescr";
-    if (!q) { q = ae_find(p, len, sysobj, (int)sizeof(sysobj)); label = "sysObjectID"; }
-    if (!q) return 0;
-    q += 8;
-    int remain = (int)((p + len) - q);
-    if (remain < 2) return 0;
-    /* Skip the value TLV tag and short-form length. Long-form values are left generic. */
-    uint8_t tag = q[0], vl = q[1];
-    if ((vl & 0x80U) || 2 + vl > remain) {
-        ae_set(r, "snmp", 0, "%s-present", label);
-        return 1;
-    }
-    char value[256];
-    if (tag == 0x04U) ae_clean(q + 2, vl, value, sizeof(value));
-    else {
-        size_t used = 0; value[0] = '\0';
-        for (int i = 0; i < vl && used + 3U < sizeof(value); ++i) {
-            int w = snprintf(value + used, sizeof(value) - used, "%s%02x", i ? ":" : "", q[2+i]);
-            if (w < 0 || (size_t)w >= sizeof(value) - used) break;
-            used += (size_t)w;
-        }
-    }
-    ae_set(r, "snmp", 0, "%s=%s", label, value[0] ? value : "-");
-    return 1;
-}
-
 static inline int ae_der_tlv(const unsigned char *p, size_t n, size_t pos,
                              uint8_t *tag, size_t *voff, size_t *vlen, size_t *next) {
     if (!p || pos >= n || !tag || !voff || !vlen || !next) return 0;
@@ -558,6 +528,108 @@ static inline int ae_der_int32(const unsigned char *p, size_t n, int32_t *out) {
     int32_t v = (p[0] & 0x80U) ? -1 : 0;
     for (size_t i = 0; i < n; ++i) v = (int32_t)((uint32_t)v << 8 | p[i]);
     *out = v;
+    return 1;
+}
+
+static inline uint32_t ae_hash_bytes32(const unsigned char *p, size_t n) {
+    uint32_t h = 2166136261U;
+    if (!p) return 0U;
+    for (size_t i = 0; i < n; ++i) { h ^= p[i]; h *= 16777619U; }
+    return h;
+}
+
+/* SNMPv3/USM fingerprinting. RFC 3414 wraps UsmSecurityParameters as the
+ * msgSecurityParameters OCTET STRING. The authoritative EngineID is a stable
+ * device/engine identifier, so Argos emits only a hash plus RFC 3411
+ * enterprise/format metadata -- never the raw EngineID, userName, auth or
+ * privacy parameter bytes. */
+static inline int ae_snmp_v3_usm(const unsigned char *p, size_t n,
+                                 argos_enterprise_result_t *r) {
+    uint8_t tag; size_t voff, vlen, next;
+    if (!p || !r || !ae_der_tlv(p, n, 0U, &tag, &voff, &vlen, &next) || tag != 0x30U) return 0;
+    size_t end = voff + vlen, pos = voff;
+
+    uint8_t vt; size_t vv, vl, vn;
+    if (!ae_der_tlv(p,end,pos,&vt,&vv,&vl,&vn) || vt != 0x02U) return 0;
+    int32_t version = -1; if (!ae_der_int32(p+vv,vl,&version) || version != 3) return 0; pos=vn;
+
+    uint8_t ht; size_t hv, hl, hn;
+    if (!ae_der_tlv(p,end,pos,&ht,&hv,&hl,&hn) || ht != 0x30U) return 0;
+    size_t hend=hv+hl, hp=hv; int32_t tmp=0, security_model=0; uint8_t flags=0;
+    for (unsigned field=0; field<4U; ++field) {
+        uint8_t ft; size_t fv, fl, fn;
+        if (!ae_der_tlv(p,hend,hp,&ft,&fv,&fl,&fn)) return 0;
+        if (field < 2U) { if (ft != 0x02U || !ae_der_int32(p+fv,fl,&tmp)) return 0; }
+        else if (field == 2U) { if (ft != 0x04U || fl != 1U) return 0; flags=p[fv]; }
+        else { if (ft != 0x02U || !ae_der_int32(p+fv,fl,&security_model)) return 0; }
+        hp=fn;
+    }
+    if (security_model != 3) return 0;
+    pos=hn;
+
+    uint8_t st; size_t sv, sl, sn;
+    if (!ae_der_tlv(p,end,pos,&st,&sv,&sl,&sn) || st != 0x04U || sl < 2U) return 0;
+    (void)sn;
+    uint8_t ut; size_t uv, ul, un;
+    if (!ae_der_tlv(p+sv,sl,0U,&ut,&uv,&ul,&un) || ut != 0x30U) return 0;
+    size_t uend=uv+ul, up=uv;
+
+    uint8_t et; size_t ev, el, en;
+    if (!ae_der_tlv(p+sv,uend,up,&et,&ev,&el,&en) || et != 0x04U || el > 32U) return 0;
+    const unsigned char *engine=p+sv+ev; size_t engine_len=el; up=en;
+    if (engine_len == 0U) return 0; /* discovery request has no remote identity yet */
+
+    int32_t boots=0, etime=0; unsigned user_present=0U;
+    for (unsigned field=0; field<5U; ++field) {
+        uint8_t ft; size_t fv, fl, fn;
+        if (!ae_der_tlv(p+sv,uend,up,&ft,&fv,&fl,&fn)) return 0;
+        if (field == 0U || field == 1U) {
+            if (ft != 0x02U || !ae_der_int32(p+sv+fv,fl, field==0U ? &boots : &etime)) return 0;
+        } else {
+            if (ft != 0x04U) return 0;
+            if (field == 2U) user_present = fl ? 1U : 0U;
+        }
+        up=fn;
+    }
+
+    uint32_t enterprise=0U; unsigned format=0U, modern=0U;
+    if (engine_len >= 4U) {
+        modern=(engine[0] & 0x80U) ? 1U : 0U;
+        enterprise=((uint32_t)(engine[0] & 0x7fU)<<24)|((uint32_t)engine[1]<<16)|((uint32_t)engine[2]<<8)|engine[3];
+        if (modern && engine_len >= 5U) format=engine[4];
+    }
+    ae_set(r,"snmpv3-usm",0,
+           "engine_hash=%08x engine_len=%u enterprise=%u format=%u modern=%u boots=%d time=%d auth=%u priv=%u reportable=%u user_present=%u",
+           (unsigned)ae_hash_bytes32(engine,engine_len),(unsigned)engine_len,(unsigned)enterprise,
+           format,modern,boots,etime,(flags&0x01U)?1U:0U,(flags&0x02U)?1U:0U,
+           (flags&0x04U)?1U:0U,user_present);
+    return 1;
+}
+
+static inline int ae_snmp(const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (p && len > 0 && ae_snmp_v3_usm(p,(size_t)len,r)) return 1;
+    static const unsigned char sysdescr[] = {0x2b,0x06,0x01,0x02,0x01,0x01,0x01,0x00};
+    static const unsigned char sysobj[]   = {0x2b,0x06,0x01,0x02,0x01,0x01,0x02,0x00};
+    const unsigned char *q = ae_find(p, len, sysdescr, (int)sizeof(sysdescr));
+    const char *label = "sysDescr";
+    if (!q) { q = ae_find(p, len, sysobj, (int)sizeof(sysobj)); label = "sysObjectID"; }
+    if (!q) return 0;
+    q += 8;
+    int remain = (int)((p + len) - q);
+    if (remain < 2) return 0;
+    uint8_t vtag = q[0], qlen = q[1];
+    if ((qlen & 0x80U) || 2 + qlen > remain) { ae_set(r,"snmp",0,"%s-present",label); return 1; }
+    char value[256];
+    if (vtag == 0x04U) ae_clean(q+2,qlen,value,sizeof(value));
+    else {
+        size_t used=0; value[0]='\0';
+        for (int i=0;i<qlen && used+3U<sizeof(value);++i) {
+            int w=snprintf(value+used,sizeof(value)-used,"%s%02x",i?":":"",q[2+i]);
+            if (w<0 || (size_t)w>=sizeof(value)-used) break;
+            used+=(size_t)w;
+        }
+    }
+    ae_set(r,"snmp",0,"%s=%s",label,value[0]?value:"-");
     return 1;
 }
 
