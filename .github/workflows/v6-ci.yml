@@ -58,6 +58,35 @@ jobs:
             tests/test_telemetry.c -o /tmp/test-telemetry-san
           /tmp/test-telemetry-san
 
+      - name: Packet normalization engine regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_packet.c -o /tmp/test-packet
+          /tmp/test-packet
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text(); packet = Path('src/argos_packet.h').read_text()
+          assert src.count('#include "argos_packet.h"') == 1
+          assert 'argos_packet_view_t packet_view;' in src
+          assert 'argos_packet_decode(pkt_type, buffer, (int)len, opt_v6, &packet_view)' in src
+          assert 'static int strip_l2(' not in src
+          assert 'static int skip_ipv6_exthdrs(' not in src
+          for symbol in ('argos_packet_view_t', 'argos_packet_decode', 'argos_packet_strip_l2',
+                         'argos_packet_ipv6_l4', 'ipv4_header_info', 'ipv6_packet_info'):
+              assert symbol in packet
+          assert 'malloc(' not in packet and 'calloc(' not in packet and 'realloc(' not in packet
+          assert 'memcpy(v->frame' not in packet and 'const unsigned char *frame;' in packet
+          assert 'packet_view.packet_end' in src
+          print('Packet engine architecture/hot-path invariants: PASS')
+          PY
+
+      - name: Packet normalization engine sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_packet.c -o /tmp/test-packet-san
+          /tmp/test-packet-san
+
       - name: TLS ClientHello / JA4 regression
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client

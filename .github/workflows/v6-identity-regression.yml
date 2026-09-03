@@ -137,7 +137,7 @@ jobs:
           assert 'never the raw EngineID, userName, auth or' in h
           assert '02:<IPv4 bytes>:04' in r and '40-bit FNV-1a' in r
           assert 'pkt_type == LINK_RAW_IP && is_ip_packet' in s
-          assert 'argos_raw_identity_v4(buffer + l3_offset + 12, src_mac)' in s
+          assert 'argos_raw_identity_v4(packet_view.src_addr, src_mac)' in s
           assert 'argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac)' in s
           assert 'snprintf(mac_str, sizeof(mac_str), "%s", current_iface->name)' not in s
           assert 'pkt_type == LINK_RAW_IP) snprintf(ent_mac' not in s
