@@ -293,9 +293,30 @@ static inline int ae_smb2(const unsigned char *p, int len, argos_enterprise_resu
         if (woff < (uint32_t)remain && wlen <= (uint16_t)(remain - (int)woff))
             ae_utf16le(n + woff, wlen, workstation, sizeof(workstation));
     }
+    unsigned domain_present = domain[0] ? 1U : 0U;
+    unsigned workstation_present = workstation[0] ? 1U : 0U;
+    unsigned domain_len = domain_present ? (unsigned)strlen(domain) : 0U;
+    unsigned workstation_len = workstation_present ? (unsigned)strlen(workstation) : 0U;
+    uint32_t domain_hash = 0U, workstation_hash = 0U;
+    if (domain_present) {
+        domain_hash = 2166136261U;
+        for (unsigned i = 0; i < domain_len; ++i) {
+            domain_hash ^= (unsigned char)domain[i];
+            domain_hash *= 16777619U;
+        }
+    }
+    if (workstation_present) {
+        workstation_hash = 2166136261U;
+        for (unsigned i = 0; i < workstation_len; ++i) {
+            workstation_hash ^= (unsigned char)workstation[i];
+            workstation_hash *= 16777619U;
+        }
+    }
     ae_set(r, "smb2-ntlm", 1,
-           "message=%u windows=%u.%u build=%u domain=%s workstation=%s",
-           mt, maj, min, build, domain[0] ? domain : "-", workstation[0] ? workstation : "-");
+           "message=%u windows=%u.%u build=%u domain_present=%u domain_len=%u domain_hash=%08x workstation_present=%u workstation_len=%u workstation_hash=%08x",
+           mt, maj, min, build,
+           domain_present, domain_len, domain_hash,
+           workstation_present, workstation_len, workstation_hash);
     return 1;
 }
 
