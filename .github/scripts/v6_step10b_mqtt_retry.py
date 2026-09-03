@@ -16,5 +16,15 @@ for old,new,label in ((old1r,new1r,'44818 replacement'),(old1,new1,'44818 anchor
     if s.count(old)!=1:
         raise SystemExit(f'{label}: expected one match, got {s.count(old)}')
     s=s.replace(old,new,1)
+
+# Keep MQTT hashing self-contained. ae_hash_bytes32() is defined later in
+# argos_enterprise.h for SNMP/Kerberos and cannot be called before declaration
+# under the strict -Werror build.
+old_hash='''    uint32_t cid_hash=ae_hash_bytes32(cid,cid_len);\n'''
+new_hash='''    uint32_t cid_hash=2166136261U;\n    for (uint16_t i=0U; i<cid_len; ++i) { cid_hash ^= cid[i]; cid_hash *= 16777619U; }\n'''
+if s.count(old_hash)!=1:
+    raise SystemExit(f'MQTT hash replacement: expected one match, got {s.count(old_hash)}')
+s=s.replace(old_hash,new_hash,1)
+
 p.write_text(s)
 exec(compile(s,str(p),'exec'))
