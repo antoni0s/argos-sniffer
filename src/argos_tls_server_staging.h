@@ -4,18 +4,8 @@
 /*
  * Argos Sniffer v6 — TLS ServerHello staging parser
  *
- * STAGING ONLY:
- * - not included by production code;
- * - no dispatcher/config/state/telemetry integration;
- * - no heap allocation;
- * - bounded extension capture;
- * - extracts only passive ServerHello metadata useful for future JA4S-style
- *   fingerprinting and encrypted-session observations.
- *
- * The final JA4S hash construction is intentionally not implemented here.
- * Promotion must reuse the canonical v6 hashing/output contract after those
- * interfaces are frozen. This staging parser only establishes safe wire
- * parsing semantics and normalized inputs.
+ * STAGING ONLY. No production/runtime integration.
+ * Pure bounded parser for future server-side TLS fingerprinting.
  */
 
 #include <stddef.h>
@@ -24,6 +14,7 @@
 
 #define ARGOS_TLS_SERVER_MAX_EXTENSIONS 32U
 #define ARGOS_TLS_SERVER_ALPN_MAX       16U
+#define ARGOS_TLS_SERVER_RAW_EXT_MAX    160U
 
 typedef struct {
     uint16_t legacy_version;
@@ -42,6 +33,7 @@ typedef struct {
     uint8_t has_key_share;
     uint8_t has_early_data;
     uint8_t has_ech;
+    uint8_t is_hello_retry_request;
 } argos_tls_server_staging_result_t;
 
 static inline uint16_t argos_tls_server_staging_be16(const uint8_t *p)
@@ -53,6 +45,17 @@ static inline int argos_tls_server_staging_is_grease(uint16_t value)
 {
     return ((value & 0x0f0fU) == 0x0a0aU) &&
            ((uint8_t)(value >> 8) == (uint8_t)value);
+}
+
+static inline int argos_tls_server_staging_is_hrr_random(const uint8_t *p)
+{
+    static const uint8_t hrr_random[32] = {
+        0xcf,0x21,0xad,0x74,0xe5,0x9a,0x61,0x11,
+        0xbe,0x1d,0x8c,0x02,0x1e,0x65,0xb8,0x91,
+        0xc2,0xa2,0x11,0x16,0x7a,0xbb,0x8c,0x5e,
+        0x07,0x9e,0x09,0xe2,0xc8,0xa8,0x33,0x9c
+    };
+    return p && memcmp(p, hrr_random, sizeof(hrr_random)) == 0;
 }
 
 static inline void argos_tls_server_staging_copy_alpn(
@@ -73,38 +76,103 @@ static inline void argos_tls_server_staging_copy_alpn(
     out[n] = '\0';
 }
 
+/* Two-character TLS version token used by JA4-family formats. */
+static inline void argos_tls_server_staging_version_token(uint16_t version, char out[3])
+{
+    switch (version) {
+    case 0x0304U: out[0] = '1'; out[1] = '3'; break;
+    case 0x0303U: out[0] = '1'; out[1] = '2'; break;
+    case 0x0302U: out[0] = '1'; out[1] = '1'; break;
+    case 0x0301U: out[0] = '1'; out[1] = '0'; break;
+    case 0x0300U: out[0] = 's'; out[1] = '3'; break;
+    default:      out[0] = '0'; out[1] = '0'; break;
+    }
+    out[2] = '\0';
+}
+
+/* First/last-character ALPN token, or "00" if unavailable. */
+static inline void argos_tls_server_staging_alpn_token(
+    const char *alpn,
+    char out[3])
+{
+    size_t n;
+    if (!alpn || !alpn[0]) {
+        out[0] = '0'; out[1] = '0'; out[2] = '\0';
+        return;
+    }
+    n = strlen(alpn);
+    if ((unsigned char)alpn[0] > 127U) {
+        out[0] = '9'; out[1] = '9'; out[2] = '\0';
+        return;
+    }
+    out[0] = alpn[0];
+    out[1] = (n > 1U) ? alpn[n - 1U] : alpn[0];
+    out[2] = '\0';
+}
+
 /*
- * Parse one complete TLS record containing a ServerHello.
- *
- * Expected layout:
- *   TLS record header:  type(1), version(2), length(2)
- *   Handshake header:   type(1=ServerHello), length(3)
- *   ServerHello body:
- *       legacy_version(2)
- *       random(32)
- *       session_id_len(1) + session_id
- *       cipher_suite(2)
- *       compression(1)
- *       extensions_len(2) + extensions
- *
- * Returns 1 on a structurally valid ServerHello, 0 otherwise.
- * It never reads beyond len and never allocates.
+ * Build only raw JA4S-compatible components. No hashing is performed here.
+ * Extension order is preserved because JA4S hashes server extensions in wire
+ * order. GREASE has already been excluded by the parser.
  */
+static inline int argos_tls_server_staging_raw_components(
+    const argos_tls_server_staging_result_t *r,
+    char transport,
+    char version[3],
+    char alpn_token[3],
+    char cipher_hex[5],
+    char extensions_hex[ARGOS_TLS_SERVER_RAW_EXT_MAX])
+{
+    static const char hex[] = "0123456789abcdef";
+    size_t pos = 0U;
+
+    if (!r || !version || !alpn_token || !cipher_hex || !extensions_hex)
+        return 0;
+
+    if (transport != 't' && transport != 'q' && transport != 'd')
+        return 0;
+
+    argos_tls_server_staging_version_token(r->negotiated_version, version);
+    argos_tls_server_staging_alpn_token(r->alpn, alpn_token);
+
+    cipher_hex[0] = hex[(r->cipher_suite >> 12) & 0x0fU];
+    cipher_hex[1] = hex[(r->cipher_suite >> 8) & 0x0fU];
+    cipher_hex[2] = hex[(r->cipher_suite >> 4) & 0x0fU];
+    cipher_hex[3] = hex[r->cipher_suite & 0x0fU];
+    cipher_hex[4] = '\0';
+
+    extensions_hex[0] = '\0';
+    for (uint8_t i = 0; i < r->extension_count; ++i) {
+        uint16_t v = r->extensions[i];
+        size_t need = (i == 0U) ? 4U : 5U;
+        if (pos + need >= ARGOS_TLS_SERVER_RAW_EXT_MAX)
+            return 0;
+        if (i != 0U)
+            extensions_hex[pos++] = ',';
+        extensions_hex[pos++] = hex[(v >> 12) & 0x0fU];
+        extensions_hex[pos++] = hex[(v >> 8) & 0x0fU];
+        extensions_hex[pos++] = hex[(v >> 4) & 0x0fU];
+        extensions_hex[pos++] = hex[v & 0x0fU];
+        extensions_hex[pos] = '\0';
+    }
+
+    return 1;
+}
+
+/* Parse one complete TLS record containing a ServerHello. */
 static inline int argos_tls_server_staging_parse(
     const uint8_t *record,
     size_t len,
     argos_tls_server_staging_result_t *out)
 {
-    size_t pos;
-    size_t record_end;
-    size_t handshake_end;
+    size_t pos, record_end, handshake_end;
 
     if (!record || !out || len < 5U + 4U + 38U)
         return 0;
 
     memset(out, 0, sizeof(*out));
 
-    if (record[0] != 0x16U) /* handshake record */
+    if (record[0] != 0x16U)
         return 0;
 
     {
@@ -114,7 +182,7 @@ static inline int argos_tls_server_staging_parse(
         record_end = 5U + (size_t)record_len;
     }
 
-    if (record_end < 9U || record[5] != 0x02U) /* ServerHello */
+    if (record_end < 9U || record[5] != 0x02U)
         return 0;
 
     {
@@ -134,7 +202,9 @@ static inline int argos_tls_server_staging_parse(
     out->negotiated_version = out->legacy_version;
     pos += 2U;
 
-    pos += 32U; /* random */
+    out->is_hello_retry_request =
+        (uint8_t)argos_tls_server_staging_is_hrr_random(record + pos);
+    pos += 32U;
 
     if (pos >= handshake_end)
         return 0;
@@ -151,14 +221,10 @@ static inline int argos_tls_server_staging_parse(
 
     out->cipher_suite = argos_tls_server_staging_be16(record + pos);
     pos += 2U;
+    pos += 1U; /* compression */
 
-    /* Legacy compression_method must be present. TLS 1.3 uses zero. */
-    pos += 1U;
-
-    /* Extensions are optional in older ServerHello forms. */
     if (pos == handshake_end)
         return 1;
-
     if (handshake_end - pos < 2U)
         return 0;
 
@@ -166,7 +232,6 @@ static inline int argos_tls_server_staging_parse(
         size_t ext_total = (size_t)argos_tls_server_staging_be16(record + pos);
         size_t ext_end;
         pos += 2U;
-
         if (ext_total > handshake_end - pos)
             return 0;
         ext_end = pos + ext_total;
@@ -182,31 +247,24 @@ static inline int argos_tls_server_staging_parse(
             ext_type = argos_tls_server_staging_be16(record + pos);
             ext_len = (size_t)argos_tls_server_staging_be16(record + pos + 2U);
             pos += 4U;
-
             if (ext_len > ext_end - pos)
                 return 0;
-
             ext_data = record + pos;
 
-            /* GREASE is intentionally excluded from canonical fingerprint input. */
             if (!argos_tls_server_staging_is_grease(ext_type)) {
-                if (out->extension_count < ARGOS_TLS_SERVER_MAX_EXTENSIONS) {
+                if (out->extension_count < ARGOS_TLS_SERVER_MAX_EXTENSIONS)
                     out->extensions[out->extension_count++] = ext_type;
-                } else {
+                else
                     out->extensions_truncated = 1U;
-                }
             }
 
             switch (ext_type) {
-            case 0x002bU: /* supported_versions */
+            case 0x002bU:
                 out->has_supported_versions = 1U;
                 if (ext_len == 2U)
                     out->negotiated_version = argos_tls_server_staging_be16(ext_data);
                 break;
-
-            case 0x0010U: /* ALPN */
-                /* ServerHello/EncryptedExtensions ALPN encoding is a protocol
-                 * name list. If present here, accept exactly one bounded name. */
+            case 0x0010U:
                 out->has_alpn = 1U;
                 if (ext_len >= 3U) {
                     size_t list_len = (size_t)argos_tls_server_staging_be16(ext_data);
@@ -217,28 +275,11 @@ static inline int argos_tls_server_staging_parse(
                     }
                 }
                 break;
-
-            case 0x0029U: /* pre_shared_key */
-                out->has_pre_shared_key = 1U;
-                break;
-
-            case 0x0033U: /* key_share */
-                out->has_key_share = 1U;
-                break;
-
-            case 0x002aU: /* early_data */
-                out->has_early_data = 1U;
-                break;
-
-            /* ECH-related extension values seen in deployed drafts/final
-             * evolution are deliberately treated as presence hints only.
-             * Promotion must re-check the then-current RFC/IANA assignment. */
-            case 0xfe0dU:
-                out->has_ech = 1U;
-                break;
-
-            default:
-                break;
+            case 0x0029U: out->has_pre_shared_key = 1U; break;
+            case 0x0033U: out->has_key_share = 1U; break;
+            case 0x002aU: out->has_early_data = 1U; break;
+            case 0xfe0dU: out->has_ech = 1U; break;
+            default: break;
             }
 
             pos += ext_len;
