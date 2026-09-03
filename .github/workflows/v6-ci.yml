@@ -85,9 +85,9 @@ jobs:
           /tmp/test-lldp-med
           python3 - <<'PY'
           from pathlib import Path
-          src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); med = Path('src/argos_lldp_med.h').read_text()
-          assert 'p[pos] == 0x00U && p[pos + 1U] == 0x12U && p[pos + 2U] == 0xbbU' in med
-          assert 'subtype == 3U' not in med
+          src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); l2 = Path('src/argos_l2.h').read_text()
+          assert 'p[pos] == 0x00U && p[pos + 1U] == 0x12U && p[pos + 2U] == 0xbbU' in l2
+          assert 'subtype == 3U' not in l2
           assert 'ENT|%s|-|-|LLDP-MED|%s' in src
           assert 'EMIT(abpf_pass_ethertype(p, 0x88cc)); /* LLDP / LLDP-MED */' in bpf
           assert 'SECRET-ROOM-42' not in src
@@ -106,9 +106,9 @@ jobs:
           /tmp/test-stp
           python3 - <<'PY'
           from pathlib import Path
-          src=Path('src/argos-sniffer.c').read_text(); stp=Path('src/argos_stp.h').read_text(); bpf=Path('src/argos_bpf.h').read_text()
-          assert 'p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U' in stp
-          assert 'r->version != 0U' in stp
+          src=Path('src/argos-sniffer.c').read_text(); l2=Path('src/argos_l2.h').read_text(); bpf=Path('src/argos_bpf.h').read_text()
+          assert 'p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U' in l2
+          assert 'r->version != 0U' in l2
           assert 'ENT|%s|-|-|STP|%s' in src
           assert src.count('l3_proto <= 1500U') >= 3
           assert 'BPF_JGT | BPF_K, 1500' in bpf
@@ -127,11 +127,11 @@ jobs:
           /tmp/test-lacp
           python3 - <<'PY'
           from pathlib import Path
-          src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); lacp = Path('src/argos_lacp.h').read_text()
-          assert 'p[0] != 0x01U' in lacp
-          assert 'p[2] != 0x01U || p[3] != 0x14U' in lacp
-          assert 'p[22] != 0x02U || p[23] != 0x14U' in lacp
-          assert 'alacp_state_add' in lacp
+          src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); l2 = Path('src/argos_l2.h').read_text()
+          assert 'p[0] != 0x01U' in l2
+          assert 'p[2] != 0x01U || p[3] != 0x14U' in l2
+          assert 'p[22] != 0x02U || p[23] != 0x14U' in l2
+          assert 'alacp_state_add' in l2
           assert 'ENT|%s|-|-|LACP|%s' in src
           assert 'EMIT(abpf_pass_ethertype(p, 0x8809)); /* Slow Protocols / LACP */' in bpf
           assert src.count('l3_proto == 0x8809U') >= 3
@@ -167,8 +167,8 @@ jobs:
           /tmp/test-tlssrv
           python3 - <<'PY'
           from pathlib import Path
-          src=Path('src/argos-sniffer.c').read_text(); bpf=Path('src/argos_bpf.h').read_text(); hdr=Path('src/argos_tls_server.h').read_text()
-          assert 'ats1_' in hdr
+          src=Path('src/argos-sniffer.c').read_text(); bpf=Path('src/argos_bpf.h').read_text(); tls=Path('src/argos_tls.h').read_text()
+          assert 'ats1_' in tls
           assert 'JA4S|' not in src
           assert 'ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i])' in bpf
           assert 'argos_tls_tcp_port(sport)' in src
