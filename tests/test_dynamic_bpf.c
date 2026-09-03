@@ -126,6 +126,7 @@ int main(void) {
     stun_n = udp4(pkt, 3478, 50000, 32); pkt[42]=0x00; pkt[43]=0x17;
     expect(!pass(&p, pkt, stun_n), "TURN Data indication fast-drops in kernel BPF");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 3478, 0)), "short UDP/3478 packet drops");
+    expect(pass(&p, pkt, proto4(pkt, 2)), "IGMP passes");
     expect(pass(&p, pkt, proto4(pkt, 89)), "OSPF passes");
     expect(pass(&p, pkt, proto4(pkt, 112)), "VRRP passes");
     expect(pass(&p, pkt, eth(pkt, 100)), "802.3 LLC enterprise discovery passes");

@@ -118,6 +118,7 @@
 #include "argos_stp.h"
 #include "argos_vrrp.h"
 #include "argos_hsrp.h"
+#include "argos_multicast_membership.h"
 #include "argos_enterprise.h"
 #include "argos_raw_identity.h"
 #ifndef ARGOS_PORTABLE_TEST
@@ -3384,9 +3385,32 @@ int main(int argc, char *argv[]) {
             const uint8_t *flow_dst_addr = is_ipv6_packet ? dst_ip6_addr.s6_addr : (const uint8_t *)&dst_ip_num;
 
             if (protocol == IPPROTO_ICMPV6 && is_ipv6_packet) {
+                if (opt_enterprise && ttl == 1U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                    argos_membership_result_t membership;
+                    if (argos_mld_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
+                        char ent_mac[18], ent_sig[384];
+                        format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|MLD|%s", src_ip_str, membership.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            emit_telemetry("ENT|%s|%s|%s|MLD|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
+                    }
+                }
                 if (opt_l2 && l4_offset >= 0 && l4_offset < l3_packet_end) {
                     parse_ndp_vector(buffer + l4_offset, l3_packet_end - l4_offset, src_mac,
                                      &src_ip6_addr, src_ip_str, packet_ifindex, opt_l2_rl);
+                }
+                continue;
+            }
+
+            if (opt_enterprise && protocol == 2U && ttl == 1U &&
+                l4_offset >= 0 && l4_offset < l3_packet_end) {
+                argos_membership_result_t membership;
+                if (argos_igmp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
+                    char ent_mac[18], ent_sig[384];
+                    format_mac(src_mac, ent_mac);
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|IGMP|%s", src_ip_str, membership.detail);
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        emit_telemetry("ENT|%s|%s|%s|IGMP|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
                 }
                 continue;
             }

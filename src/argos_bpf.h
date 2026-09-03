@@ -136,6 +136,8 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         udp_ja = p->len; EMIT(abpf_stmt(p, BPF_JMP | BPF_JA, 0));
     }
     if (cfg->enterprise) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 2, 0, 1)); /* IGMP */
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
         EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 89, 0, 1));
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
         EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 112, 0, 1)); /* VRRP */
