@@ -23,12 +23,17 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stun_turn.c -o /tmp/test-stun-turn
           /tmp/test-stun-turn
 
-      - name: Dynamic BPF relay fast-drop matrix
+      - name: MQTT CONNECT fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_mqtt.c -o /tmp/test-mqtt
+          /tmp/test-mqtt
+
+      - name: Dynamic BPF network matrix
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
           /tmp/test-bpf
 
-      - name: STUN TURN sanitizers
+      - name: Network visibility sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
@@ -39,16 +44,22 @@ jobs:
           /tmp/test-stun-turn-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_mqtt.c -o /tmp/test-mqtt-san
+          /tmp/test-mqtt-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
           /tmp/test-bpf-san
 
-      - name: STUN TURN privacy and fast-drop invariants
+      - name: Network privacy and suppression invariants
         run: |
           python3 - <<'PY'
           from pathlib import Path
           h=Path('src/argos_enterprise.h').read_text()
           b=Path('src/argos_bpf.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
+          t=Path('src/argos_tls_ports.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
           hl=h.lower()
           assert 'ARGOS_STUN_TURN_UDP_PORT 3478U' in p
           assert 'case 3478: return ae_stun_turn' in h
@@ -61,5 +72,13 @@ jobs:
           assert 'BPF_ALU | BPF_AND | BPF_K, 0xc0' in b
           assert '0x0016' in b and '0x0017' in b
           assert 'ChannelData' in b and 'elephant flow' in b
-          print('STUN/TURN permanent privacy/fast-drop invariants: PASS')
+
+          assert '1883' in p and 'case 1883: return ae_mqtt' in h
+          assert '8883U   /* MQTT over implicit TLS */' in t
+          assert 'ae_set(r,"mqtt",1,' in h
+          assert 'client_id_hash=%08x' in h and 'client_id_len=%u' in h
+          assert 'Username, password and Will topic/payload' in h
+          assert 'app_flow_note_payload' in s and 'ent_tcp.complete' in s
+          assert 'device-secret-123' not in h and 'alice@example.org' not in h
+          print('Network visibility permanent privacy/suppression invariants: PASS')
           PY
