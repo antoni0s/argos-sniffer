@@ -5,6 +5,7 @@ on:
     branches: [version-6]
     paths:
       - '.github/scripts/v6_step10b_mqtt_patch.py'
+      - '.github/scripts/v6_step10b_mqtt_retry.py'
       - '.github/workflows/v6-step10b-mqtt.yml'
   workflow_dispatch:
 
@@ -22,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged patch
-        run: python3 .github/scripts/v6_step10b_mqtt_patch.py
+        run: python3 .github/scripts/v6_step10b_mqtt_retry.py
 
       - name: MQTT CONNECT fixtures
         run: |
