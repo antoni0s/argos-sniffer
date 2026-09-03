@@ -3723,6 +3723,23 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
+                /* Kerberos observed identity: only client->KDC AS-REQ cname/realm. */
+                if (opt_identity && dport == 88U && payload_len > 0) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_kerberos_asreq(buffer + payload_offset,
+                                                      (size_t)payload_len, 1,
+                                                      opt_identity_raw, &ident)) {
+                        char ident_mac[18], ident_sig[320];
+                        format_mac(src_mac, ident_mac);
+                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
+                                 src_ip_str, ident.protocol, ident.type, ident.value);
+                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
+                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
+                                           ident_mac, src_ip_str, ident.protocol,
+                                           ident.type, ident.value, routed_str);
+                    }
+                }
+
                 if (app_track) {
                     int fingerprint_complete = app_flow_payload_complete(
                         sport, dport, buffer + payload_offset, payload_len);
@@ -3900,6 +3917,22 @@ int main(int argc, char *argv[]) {
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
                         if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
                             emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
+                    }
+                }
+                /* UDP/88 uses the same strictly bounded AS-REQ parser without
+                 * the RFC 4120 TCP record-length prefix. */
+                if (opt_identity && dport == 88U) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_kerberos_asreq(payload, (size_t)payload_len, 0,
+                                                      opt_identity_raw, &ident)) {
+                        char ident_mac[18], ident_sig[320];
+                        format_mac(src_mac, ident_mac);
+                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
+                                 src_ip_str, ident.protocol, ident.type, ident.value);
+                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
+                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
+                                           ident_mac, src_ip_str, ident.protocol,
+                                           ident.type, ident.value, routed_str);
                     }
                 }
             }

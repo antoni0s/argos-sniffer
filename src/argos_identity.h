@@ -172,4 +172,146 @@ static inline size_t argos_identity_ntlm_type3(const unsigned char *p, size_t le
     return count;
 }
 
+
+/* Kerberos observed identity is intentionally limited to cname [1] from the
+ * KDC-REQ-BODY of an AS-REQ. RFC 4120 defines cname there only for AS-REQ.
+ * PA-DATA, tickets, authenticators, encrypted data and TGS-REQ identity are
+ * deliberately outside this parser. */
+static inline int argos_identity_der_tlv(const unsigned char *p, size_t n, size_t pos,
+                                         uint8_t *tag, size_t *voff,
+                                         size_t *vlen, size_t *next) {
+    if (!p || !tag || !voff || !vlen || !next || pos >= n) return 0;
+    uint8_t t = p[pos++];
+    if ((t & 0x1fU) == 0x1fU || pos >= n) return 0;
+    uint8_t lb = p[pos++];
+    size_t len = 0U;
+    if ((lb & 0x80U) == 0U) {
+        len = (size_t)lb;
+    } else {
+        unsigned count = (unsigned)(lb & 0x7fU);
+        if (count == 0U || count > 4U || (size_t)count > n - pos) return 0;
+        for (unsigned i = 0U; i < count; ++i) {
+            if (len > (SIZE_MAX >> 8)) return 0;
+            len = (len << 8) | (size_t)p[pos++];
+        }
+    }
+    if (len > n - pos) return 0;
+    *tag = t; *voff = pos; *vlen = len; *next = pos + len;
+    return 1;
+}
+
+static inline uint32_t argos_identity_be32(const unsigned char *p) {
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
+static inline int argos_identity_kerberos_string(const unsigned char *p,
+                                                  size_t n, size_t pos,
+                                                  const unsigned char **value,
+                                                  size_t *value_len) {
+    uint8_t tag; size_t voff, vlen, next;
+    if (!value || !value_len ||
+        !argos_identity_der_tlv(p, n, pos, &tag, &voff, &vlen, &next) ||
+        tag != 0x1bU || vlen == 0U) return 0;
+    (void)next;
+    *value = p + voff; *value_len = vlen;
+    return 1;
+}
+
+static inline int argos_identity_kerberos_asreq(const unsigned char *p, size_t len,
+                                                int tcp_framed, int raw_mode,
+                                                argos_identity_result_t *r) {
+    if (!p || !r) return 0;
+    size_t off = 0U, end = len;
+    if (tcp_framed) {
+        if (len < 5U) return 0;
+        uint32_t record_len = argos_identity_be32(p);
+        if (record_len == 0U || (size_t)record_len > len - 4U) return 0;
+        off = 4U; end = off + (size_t)record_len;
+    }
+
+    uint8_t tag; size_t voff, vlen, next;
+    if (!argos_identity_der_tlv(p, end, off, &tag, &voff, &vlen, &next) ||
+        tag != 0x6aU) return 0; /* AS-REQ only; never TGS-REQ */
+    (void)next;
+
+    uint8_t seq_tag; size_t seq_voff, seq_vlen, seq_next;
+    if (!argos_identity_der_tlv(p, voff + vlen, voff,
+                                &seq_tag, &seq_voff, &seq_vlen, &seq_next) ||
+        seq_tag != 0x30U) return 0;
+    (void)seq_next;
+
+    size_t body_voff = 0U, body_vlen = 0U;
+    size_t seq_end = seq_voff + seq_vlen;
+    for (size_t pos = seq_voff; pos < seq_end; ) {
+        uint8_t ct; size_t cv, cl, cn;
+        if (!argos_identity_der_tlv(p, seq_end, pos, &ct, &cv, &cl, &cn)) return 0;
+        if (ct == 0xa4U) { body_voff = cv; body_vlen = cl; break; }
+        pos = cn;
+    }
+    if (body_vlen == 0U) return 0;
+
+    uint8_t body_tag; size_t bvoff, bvlen, bnext;
+    if (!argos_identity_der_tlv(p, body_voff + body_vlen, body_voff,
+                                &body_tag, &bvoff, &bvlen, &bnext) ||
+        body_tag != 0x30U) return 0;
+    (void)bnext;
+
+    size_t cname_voff = 0U, cname_vlen = 0U, realm_voff = 0U, realm_vlen = 0U;
+    size_t body_end = bvoff + bvlen;
+    for (size_t pos = bvoff; pos < body_end; ) {
+        uint8_t ct; size_t cv, cl, cn;
+        if (!argos_identity_der_tlv(p, body_end, pos, &ct, &cv, &cl, &cn)) return 0;
+        if (ct == 0xa1U) { cname_voff = cv; cname_vlen = cl; }
+        else if (ct == 0xa2U) { realm_voff = cv; realm_vlen = cl; }
+        pos = cn;
+    }
+    if (cname_vlen == 0U || realm_vlen == 0U) return 0;
+
+    const unsigned char *realm = NULL; size_t realm_len = 0U;
+    if (!argos_identity_kerberos_string(p, realm_voff + realm_vlen, realm_voff,
+                                        &realm, &realm_len)) return 0;
+
+    uint8_t pn_tag; size_t pn_voff, pn_vlen, pn_next;
+    if (!argos_identity_der_tlv(p, cname_voff + cname_vlen, cname_voff,
+                                &pn_tag, &pn_voff, &pn_vlen, &pn_next) ||
+        pn_tag != 0x30U) return 0;
+    (void)pn_next;
+
+    size_t names_voff = 0U, names_vlen = 0U;
+    size_t pn_end = pn_voff + pn_vlen;
+    for (size_t pos = pn_voff; pos < pn_end; ) {
+        uint8_t ct; size_t cv, cl, cn;
+        if (!argos_identity_der_tlv(p, pn_end, pos, &ct, &cv, &cl, &cn)) return 0;
+        if (ct == 0xa1U) { names_voff = cv; names_vlen = cl; break; }
+        pos = cn;
+    }
+    if (names_vlen == 0U) return 0;
+
+    uint8_t names_tag; size_t nvoff, nvlen, nnext;
+    if (!argos_identity_der_tlv(p, names_voff + names_vlen, names_voff,
+                                &names_tag, &nvoff, &nvlen, &nnext) ||
+        names_tag != 0x30U) return 0;
+    (void)nnext;
+
+    unsigned char principal[161]; size_t used = 0U; unsigned components = 0U;
+    size_t names_end = nvoff + nvlen;
+    for (size_t pos = nvoff; pos < names_end; ) {
+        uint8_t st; size_t sv, sl, sn;
+        if (!argos_identity_der_tlv(p, names_end, pos, &st, &sv, &sl, &sn)) return 0;
+        if (st != 0x1bU || sl == 0U) return 0;
+        if (components >= 8U || sl > 120U) return 0;
+        size_t need = sl + (components ? 1U : 0U);
+        if (need > 160U - used) return 0;
+        if (components) principal[used++] = (unsigned char)'/';
+        memcpy(principal + used, p + sv, sl); used += sl; components++;
+        pos = sn;
+    }
+    if (components == 0U || realm_len > 120U || realm_len + 1U > 160U - used) return 0;
+    principal[used++] = (unsigned char)'@';
+    memcpy(principal + used, realm, realm_len); used += realm_len;
+
+    return argos_identity_build(r, "kerberos", "principal", principal, used, raw_mode);
+}
+
 #endif
