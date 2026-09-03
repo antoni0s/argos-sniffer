@@ -1213,6 +1213,34 @@ static inline int ae_coap(const unsigned char *p, int len, argos_enterprise_resu
     return 1;
 }
 
+static inline const char *ae_ntp_mode(unsigned mode) {
+    return mode == 1U ? "symmetric-active" :
+           mode == 2U ? "symmetric-passive" :
+           mode == 3U ? "client" :
+           mode == 4U ? "server" :
+           mode == 5U ? "broadcast" : "-";
+}
+
+/* NTP time-message fingerprinting. The Reference ID and all four 64-bit
+ * timestamps are deliberately opaque: they can expose server identity and
+ * timing data but add little device-classification value. Modes 6/7 use
+ * control/private packet formats and are not interpreted as time messages. */
+static inline int ae_ntp(const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (!p || !r || len < 48) return 0;
+    unsigned li=(p[0] >> 6) & 0x03U;
+    unsigned vn=(p[0] >> 3) & 0x07U;
+    unsigned mode=p[0] & 0x07U;
+    if (vn < 1U || vn > 4U || mode < 1U || mode > 5U) return 0;
+    unsigned stratum=p[1];
+    int poll=(int)(int8_t)p[2];
+    int precision=(int)(int8_t)p[3];
+    unsigned extra=(unsigned)(len - 48);
+    ae_set(r,"ntp",0,
+           "version=%u mode=%s li=%u stratum=%u poll=%d precision=%d extra_bytes=%u",
+           vn,ae_ntp_mode(mode),li,stratum,poll,precision,extra);
+    return 1;
+}
+
 static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
                                              const unsigned char *p, int len,
                                              argos_enterprise_result_t *r) {
@@ -1223,6 +1251,7 @@ static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
     switch (port) {
         case 88: return ae_kerberos(p, len, r);
         case 111: case 2049: return ae_rpc(p, len, 0, r);
+        case 123: return ae_ntp(p, len, r);
         case 161: case 162: return ae_snmp(p, len, r);
         case 389: return ae_cldap(p, len, r);
         case 427: return ae_slp(p, len, r);
