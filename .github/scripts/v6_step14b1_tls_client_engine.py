@@ -20,9 +20,12 @@ quic_marker = '/**\n * Parses QUIC initial packets and decrypts/inspects payload
 client_end = s.index(quic_marker, cmp_start)
 client = s[cmp_start:client_end].rstrip()
 
-# Keep the parser algorithm intact while making it a pure result-producing engine.
+# Replace call-sites before declarations so names are prefixed exactly once.
+client = client.replace('qsort(ext_arr, (size_t)ext_count, sizeof(uint16_t), cmp_uint16);',
+                        'qsort(ext_arr, (size_t)ext_count, sizeof(uint16_t), atc_cmp_uint16);', 1)
+client = client.replace('is_grease16(', 'atc_grease16(')
+client = client.replace('static inline int atc_grease16(', 'static inline int atc_grease16(', 1)
 client = client.replace('static int cmp_uint16(', 'static inline int atc_cmp_uint16(', 1)
-client = client.replace('static inline int is_grease16(', 'static inline int atc_grease16(', 1)
 old_sig = 'static void parse_tls_sni(const unsigned char *payload, int len, const char *mac, const char *src_ip, const char *dst_ip, uint16_t dport, const char *routed_str, int rl_enabled) {'
 new_sig = 'static inline int argos_tls_client_parse(const unsigned char *payload, int len, argos_tls_client_result_t *out) {'
 if old_sig not in client:
@@ -31,8 +34,6 @@ client = client.replace(old_sig, new_sig, 1)
 client = client.replace('if (len < 44 || payload[0] != 0x16 || payload[5] != 0x01) return;',
                         'if (!payload || !out || len < 44 || payload[0] != 0x16 || payload[5] != 0x01) return 0;\n    memset(out, 0, sizeof(*out));', 1)
 client = client.replace('read_be16(', 'atc_be16(')
-client = client.replace('is_grease16(', 'atc_grease16(')
-client = client.replace('cmp_uint16', 'atc_cmp_uint16')
 client = client.replace('sanitize_field(', 'atc_sanitize_field(')
 client = client.replace('md5_hash(', 'atc_md5_hash(')
 # All remaining bare returns in this extracted parser are parse failures.
@@ -43,14 +44,17 @@ tail_end = client.rfind('\n}')
 replacement = '''    snprintf(out->sni, sizeof(out->sni), "%s", sni);\n    snprintf(out->alpn, sizeof(out->alpn), "%s", alpn);\n    snprintf(out->ja4, sizeof(out->ja4), "%s", ja4_full);\n    return 1;'''
 client = client[:tail_start] + replacement + client[tail_end:]
 
-# Namescope the MD5 helper to the TLS client engine.
-md5 = md5.replace('#define LEFTROTATE', '#define ATC_LEFTROTATE')
-md5 = md5.replace('#define MD5_STACK_BUF', '#define ATC_MD5_STACK_BUF')
-md5 = md5.replace('MD5_STACK_BUF', 'ATC_MD5_STACK_BUF')
-md5 = md5.replace('MD5_K', 'ATC_MD5_K')
-md5 = md5.replace('MD5_S', 'ATC_MD5_S')
-md5 = md5.replace('LEFTROTATE(', 'ATC_LEFTROTATE(')
+# Namescope the MD5 helper using token-specific replacements that cannot
+# recursively rename the generated names.
+md5 = md5.replace('#define LEFTROTATE(x, c)', '#define ATC_LEFTROTATE(x, c)', 1)
+md5 = md5.replace('#define MD5_STACK_BUF 8192', '#define ATC_MD5_STACK_BUF 8192', 1)
+md5 = md5.replace('static const uint32_t MD5_K[64]', 'static const uint32_t ATC_MD5_K[64]', 1)
+md5 = md5.replace('static const uint32_t MD5_S[16]', 'static const uint32_t ATC_MD5_S[16]', 1)
 md5 = md5.replace('static void md5_hash(', 'static inline void atc_md5_hash(', 1)
+md5 = md5.replace('uint8_t stackbuf[MD5_STACK_BUF];', 'uint8_t stackbuf[ATC_MD5_STACK_BUF];', 1)
+md5 = md5.replace('MD5_K[i]', 'ATC_MD5_K[i]')
+md5 = md5.replace('MD5_S[(i/16)*4 + (i%4)]', 'ATC_MD5_S[(i/16)*4 + (i%4)]')
+md5 = md5.replace('LEFTROTATE((a + f + ATC_MD5_K[i] + w[g])', 'ATC_LEFTROTATE((a + f + ATC_MD5_K[i] + w[g])')
 
 header = '''#ifndef ARGOS_TLS_H\n#define ARGOS_TLS_H\n\n#include <ctype.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n/* TLS ClientHello/JA4 engine. Parsing and fingerprint construction live here;\n * deduplication, routed attribution and telemetry sinks remain runtime concerns. */\ntypedef struct {\n    char sni[256];\n    char ja4[128];\n    char alpn[32];\n} argos_tls_client_result_t;\n\nstatic inline uint16_t atc_be16(const unsigned char *p) {\n    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);\n}\n\n/* Byte-compatible with the legacy main-file sanitizer used by TLS: values\n * outside printable ASCII and the telemetry delimiter become spaces. */\nstatic inline void atc_sanitize_field(const unsigned char *src, int len, char *dst, int dstsz, int lower) {\n    int o = 0;\n    if (!dst || dstsz <= 0) return;\n    if (!src || len <= 0) { dst[0] = '\\0'; return; }\n    for (int i = 0; i < len && o < dstsz - 1; ++i) {\n        unsigned char c = src[i];\n        if (c < 32U || c > 126U || c == '|') c = ' ';\n        else if (lower) c = (unsigned char)tolower(c);\n        dst[o++] = (char)c;\n    }\n    dst[o] = '\\0';\n}\n\n'''
 header += md5 + '\n\n' + client + '\n\n#endif /* ARGOS_TLS_H */\n'
