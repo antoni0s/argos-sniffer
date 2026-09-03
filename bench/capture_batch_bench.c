@@ -14,7 +14,7 @@
 
 #define BENCH_PACKETS 120000U
 #define BENCH_PAYLOAD 256U
-#define BENCH_BATCH 32U
+#define BENCH_MAX_BATCH 32U
 #define CTRL_BYTES 128U
 
 static double elapsed_s(const struct timespec *a, const struct timespec *b) {
@@ -99,20 +99,21 @@ static int bench_recvmsg(double *seconds, uint64_t *syscalls) {
     return 0;
 }
 
-static int bench_recvmmsg(double *seconds, uint64_t *syscalls) {
+static int bench_recvmmsg(unsigned batch, double *seconds, uint64_t *syscalls) {
+    if (batch == 0U || batch > BENCH_MAX_BATCH) return -1;
     int sv[2]; pid_t child;
     if (start_pair(sv, &child) < 0) return -1;
 
-    struct mmsghdr msgs[BENCH_BATCH];
-    struct iovec iov[BENCH_BATCH];
-    unsigned char payload[BENCH_BATCH][BENCH_PAYLOAD];
-    unsigned char control[BENCH_BATCH][CTRL_BYTES];
+    struct mmsghdr msgs[BENCH_MAX_BATCH];
+    struct iovec iov[BENCH_MAX_BATCH];
+    unsigned char payload[BENCH_MAX_BATCH][BENCH_PAYLOAD];
+    unsigned char control[BENCH_MAX_BATCH][CTRL_BYTES];
     struct timespec t0, t1;
     uint32_t received = 0;
     uint64_t calls = 0;
     clock_gettime(CLOCK_MONOTONIC, &t0);
     while (received < BENCH_PACKETS) {
-        unsigned want = BENCH_BATCH;
+        unsigned want = batch;
         if (BENCH_PACKETS - received < want) want = BENCH_PACKETS - received;
         memset(msgs, 0, sizeof(msgs));
         for (unsigned i = 0; i < want; ++i) {
@@ -145,14 +146,21 @@ static void print_result(const char *name, unsigned run, double seconds, uint64_
 }
 
 int main(void) {
+    static const unsigned batches[] = {4U, 8U, 16U, 32U};
     puts("method,run,packets,seconds,packets_per_sec,ns_per_packet,recv_syscalls,packets_per_syscall");
     for (unsigned run = 1; run <= 5; ++run) {
-        double s1 = 0.0, s2 = 0.0;
-        uint64_t c1 = 0, c2 = 0;
-        if (bench_recvmsg(&s1, &c1) < 0) { perror("recvmsg benchmark"); return 1; }
-        if (bench_recvmmsg(&s2, &c2) < 0) { perror("recvmmsg benchmark"); return 1; }
-        print_result("recvmsg", run, s1, c1);
-        print_result("recvmmsg32", run, s2, c2);
+        double seconds = 0.0;
+        uint64_t calls = 0;
+        if (bench_recvmsg(&seconds, &calls) < 0) { perror("recvmsg benchmark"); return 1; }
+        print_result("recvmsg", run, seconds, calls);
+
+        for (size_t i = 0; i < sizeof(batches)/sizeof(batches[0]); ++i) {
+            unsigned batch = batches[i];
+            char name[32];
+            if (bench_recvmmsg(batch, &seconds, &calls) < 0) { perror("recvmmsg benchmark"); return 1; }
+            snprintf(name, sizeof(name), "recvmmsg%u", batch);
+            print_result(name, run, seconds, calls);
+        }
     }
     return 0;
 }
