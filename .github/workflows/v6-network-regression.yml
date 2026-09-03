@@ -91,6 +91,7 @@ jobs:
           b=Path('src/argos_bpf.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
           t=Path('src/argos_tls_ports.h').read_text()
+          f=Path('src/argos_flow_state.h').read_text()
           s=Path('src/argos-sniffer.c').read_text()
           hl=h.lower()
           assert 'ARGOS_STUN_TURN_UDP_PORT 3478U' in p
@@ -110,7 +111,7 @@ jobs:
           assert 'ae_set(r,"mqtt",1,' in h
           assert 'client_id_hash=%08x' in h and 'client_id_len=%u' in h
           assert 'Username, password and Will topic/payload' in h
-          assert 'app_flow_note_payload' in s and 'ent_tcp.complete' in s
+          assert 'argos_flow_note_payload' in f and 'argos_flow_note_payload(&app_flow_state' in s and 'ent_tcp.complete' in s
           assert 'device-secret-123' not in h and 'alice@example.org' not in h
 
           assert '5683' in p and '5684' not in p
@@ -142,8 +143,8 @@ jobs:
           assert 'cfg->wireguard_port' in b and 'WireGuard|%s' in s
 
           assert 'ARGOS_DNS_TRACK_PROBES 8U' in d and 'ARGOS_DNS_TRACK_TTL_USEC 5000000ULL' in d
-          for f in ('client_addr[16]','server_addr[16]','client_port','server_port','qname_hash','qtype','txid','ip_version'):
-              assert f in d
+          for field in ('client_addr[16]','server_addr[16]','client_port','server_port','qname_hash','qtype','txid','ip_version'):
+              assert field in d
           assert 'memcmp(e->client_addr' in d and 'memcmp(e->server_addr' in d
           assert 'flow_dst_addr, flow_src_addr' in s
           assert 'dport, sport, txid, response_qtype, response_qname' in s
