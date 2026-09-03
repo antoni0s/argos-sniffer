@@ -25,6 +25,8 @@ jobs:
           /tmp/test-identity-rdp
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntlm_privacy.c -o /tmp/test-ntlm-privacy
           /tmp/test-ntlm-privacy
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_ntlm.c -o /tmp/test-identity-ntlm
+          /tmp/test-identity-ntlm
 
       - name: Sanitized framework fixtures
         env:
@@ -43,6 +45,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_ntlm_privacy.c -o /tmp/test-ntlm-privacy-san
           /tmp/test-ntlm-privacy-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_identity_ntlm.c -o /tmp/test-identity-ntlm-san
+          /tmp/test-identity-ntlm-san
 
       - name: CLI and privacy contract
         run: |
@@ -60,6 +66,7 @@ jobs:
           h=Path('src/argos_identity.h').read_text()
           s=Path('src/argos-sniffer.c').read_text()
           e=Path('src/argos_enterprise.h').read_text()
+          t=Path('tests/test_identity_ntlm.c').read_text()
           assert 'Observed identity' in h and 'never device ownership' in h
           assert 'if (len > 160U) len = 160U' in h
           assert '2166136261U' in h and '16777619U' in h
@@ -69,6 +76,17 @@ jobs:
           assert 'never passwords, tickets, tokens or auth blobs' in s
           assert 'argos_identity_rdp_mstshash' in h
           assert 'if (opt_identity && dport == 3389U' in s
+          assert 'argos_identity_ntlm_type3' in h
+          assert 'if (opt_identity && dport == 445U' in s
+          assert 'DomainName, UserName and' in h
+          assert 'LM/NT responses, session keys' in h
+          assert 'argos_identity_ntlm_utf16_field(n, remain, 28U, "domain"' in h
+          assert 'argos_identity_ntlm_utf16_field(n, remain, 36U, "user"' in h
+          assert 'argos_identity_ntlm_utf16_field(n, remain, 44U, "workstation"' in h
+          assert '%.45s|%.23s|%.23s|%.191s' in s
+          assert 'LM-SECRET-DO-NOT-EMIT' not in h and 'NT-SECRET-DO-NOT-EMIT' not in h
+          assert 'LM-SECRET-DO-NOT-EMIT' not in s and 'NT-SECRET-DO-NOT-EMIT' not in s
+          assert 'LM-SECRET-DO-NOT-EMIT' in t and 'NT-SECRET-DO-NOT-EMIT' in t
           assert 'emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"' in s
           assert 'cookie_present=%u cookie_len=%u cookie_hash=%08x' in e
           assert 'domain_present=%u domain_len=%u domain_hash=%08x' in e
