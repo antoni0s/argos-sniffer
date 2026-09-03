@@ -5,6 +5,7 @@ on:
     branches: [version-6]
     paths:
       - '.github/scripts/v6_step12e_ntlm_identity.py'
+      - '.github/scripts/v6_step12e_ntlm_identity_bounds.py'
       - '.github/workflows/v6-step12e-ntlm-identity.yml'
   workflow_dispatch:
 
@@ -21,7 +22,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged NTLM identity patch
-        run: python3 .github/scripts/v6_step12e_ntlm_identity.py
+        run: |
+          python3 .github/scripts/v6_step12e_ntlm_identity.py
+          python3 .github/scripts/v6_step12e_ntlm_identity_bounds.py
 
       - name: NTLM Type 3 identity fixtures
         run: |
@@ -55,6 +58,7 @@ jobs:
           assert 'argos_identity_ntlm_utf16_field(n, remain, 36U, "user"' in h
           assert 'argos_identity_ntlm_utf16_field(n, remain, 44U, "workstation"' in h
           assert 'if (opt_identity && dport == 445U' in s
+          assert '%.45s|%.23s|%.23s|%.191s' in s
           assert 'ids[ii].protocol' in s and 'ids[ii].type' in s and 'ids[ii].value' in s
           assert 'LM-SECRET-DO-NOT-EMIT' not in h and 'NT-SECRET-DO-NOT-EMIT' not in h
           assert 'LM-SECRET-DO-NOT-EMIT' not in s and 'NT-SECRET-DO-NOT-EMIT' not in s
