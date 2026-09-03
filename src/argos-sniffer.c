@@ -120,6 +120,7 @@
 #include "argos_hsrp.h"
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
+#include "argos_dns_track.h"
 #include "argos_enterprise.h"
 #include "argos_raw_identity.h"
 #ifndef ARGOS_PORTABLE_TEST
@@ -571,16 +572,7 @@ typedef struct {
 } syn_track_t;
 static syn_track_t *syn_table = NULL;
 
-typedef struct {
-    uint16_t txid;
-    uint16_t qtype;
-    uint32_t src_ip;
-    uint64_t ts_usec;
-    char domain[128];
-    uint8_t mac[6];
-    uint8_t routed;
-} dns_track_t;
-static dns_track_t *dns_table = NULL;
+static argos_dns_track_t *dns_table = NULL;
 
 /**
  * Retrieves the current system timestamp in microseconds.
@@ -646,11 +638,6 @@ static syn_track_t *syn_track_find(const uint8_t mac[6], uint16_t sport, uint16_
     memcpy(replacement->dst_addr, dst_addr, ip_version == 6U ? 16U : 4U);
     replacement->valid = 1;
     return replacement;
-}
-
-static uint32_t addr6_key(const struct in6_addr *a) {
-    uint32_t k = (uint32_t)hash_bytes(a->s6_addr, 16);
-    return k ? k : 1u; /* never collide with "no address" */
 }
 
 /**
@@ -2924,7 +2911,7 @@ int main(int argc, char *argv[]) {
 
     if (opt_ext_metrics) {
         syn_table = (syn_track_t *)calloc(TRACK_SLOTS, sizeof(*syn_table));
-        dns_table = (dns_track_t *)calloc(TRACK_SLOTS, sizeof(*dns_table));
+        dns_table = (argos_dns_track_t *)calloc(TRACK_SLOTS, sizeof(*dns_table));
         if (!syn_table || !dns_table) {
             fprintf(stderr, "Error: unable to allocate extended-metrics state.\n");
             free(syn_table); free(dns_table); free(dedup_table); free(owner4_table); free(owner6_table); return 1;
@@ -3397,8 +3384,6 @@ int main(int argc, char *argv[]) {
                 inet_ntop(AF_INET6, &dst_ip6_addr, dst_ip_str, sizeof(dst_ip_str));
             } else { continue; }
 
-            uint32_t flow_src_key = is_ipv6_packet ? addr6_key(&src_ip6_addr) : src_ip_num;
-            uint32_t flow_dst_key = is_ipv6_packet ? addr6_key(&dst_ip6_addr) : dst_ip_num;
             uint8_t flow_ip_version = is_ipv6_packet ? 6U : 4U;
             const uint8_t *flow_src_addr = is_ipv6_packet ? src_ip6_addr.s6_addr : (const uint8_t *)&src_ip_num;
             const uint8_t *flow_dst_addr = is_ipv6_packet ? dst_ip6_addr.s6_addr : (const uint8_t *)&dst_ip_num;
@@ -3722,18 +3707,11 @@ int main(int argc, char *argv[]) {
                             uint16_t qtype = 0;
                             if (decode_dns_name(payload, payload_len, 12, qname, sizeof(qname)) > 0 && qname[0]) {
                                 (void)dns_question_qtype(payload, payload_len, 12, &qtype);
-                                if (opt_ext_metrics) {
-                                    uint32_t slot = (txid ^ flow_src_key) & (TRACK_SLOTS - 1);
-                                    dns_table[slot].txid = txid;
-                                    dns_table[slot].qtype = qtype;
-                                    dns_table[slot].src_ip = flow_src_key;
-                                    dns_table[slot].ts_usec = pkt_usec;
-                                    dns_table[slot].routed = (uint8_t)(routed_evidence ? 1 : 0);
-                                    memcpy(dns_table[slot].mac, src_mac, 6);
-                                    size_t domain_len = strlen(qname);
-                                    if (domain_len >= sizeof(dns_table[slot].domain)) domain_len = sizeof(dns_table[slot].domain) - 1U;
-                                    memcpy(dns_table[slot].domain, qname, domain_len);
-                                    dns_table[slot].domain[domain_len] = '\0';
+                                if (opt_ext_metrics && qtype != 0U) {
+                                    (void)argos_dns_track_put(dns_table, TRACK_SLOTS,
+                                                              flow_ip_version, flow_src_addr, flow_dst_addr,
+                                                              sport, dport, txid, qtype, qname, pkt_usec,
+                                                              src_mac, (uint8_t)(routed_evidence ? 1 : 0));
                                 }
                                 char dns_sig[384];
                                 source_dedup_signature(dns_sig, sizeof(dns_sig), src_ip_str, qname, routed_str);
@@ -3743,42 +3721,42 @@ int main(int argc, char *argv[]) {
                             }
                         }
                         else if (is_response && sport == 53) {
-                            if (opt_ext_metrics) {
-                                uint32_t slot = (txid ^ flow_dst_key) & (TRACK_SLOTS - 1);
-                                if (dns_table[slot].txid == txid && dns_table[slot].src_ip == flow_dst_key
-                                    && pkt_usec >= dns_table[slot].ts_usec
-                                    && (pkt_usec - dns_table[slot].ts_usec) < 5000000ULL) {
-                                    uint8_t rcode = flags & 0x000F;
-                                    uint64_t latency_us = pkt_usec - dns_table[slot].ts_usec;
-                                    float ent = calculate_entropy(dns_table[slot].domain);
+                            if (opt_ext_metrics && read_be16(payload + 4) > 0U) {
+                                char response_qname[256];
+                                uint16_t response_qtype = 0U;
+                                if (decode_dns_name(payload, payload_len, 12, response_qname, sizeof(response_qname)) > 0 &&
+                                    response_qname[0] && dns_question_qtype(payload, payload_len, 12, &response_qtype)) {
+                                    argos_dns_track_t *tracked = argos_dns_track_find_response(
+                                        dns_table, TRACK_SLOTS, flow_ip_version, flow_dst_addr, flow_src_addr,
+                                        dport, sport, txid, response_qtype, response_qname, pkt_usec);
+                                    if (tracked) {
+                                        uint8_t rcode = flags & 0x000F;
+                                        uint64_t latency_us = pkt_usec - tracked->ts_usec;
+                                        float ent = calculate_entropy(tracked->domain);
 
-                                    char client_mac_str[18];
-                                    snprintf(client_mac_str, sizeof(client_mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-                                             dns_table[slot].mac[0], dns_table[slot].mac[1], dns_table[slot].mac[2],
-                                             dns_table[slot].mac[3], dns_table[slot].mac[4], dns_table[slot].mac[5]);
+                                        char client_mac_str[18];
+                                        format_mac(tracked->mac, client_mac_str);
 
-                                    char dnsext_sig[384];
-                                    source_dedup_signature(dnsext_sig, sizeof(dnsext_sig), dst_ip_str,
-                                                           dns_table[slot].domain,
-                                                           dns_table[slot].routed ? "|routed" : "");
-                                    if (!dedup_should_suppress(client_mac_str, "DNSEXT", dnsext_sig, opt_dns_rl)) {
-                                        emit_telemetry("DNSEXT|%s|%s|%s|%s|%u|%u|%.2f|%.2f%s\n",
-                                            client_mac_str, dst_ip_str, src_ip_str, dns_table[slot].domain,
-                                            (unsigned)dns_table[slot].qtype, (unsigned)rcode,
-                                            (float)latency_us / 1000.0f, ent,
-                                            dns_table[slot].routed ? "|routed" : "");
+                                        char dnsext_sig[384];
+                                        source_dedup_signature(dnsext_sig, sizeof(dnsext_sig), dst_ip_str,
+                                                               tracked->domain, tracked->routed ? "|routed" : "");
+                                        if (!dedup_should_suppress(client_mac_str, "DNSEXT", dnsext_sig, opt_dns_rl)) {
+                                            emit_telemetry("DNSEXT|%s|%s|%s|%s|%u|%u|%.2f|%.2f%s\n",
+                                                client_mac_str, dst_ip_str, src_ip_str, tracked->domain,
+                                                (unsigned)tracked->qtype, (unsigned)rcode,
+                                                (float)latency_us / 1000.0f, ent, tracked->routed ? "|routed" : "");
+                                        }
+                                        char alert_sig[192];
+                                        source_dedup_signature(alert_sig, sizeof(alert_sig), dst_ip_str,
+                                                               "HIGH_DNS_ENTROPY", tracked->routed ? "|routed" : "");
+                                        if (ent >= 4.2f &&
+                                            !dedup_should_suppress(client_mac_str, "ALERT", alert_sig, opt_dns_rl)) {
+                                            emit_telemetry("ALERT|%s|%s|HIGH_DNS_ENTROPY|%s|%.2f%s\n",
+                                                           client_mac_str, dst_ip_str, tracked->domain, ent,
+                                                           tracked->routed ? "|routed" : "");
+                                        }
+                                        tracked->valid = 0;
                                     }
-                                    char alert_sig[192];
-                                    source_dedup_signature(alert_sig, sizeof(alert_sig), dst_ip_str,
-                                                           "HIGH_DNS_ENTROPY",
-                                                           dns_table[slot].routed ? "|routed" : "");
-                                    if (ent >= 4.2f &&
-                                        !dedup_should_suppress(client_mac_str, "ALERT", alert_sig, opt_dns_rl)) {
-                                        emit_telemetry("ALERT|%s|%s|HIGH_DNS_ENTROPY|%s|%.2f%s\n",
-                                                       client_mac_str, dst_ip_str, dns_table[slot].domain, ent,
-                                                       dns_table[slot].routed ? "|routed" : "");
-                                    }
-                                    dns_table[slot].txid = 0;
                                 }
                             }
                         }
