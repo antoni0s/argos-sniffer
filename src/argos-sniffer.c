@@ -109,7 +109,6 @@
 
 #ifndef ARGOS_QUIC_STUB
 #include "argos_quic.h"
-#include "argos_quic_heavy.h"
 #endif
 #include "argos_tls_ports.h"
 #include "argos_tls_server.h"
