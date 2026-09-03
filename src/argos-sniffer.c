@@ -119,6 +119,7 @@
 #include "argos_vrrp.h"
 #include "argos_hsrp.h"
 #include "argos_enterprise.h"
+#include "argos_raw_identity.h"
 #ifndef ARGOS_PORTABLE_TEST
 #include "argos_netlink.h"
 #include "argos_bpf.h"
@@ -3266,6 +3267,19 @@ int main(int argc, char *argv[]) {
                 }
             }
 
+            /* Raw-IP links have no hardware MACs. Create stable L3-derived
+             * surrogate identities before any MAC-keyed filter/state/dedup path.
+             * Sensor/interface provenance remains separate in the OBS envelope. */
+            if (pkt_type == LINK_RAW_IP && is_ip_packet) {
+                if (is_ipv6_packet) {
+                    argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac);
+                    argos_raw_identity_v6(dst_ip6_addr.s6_addr, dst_mac);
+                } else {
+                    argos_raw_identity_v4(buffer + l3_offset + 12, src_mac);
+                    argos_raw_identity_v4(buffer + l3_offset + 16, dst_mac);
+                }
+            }
+
             if (filter_mode2.is_active) {
                 if (!evaluate_filter(&filter_mode2, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
             }
@@ -3281,26 +3295,16 @@ int main(int argc, char *argv[]) {
                                     l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 memcpy(device_mac, src_mac, 6);
-            } else if (pkt_type == LINK_RAW_IP) {
-                memset(device_mac, 0, 6);
             } else if (is_outbound) {
                 memcpy(device_mac, src_mac, 6);
             } else {
                 memcpy(device_mac, dst_mac, 6);
             }
-            if (pkt_type != LINK_RAW_IP) {
-                if (memcmp(device_mac, zero_mac, 6) == 0 || memcmp(device_mac, bcast_mac, 6) == 0) continue;
-            }
+            if (memcmp(device_mac, zero_mac, 6) == 0 || memcmp(device_mac, bcast_mac, 6) == 0) continue;
 
             char mac_str[18];
             const char *routed_str = routed_evidence ? "|routed" : "";
-
-            if (pkt_type == LINK_RAW_IP) {
-                snprintf(mac_str, sizeof(mac_str), "%s", current_iface->name);
-            } else {
-                snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-                         device_mac[0], device_mac[1], device_mac[2], device_mac[3], device_mac[4], device_mac[5]);
-            }
+            format_mac(device_mac, mac_str);
 
             /* L2 vectors must run even when there is no IP header. */
             if (l3_proto == 0x88cc) {
@@ -3393,8 +3397,7 @@ int main(int argc, char *argv[]) {
                 if (argos_vrrp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset),
                                      flow_ip_version, &vrrp)) {
                     char ent_mac[18], ent_sig[384];
-                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
-                    else format_mac(src_mac, ent_mac);
+                    format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|VRRP|%s", src_ip_str, vrrp.detail);
                     if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
                         emit_telemetry("ENT|%s|%s|%s|VRRP|%s%s\n",
@@ -3407,8 +3410,7 @@ int main(int argc, char *argv[]) {
                 argos_enterprise_result_t ent;
                 if (argos_enterprise_parse_ipproto(protocol, buffer + l4_offset, l3_packet_end - l4_offset, &ent) && ent.emit) {
                     char ent_mac[18], ent_sig[640];
-                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
-                    else format_mac(src_mac, ent_mac);
+                    format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent.proto, ent.detail);
                     if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
                         emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent.proto, ent.detail, routed_str);
@@ -3602,8 +3604,7 @@ int main(int argc, char *argv[]) {
                     ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
                     if (ent_tcp_seen && ent_tcp.emit) {
                         char ent_mac[18], ent_sig[768];
-                        if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
-                        else format_mac(src_mac, ent_mac);
+                        format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_tcp.proto, ent_tcp.detail);
                         if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
                             emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
@@ -3744,8 +3745,7 @@ int main(int argc, char *argv[]) {
                 }
                 if (opt_enterprise && ttl == 1U && (sport == 1985U || dport == 1985U)) {
                     char ent_mac[18], ent_sig[512];
-                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
-                    else format_mac(src_mac, ent_mac);
+                    format_mac(src_mac, ent_mac);
 
                     argos_hsrp2_result_t hsrp2;
                     if (argos_hsrp2_parse(payload, (size_t)payload_len, &hsrp2)) {
@@ -3767,8 +3767,7 @@ int main(int argc, char *argv[]) {
                     argos_enterprise_result_t ent_udp;
                     if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
                         char ent_mac[18], ent_sig[768];
-                        if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
-                        else format_mac(src_mac, ent_mac);
+                        format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
                         if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
                             emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
