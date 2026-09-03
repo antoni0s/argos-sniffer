@@ -35,26 +35,12 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_identity_framework.c -o /tmp/test-identity-framework-san
-          /tmp/test-identity-framework-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_identity_rdp.c -o /tmp/test-identity-rdp-san
-          /tmp/test-identity-rdp-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_ntlm_privacy.c -o /tmp/test-ntlm-privacy-san
-          /tmp/test-ntlm-privacy-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_identity_ntlm.c -o /tmp/test-identity-ntlm-san
-          /tmp/test-identity-ntlm-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_identity_kerberos.c -o /tmp/test-identity-kerberos-san
-          /tmp/test-identity-kerberos-san
+          for f in tests/test_identity_framework.c tests/test_identity_rdp.c tests/test_ntlm_privacy.c tests/test_identity_ntlm.c tests/test_identity_kerberos.c; do
+            out="/tmp/$(basename "$f" .c)-san"
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer "$f" -o "$out"
+            "$out"
+          done
 
       - name: CLI and privacy contract
         run: |
@@ -100,7 +86,7 @@ jobs:
           assert 'argos_identity_kerberos_asreq(buffer + payload_offset' in s
           assert 'argos_identity_kerberos_asreq(payload' in s
           assert 'PA-SECRET' not in h and 'PA-SECRET' not in s and 'PA-SECRET' in kt
-          assert ' request=%s realm=%s etype_count=%u etypes=%s' not in e or 'request=%s realm=%s etype_count=%u etypes=%s' in e
+          assert 'request=%s realm=%s etype_count=%u etypes=%s' in e
           assert ' principal=%s' not in e and ' cname=%s' not in e
           assert '%.45s|%.23s|%.23s|%.191s' in s
           assert 'emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"' in s
