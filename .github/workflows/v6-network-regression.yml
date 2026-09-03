@@ -137,8 +137,8 @@ jobs:
           assert 'p[1] != 0U || p[2] != 0U || p[3] != 0U' in w
           assert 'len < 32U || (len & 15U) != 0U' in w
           assert 'keys, MACs, cookies and ciphertext stay opaque' in w
-          assert '--wireguard-port' in s and 'opt_wireguard_port = 51820U' in s
-          assert '.wireguard_port = (uint16_t)(opt_enterprise ? opt_wireguard_port : 0U)' in s
+          assert '--wireguard-port' in s and 'runtime_cfg.wireguard_port' in s
+          assert '.wireguard_port = (uint16_t)(runtime_cfg.enterprise_enabled ? runtime_cfg.wireguard_port : 0U)' in s
           assert 'cfg->wireguard_port' in b and 'WireGuard|%s' in s
 
           assert 'ARGOS_DNS_TRACK_PROBES 8U' in d and 'ARGOS_DNS_TRACK_TTL_USEC 5000000ULL' in d
