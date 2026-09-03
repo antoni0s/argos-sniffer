@@ -144,6 +144,37 @@ jobs:
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_lacp.c -o /tmp/test-lacp-san
           /tmp/test-lacp-san
 
+      - name: FHRP engine fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_vrrp.c -o /tmp/test-vrrp
+          /tmp/test-vrrp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp1.c -o /tmp/test-hsrp1
+          /tmp/test-hsrp1
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp2.c -o /tmp/test-hsrp2
+          /tmp/test-hsrp2
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text(); fhrp = Path('src/argos_fhrp.h').read_text()
+          assert '#include "argos_fhrp.h"' in src
+          for old in ('argos_vrrp.h', 'argos_hsrp.h'):
+              assert not Path('src/' + old).exists()
+              assert old not in src
+          for symbol in ('argos_vrrp_parse', 'argos_hsrp1_parse', 'argos_hsrp2_parse'):
+              assert symbol in fhrp
+          assert 'emit_telemetry' not in fhrp
+          assert 'dedup_should_suppress' not in fhrp
+          print('Unified FHRP engine architecture invariants: PASS')
+          PY
+
+      - name: FHRP engine sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          for t in test_vrrp test_hsrp1 test_hsrp2; do
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer tests/${t}.c -o /tmp/${t}-san
+            /tmp/${t}-san
+          done
+
       - name: TLS port policy and DoT regression
         run: |
           python3 - <<'PY'
