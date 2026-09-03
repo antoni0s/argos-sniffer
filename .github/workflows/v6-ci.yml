@@ -29,6 +29,35 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
             -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
 
+      - name: Telemetry engine wire-format regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_telemetry.c -o /tmp/test-telemetry
+          /tmp/test-telemetry
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text(); telemetry = Path('src/argos_telemetry.h').read_text()
+          assert src.count('#include "argos_telemetry.h"') == 1
+          assert 'SECTION: Telemetry Output Engine' not in src
+          assert 'static void emit_telemetry(' not in src
+          assert 'static int parse_host_port(' not in src
+          for symbol in ('emit_telemetry', 'parse_host_port', 'ipc_sock', 'remote_sock',
+                         'opt_sensor_mode', 'sensor_observation_outer_vlan'):
+              assert symbol in telemetry
+          assert 'MSG_DONTWAIT' in telemetry
+          assert 'event[1024]' in telemetry and 'sensor_wire[1280]' in telemetry
+          assert 'OBS|%s|%s|%s|%.*s' in telemetry
+          assert 'malloc(' not in telemetry and 'calloc(' not in telemetry and 'realloc(' not in telemetry
+          print('Telemetry architecture/hot-path invariants: PASS')
+          PY
+
+      - name: Telemetry engine sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_telemetry.c -o /tmp/test-telemetry-san
+          /tmp/test-telemetry-san
+
       - name: TLS ClientHello / JA4 regression
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client
