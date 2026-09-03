@@ -1,0 +1,96 @@
+name: V6 step 13c - dedup module gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step13c_dedup_module.py'
+      - '.github/workflows/v6-step13c-dedup-module.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dedup-module:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged dedup module extraction
+        run: python3 .github/scripts/v6_step13c_dedup_module.py
+
+      - name: Dedup module fixture
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dedup.c -o /tmp/test-dedup
+          /tmp/test-dedup
+
+      - name: Dedup module sanitizer
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_dedup.c -o /tmp/test-dedup-san
+          /tmp/test-dedup-san
+
+      - name: Dedup architecture invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_dedup.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          checks={
+            'module included': '#include "argos_dedup.h"' in s,
+            'fixed bounds preserved': 'ARGOS_DEDUP_SLOTS 2048U' in h and 'ARGOS_DEDUP_PROBES 8U' in h,
+            'legacy hash basis preserved': '1469598103934665603ULL' in h and '1099511628211ULL' in h,
+            'lazy fail-open allocation': 'if (!state->table)' in h and 'if (!state->table) return 0;' in h,
+            'sliding semantics': 'if (sliding) e->last_seen = now;' in h,
+            'fixed semantics testable': 'argos_dedup_should_suppress_at' in h,
+            'main owns policy TTLs': 'ARP_DEDUP_TTL_SECS 900' in s and 'RA_DEDUP_TTL_SECS 1800' in s,
+            'main wraps module': 'argos_dedup_should_suppress(&dedup_state' in s,
+            'legacy table removed': 'dedup_table' not in s and 'dedup_entry_t' not in s,
+            'module cleanup used': s.count('argos_dedup_destroy(&dedup_state)')==2,
+          }
+          bad=[k for k,v in checks.items() if not v]
+          assert not bad, 'failed contracts: '+', '.join(bad)
+          print('dedup architecture invariants: PASS')
+          PY
+
+      - name: Existing flow identity and network regressions
+        run: |
+          for f in \
+            tests/test_identity_config.c \
+            tests/test_runtime_config.c \
+            tests/test_identity_framework.c \
+            tests/test_identity_rdp.c \
+            tests/test_identity_ntlm.c \
+            tests/test_identity_kerberos.c \
+            tests/test_identity_radius.c \
+            tests/test_app_flow.c \
+            tests/test_udp_suppress.c \
+            tests/test_wireguard.c \
+            tests/test_dns_track.c \
+            tests/test_enterprise.c; do
+            out="/tmp/$(basename "$f" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$f" -lm -o "$out"
+            "$out"
+          done
+
+      - name: Strict full and stub builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub
+
+      - name: Commit refactor only after green gate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/argos_dedup.h src/argos-sniffer.c tests/test_dedup.c
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor(v6): extract generic telemetry dedup module"
+          git push origin HEAD:version-6
