@@ -3700,6 +3700,29 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
+                /* NTLM Type 3 is the client authentication handshake carrying
+                 * observed domain/user/workstation identity metadata. Only those
+                 * three bounded security buffers are parsed; auth responses are not. */
+                if (opt_identity && dport == 445U && payload_len > 0) {
+                    argos_identity_result_t ids[3];
+                    size_t id_count = argos_identity_ntlm_type3(
+                        buffer + payload_offset, (size_t)payload_len,
+                        opt_identity_raw, ids);
+                    for (size_t ii = 0; ii < id_count; ++ii) {
+                        char ident_mac[18], ident_sig[320];
+                        format_mac(src_mac, ident_mac);
+                        /* Keep the dedup signature bounded by the public field
+                         * contracts instead of relying on compiler inference through
+                         * an indexed result array. */
+                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
+                                 src_ip_str, ids[ii].protocol, ids[ii].type, ids[ii].value);
+                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
+                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
+                                           ident_mac, src_ip_str, ids[ii].protocol,
+                                           ids[ii].type, ids[ii].value, routed_str);
+                    }
+                }
+
                 if (app_track) {
                     int fingerprint_complete = app_flow_payload_complete(
                         sport, dport, buffer + payload_offset, payload_len);

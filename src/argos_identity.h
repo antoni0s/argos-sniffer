@@ -104,4 +104,72 @@ static inline int argos_identity_rdp_mstshash(const unsigned char *p, size_t len
     return argos_identity_build(r, "rdp", "mstshash", c, n, raw_mode);
 }
 
+
+/* NTLM Type 3 observed identity extraction. Only DomainName, UserName and
+ * Workstation security buffers are consulted. LM/NT responses, session keys,
+ * MICs and authentication blobs are deliberately never read or copied. */
+static inline uint16_t argos_identity_le16(const unsigned char *p) {
+    return (uint16_t)(((uint16_t)p[1] << 8) | p[0]);
+}
+
+static inline uint32_t argos_identity_le32(const unsigned char *p) {
+    return ((uint32_t)p[3] << 24) | ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[1] << 8) | (uint32_t)p[0];
+}
+
+static inline int argos_identity_ntlm_utf16_field(const unsigned char *ntlm,
+                                                   size_t remain,
+                                                   size_t secbuf_off,
+                                                   const char *type,
+                                                   int raw_mode,
+                                                   argos_identity_result_t *r) {
+    if (!ntlm || !type || !r || secbuf_off + 8U > remain) return 0;
+    uint16_t bytes = argos_identity_le16(ntlm + secbuf_off);
+    uint32_t off = argos_identity_le32(ntlm + secbuf_off + 4U);
+    if (bytes == 0U) return 0;
+    if ((bytes & 1U) != 0U || off >= remain || (size_t)bytes > remain - (size_t)off)
+        return 0;
+
+    size_t chars = (size_t)bytes / 2U;
+    if (chars > 160U) chars = 160U;
+    unsigned char decoded[161];
+    size_t out = 0U;
+    for (size_t i = 0; i < chars; ++i) {
+        unsigned char lo = ntlm[(size_t)off + i * 2U];
+        unsigned char hi = ntlm[(size_t)off + i * 2U + 1U];
+        unsigned char c = (hi == 0U && lo >= 32U && lo <= 126U) ? lo : (unsigned char)'?';
+        decoded[out++] = c;
+    }
+    if (out == 0U) return 0;
+    return argos_identity_build(r, "ntlm", type, decoded, out, raw_mode);
+}
+
+static inline size_t argos_identity_ntlm_type3(const unsigned char *p, size_t len,
+                                                int raw_mode,
+                                                argos_identity_result_t out[3]) {
+    static const unsigned char smb2[] = {0xfeU,'S','M','B'};
+    static const unsigned char sig[] = {'N','T','L','M','S','S','P',0};
+    if (!p || !out || len < 64U || memcmp(p, smb2, sizeof(smb2)) != 0) return 0U;
+    if (argos_identity_le16(p + 12U) != 0x0001U) return 0U; /* SESSION_SETUP */
+
+    const unsigned char *n = NULL;
+    for (size_t i = 64U; i + sizeof(sig) <= len; ++i) {
+        if (memcmp(p + i, sig, sizeof(sig)) == 0) { n = p + i; break; }
+    }
+    if (!n) return 0U;
+    size_t remain = len - (size_t)(n - p);
+    if (remain < 52U || argos_identity_le32(n + 8U) != 3U) return 0U;
+
+    memset(out, 0, sizeof(argos_identity_result_t) * 3U);
+    size_t count = 0U;
+    argos_identity_result_t r;
+    if (argos_identity_ntlm_utf16_field(n, remain, 28U, "domain", raw_mode, &r))
+        out[count++] = r;
+    if (argos_identity_ntlm_utf16_field(n, remain, 36U, "user", raw_mode, &r))
+        out[count++] = r;
+    if (argos_identity_ntlm_utf16_field(n, remain, 44U, "workstation", raw_mode, &r))
+        out[count++] = r;
+    return count;
+}
+
 #endif
