@@ -272,7 +272,10 @@ static inline int ae_smb2(const unsigned char *p, int len, argos_enterprise_resu
     static const unsigned char ntlm[] = {'N','T','L','M','S','S','P',0};
     const unsigned char *n = ae_find(p, len, ntlm, 8);
     if (!n || n + 12 > p + len) {
-        ae_set(r, "smb2", 1, "command=session-setup auth=spnego");
+        /* SESSION_SETUP can span multiple authentication tokens. Keep this
+         * flow inspectable until a terminal NTLM Type 3 is observed; the
+         * global packet budget still bounds non-NTLM/SPNEGO sessions. */
+        ae_set(r, "smb2", 0, "command=session-setup auth=spnego");
         return 1;
     }
     int remain = (int)((p + len) - n);
@@ -312,7 +315,9 @@ static inline int ae_smb2(const unsigned char *p, int len, argos_enterprise_resu
             workstation_hash *= 16777619U;
         }
     }
-    ae_set(r, "smb2-ntlm", 1,
+    /* NTLM authentication is multi-message. Type 1/2 must not mark the TCP
+     * flow DONE before the client Type 3 identity-bearing message arrives. */
+    ae_set(r, "smb2-ntlm", mt == 3U,
            "message=%u windows=%u.%u build=%u domain_present=%u domain_len=%u domain_hash=%08x workstation_present=%u workstation_len=%u workstation_hash=%08x",
            mt, maj, min, build,
            domain_present, domain_len, domain_hash,
