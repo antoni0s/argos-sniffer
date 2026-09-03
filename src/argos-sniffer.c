@@ -118,6 +118,7 @@
 #include "argos_wireguard.h"
 #include "argos_config.h"
 #include "argos_telemetry.h"
+#include "argos_packet.h"
 #include "argos_dedup.h"
 #include "argos_flow_state.h"
 #include "argos_identity.h"
@@ -393,7 +394,6 @@ static float calculate_entropy(const char *str) {
  * ============================================================================ */
 #define MAX_INTERFACES 8
 #define MAX_EPOLL_EVENTS 16
-typedef enum { LINK_UNSUPPORTED = 0, LINK_ETHERNET = 1, LINK_RAW_IP = 2, LINK_COOKED = 3, LINK_PER_PACKET = 4 } link_type_t;
 #define CAPTURE_BUF 65535  /* one full IPv4/IPv6 datagram; PQ ClientHellos need this */
 #ifdef ARGOS_PORTABLE_TEST
 typedef struct { int fd; int ifindex; link_type_t type; char name[16]; uint64_t total_packets, total_drops; } capture_iface_t;
@@ -617,46 +617,6 @@ static int is_routed_source_ipv6(const struct in6_addr *addr, int ifindex) {
     return 0;
 }
 
-/**
- * Walk IPv6 extension headers to the real L4 protocol. Returns 0 and fills
- * *proto_out / *l4_off_out on success, -1 if the chain is truncated, loops,
- * or is a non-first fragment (no L4 header in this packet).
- */
-static int skip_ipv6_exthdrs(const unsigned char *buf, int len, int l3_off,
-                             uint8_t *proto_out, int *l4_off_out) {
-    if (len < l3_off + 40) return -1;
-    uint8_t nxt = buf[l3_off + 6];
-    int off = l3_off + 40;
-    for (int guard = 0; guard < 8; guard++) {
-        if (nxt == IPPROTO_HOPOPTS || nxt == IPPROTO_ROUTING || nxt == IPPROTO_DSTOPTS) {
-            if (off + 2 > len) return -1;
-            int hdrlen = ((int)buf[off + 1] + 1) * 8;
-            nxt = buf[off];
-            off += hdrlen;
-            if (off > len) return -1;
-        } else if (nxt == IPPROTO_FRAGMENT) {
-            if (off + 8 > len) return -1;
-            uint16_t frag_off = (uint16_t)((buf[off + 2] << 8) | buf[off + 3]);
-            if ((frag_off & 0xFFF8) != 0) return -1; /* non-first fragment: no L4 header */
-            nxt = buf[off];
-            off += 8;
-        } else if (nxt == 51 /* IPPROTO_AH */) {
-            if (off + 2 > len) return -1;
-            int hdrlen = ((int)buf[off + 1] + 2) * 4;
-            nxt = buf[off];
-            off += hdrlen;
-            if (off > len) return -1;
-        } else if (nxt == IPPROTO_NONE) {
-            return -1;
-        } else {
-            break;
-        }
-    }
-    *proto_out = nxt;
-    *l4_off_out = off;
-    return 0;
-}
-
 #ifndef ARGOS_PORTABLE_TEST
 static link_type_t hatype_to_link(unsigned short hatype) {
     switch (hatype) {
@@ -802,7 +762,6 @@ static int app_flow_payload_complete(uint16_t sport, uint16_t dport, const unsig
     return 0;
 }
 
-static inline uint16_t read_be16(const unsigned char *p) { return (uint16_t)((p[0] << 8) | p[1]); }
 static void format_mac(const uint8_t mac[6], char out[18]) {
     snprintf(out, 18, "%02x:%02x:%02x:%02x:%02x:%02x",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -869,114 +828,6 @@ static void sanitize_field(const unsigned char *src, int len, char *dst, int max
         dst[out++] = (char)c;
     }
     dst[out] = '\0';
-}
-
-static uint16_t frame_outer_vlan = 0;
-static uint16_t frame_inner_vlan = 0;
-
-/* ============================================================================
- * SECTION: Universal L2 Stripper
- * Strips link-layer headers across Ethernet, cooked packets, and raw IP sockets.
- * ============================================================================ */
-/**
- * Removes the link-layer (L2) header from a raw captured frame so the rest
- * of the pipeline can work purely in terms of "L3 protocol + offset to L3
- * header", regardless of which kind of socket/interface the packet came
- * from. Fills in src_mac/dst_mac (all-zero when the link type has no MAC
- * concept) and *l3_proto (the EtherType-style value for the L3 protocol,
- * e.g. 0x0800 for IPv4, 0x86dd for IPv6). Returns the byte offset where the
- * L3 header starts, or -1 if the frame is too short / not understood.
- */
-static int strip_l2(link_type_t type, const unsigned char *buffer, int len,
-                    unsigned char *src_mac, unsigned char *dst_mac, uint16_t *l3_proto) {
-    frame_outer_vlan = 0;
-    frame_inner_vlan = 0;
-    if (type == LINK_ETHERNET) {
-        /* Standard Ethernet II frame: dst MAC(6) + src MAC(6) + EtherType(2). */
-        if (len < 14) return -1;
-        memcpy(dst_mac, buffer, 6); memcpy(src_mac, buffer + 6, 6);
-        uint16_t eth_type = read_be16(buffer + 12);
-        int offset = 14;
-        /* 802.1Q / 802.1ad VLAN tag (4 extra bytes): TPID(2) + TCI(2), then
-         * the real EtherType follows where the TCI would otherwise be read. */
-        if (eth_type == 0x8100 || eth_type == 0x88A8) {
-            if (len < 18) return -1;
-            frame_outer_vlan = (uint16_t)(read_be16(buffer + 14) & 0x0fffU);
-            eth_type = read_be16(buffer + 16); offset = 18;
-            /* QinQ / 802.1ad+802.1Q double tag: retain both VLAN IDs as
-             * outer/inner observation context while parsing the same L3 data. */
-            if (eth_type == 0x8100 || eth_type == 0x88A8) {
-                if (len < 22) return -1;
-                frame_inner_vlan = (uint16_t)(read_be16(buffer + 18) & 0x0fffU);
-                eth_type = read_be16(buffer + 20); offset = 22;
-            }
-        }
-        /* IEEE 802.3 + LLC/SNAP control protocols. The 16-bit field at
-         * Ethernet offset 12 is a payload length (<=1500), not an EtherType.
-         * CDP: OUI 00:00:0c/PID 0x2000; EDP: OUI 00:e0:2b/PID 0x00bb;
-         * FDP: OUI 00:e0:52/PID 0x2000; IS-IS uses LLC FE:FE:03. */
-        if (eth_type <= 1500U) {
-            if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
-                buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
-                buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x2bU &&
-                read_be16(buffer + offset + 6) == 0x00bbU) {
-                *l3_proto = 0x00bbU; /* internal EDP discriminator */
-                return offset + 8;
-            }
-            if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
-                buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
-                buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x52U &&
-                read_be16(buffer + offset + 6) == 0x2000U) {
-                *l3_proto = 0xf200U; /* internal FDP discriminator */
-                return offset + 8;
-            }
-            if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
-                buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
-                buffer[offset + 4] == 0x00U && buffer[offset + 5] == 0x0cU &&
-                read_be16(buffer + offset + 6) == 0x2000U) {
-                *l3_proto = 0x2000U;
-                return offset + 8;
-            }
-            if (len >= offset + 3 && buffer[offset] == 0xfeU && buffer[offset + 1] == 0xfeU &&
-                buffer[offset + 2] == 0x03U) {
-                *l3_proto = 0x00feU;
-                return offset + 3;
-            }
-            return -1;
-        }
-        /* PPPoE Session stage (common on DSL/fiber ONTs): 6-byte PPPoE
-         * header + 2-byte PPP protocol ID, which maps to the real L3
-         * EtherType (0x0021 = IPv4-over-PPP, 0x0057 = IPv6-over-PPP). */
-        if (eth_type == 0x8864) {
-            if (len < offset + 8) return -1;
-            uint16_t ppp_proto = read_be16(buffer + offset + 6); offset += 8;
-            if (ppp_proto == 0x0021) eth_type = 0x0800; else if (ppp_proto == 0x0057) eth_type = 0x86dd; else return -1;
-        }
-        *l3_proto = eth_type; return offset;
-    } else if (type == LINK_COOKED) {
-        /* Linux SLL "cooked" capture header, used for the special "any"
-         * pseudo-interface: packet_type(2) + arphrd_type(2) + addr_len(2) +
-         * addr[8] (only first `addr_len` bytes meaningful) + protocol(2).
-         * There's no destination MAC in this format (it's not per-link). */
-        if (len < 16) return -1;
-        memset(dst_mac, 0, 6); memset(src_mac, 0, 6);
-        if (buffer[4] >= 6) {
-            memcpy(src_mac, buffer + 6, 6);
-        }
-        *l3_proto = read_be16(buffer + 14);
-        return 16;
-    } else if (type == LINK_RAW_IP) {
-        /* Raw IP (e.g. a PPP/tunnel interface with no link-layer header at
-         * all): the buffer starts directly with the IP header, so there's
-         * no MAC to extract -- infer the L3 protocol from the IP version
-         * nibble in the very first byte instead. */
-        if (len < 1) return -1;
-        memset(src_mac, 0, 6); memset(dst_mac, 0, 6);
-        uint8_t ip_version = buffer[0] >> 4;
-        if (ip_version == 4) *l3_proto = 0x0800; else if (ip_version == 6) *l3_proto = 0x86dd; else return -1;
-        return 0; 
-    }
-    return -1;
 }
 
 /* ============================================================================
@@ -1906,31 +1757,6 @@ static void parse_mdns(const unsigned char *payload, int len, const char *mac, c
  * it re-parses the packet independently of the main telemetry loop.
  * ============================================================================ */
 #ifndef ARGOS_PORTABLE_TEST
-static int ipv4_header_info(const unsigned char *buffer, int available, uint16_t *total_len_out, int *header_len_out) {
-    if (!buffer || available < 20) return 0;
-    struct iphdr ip_hdr;
-    memcpy(&ip_hdr, buffer, sizeof(ip_hdr));
-    if (ip_hdr.version != 4 || ip_hdr.ihl < 5) return 0;
-    int header_len = ip_hdr.ihl * 4;
-    if (header_len > available) return 0;
-    uint16_t total_len = ntohs(ip_hdr.tot_len);
-    if (total_len < (uint16_t)header_len || total_len > (uint16_t)available) return 0;
-    if (total_len_out) *total_len_out = total_len;
-    if (header_len_out) *header_len_out = header_len;
-    return 1;
-}
-
-static int ipv6_packet_info(const unsigned char *buffer, int available, int *packet_len_out) {
-    if (!buffer || available < 40) return 0;
-    struct ip6_hdr ip6_hdr;
-    memcpy(&ip6_hdr, buffer, sizeof(ip6_hdr));
-    if ((ip6_hdr.ip6_vfc >> 4) != 6) return 0;
-    uint32_t packet_len = 40U + (uint32_t)ntohs(ip6_hdr.ip6_plen);
-    if (packet_len > (uint32_t)available) return 0;
-    if (packet_len_out) *packet_len_out = (int)packet_len;
-    return 1;
-}
-
 static void dump_target_packet(const unsigned char *buffer, int len, int l3_offset, uint16_t l3_proto) {
     struct timeval tv; gettimeofday(&tv, NULL);
     struct tm *tm_info = localtime(&tv.tv_sec);
@@ -2595,13 +2421,17 @@ int main(int argc, char *argv[]) {
              * actual per-packet ifindex to avoid cross-interface false positives. */
             int packet_ifindex = prefix_context_ifindex(current_iface, from_ll.sll_ifindex);
 
-            unsigned char src_mac[6], dst_mac[6]; uint16_t l3_proto = 0;
-            int l3_offset = strip_l2(pkt_type, buffer, (int)len, src_mac, dst_mac, &l3_proto);
-            if (l3_offset < 0) continue;
+            argos_packet_view_t packet_view;
+            if (!argos_packet_decode(pkt_type, buffer, (int)len, opt_v6, &packet_view)) continue;
+
+            unsigned char *src_mac = packet_view.src_mac;
+            unsigned char *dst_mac = packet_view.dst_mac;
+            uint16_t l3_proto = packet_view.l3_proto;
+            int l3_offset = packet_view.l3_offset;
 
             if (opt_sensor_mode) {
-                uint16_t outer = frame_outer_vlan;
-                uint16_t inner = frame_inner_vlan;
+                uint16_t outer = packet_view.outer_vlan;
+                uint16_t inner = packet_view.inner_vlan;
                 if (aux_vlan_valid) {
                     if (outer == 0U) outer = aux_vlan;
                     else if (aux_vlan != outer) { inner = outer; outer = aux_vlan; }
@@ -2625,70 +2455,40 @@ int main(int argc, char *argv[]) {
             struct in6_addr src_ip6_addr, dst_ip6_addr;
             memset(&src_ip6_addr, 0, sizeof(src_ip6_addr));
             memset(&dst_ip6_addr, 0, sizeof(dst_ip6_addr));
-            int is_ipv6_packet = 0;
-            int is_ip_packet = 0;
-            uint8_t ip_protocol = 0, ip_ttl = 0;
-            int l4_offset = 0;
-            int ipv4_is_frag = 0;
+            int is_ipv6_packet = packet_view.ip_version == 6U;
+            int is_ip_packet = packet_view.is_ip;
+            uint8_t ip_protocol = packet_view.ip_protocol;
+            uint8_t ip_ttl = packet_view.ip_ttl;
+            int l4_offset = packet_view.l4_offset;
+            int ipv4_is_frag = packet_view.nonfirst_fragment;
 
-            if (l3_proto == 0x0800 && len >= l3_offset + 20) {
-                uint16_t ip_total_len = 0; int ip_header_len = 0;
-                if (!ipv4_header_info(buffer + l3_offset, (int)len - l3_offset, &ip_total_len, &ip_header_len)) continue;
-                struct iphdr ip_hdr; memcpy(&ip_hdr, buffer + l3_offset, sizeof(ip_hdr));
-                struct iphdr *ip = &ip_hdr;
-                /* Skip non-first fragments -- they have no L4 header. First
-                 * fragments (offset 0, MF=1) still carry L4 and are kept. */
-                uint16_t frag = ntohs(ip->frag_off);
-                if (frag & 0x1FFF) { ipv4_is_frag = 1; /* drop at L4 */ }
-                src_ip_num = ip->saddr; dst_ip_num = ip->daddr;
+            if (packet_view.ip_version == 4U) {
+                memcpy(&src_ip_num, packet_view.src_addr, 4U);
+                memcpy(&dst_ip_num, packet_view.dst_addr, 4U);
                 int src_lan = is_lan_ipv4(src_ip_num);
                 int dst_lan = is_lan_ipv4(dst_ip_num);
                 source_offlink_routed = is_routed_source_ipv4(src_ip_num, packet_ifindex);
                 if (!src_lan && !dst_lan && !source_offlink_routed) continue;
                 is_outbound = src_lan || source_offlink_routed;
-                is_ip_packet = 1;
-                ip_protocol = ip->protocol;
-                ip_ttl = ip->ttl;
-                l4_offset = l3_offset + ip_header_len;
-            } else if (opt_v6 && l3_proto == 0x86dd) {
-                if (len < l3_offset + 40) continue;
-                int ip6_packet_len = 0;
-                if (!ipv6_packet_info(buffer + l3_offset, (int)len - l3_offset, &ip6_packet_len)) continue;
-                struct ip6_hdr ip6_hdr_local; memcpy(&ip6_hdr_local, buffer + l3_offset, sizeof(ip6_hdr_local));
-                struct ip6_hdr *ip6 = &ip6_hdr_local;
-                int src_lan = is_lan_ipv6(&ip6->ip6_src);
-                int dst_lan = is_lan_ipv6(&ip6->ip6_dst);
-                source_offlink_routed = is_routed_source_ipv6(&ip6->ip6_src, packet_ifindex);
+            } else if (packet_view.ip_version == 6U) {
+                memcpy(&src_ip6_addr, packet_view.src_addr, 16U);
+                memcpy(&dst_ip6_addr, packet_view.dst_addr, 16U);
+                int src_lan = is_lan_ipv6(&src_ip6_addr);
+                int dst_lan = is_lan_ipv6(&dst_ip6_addr);
+                source_offlink_routed = is_routed_source_ipv6(&src_ip6_addr, packet_ifindex);
                 if (!src_lan && !dst_lan && !source_offlink_routed) continue;
                 is_outbound = src_lan || source_offlink_routed;
-                src_ip6_addr = ip6->ip6_src; dst_ip6_addr = ip6->ip6_dst;
-                is_ipv6_packet = 1;
-                is_ip_packet = 1;
-                ip_ttl = ip6->ip6_hlim;
-                if (skip_ipv6_exthdrs(buffer, (int)len, l3_offset, &ip_protocol, &l4_offset) < 0) continue;
-            } else if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
-                       (runtime_cfg.enterprise_enabled && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
-                                           l3_proto == 0x2000U || l3_proto == 0x00feU ||
-                                    l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
-                /* L2 discovery/control: no IP addresses. Filters can still match on MAC.
-                 * Do NOT `continue` -- that was why -l never produced output. */
-                is_ip_packet = 0;
+            } else if (l3_proto == 0x88ccU || l3_proto == 0x0806U ||
+                       (runtime_cfg.enterprise_enabled &&
+                        (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU ||
+                         l3_proto == 0x8892U || l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                         l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
+                /* L2 discovery/control frames intentionally have no IP view. */
             } else {
                 continue;
             }
 
-            /* L4 parsing must never consume Ethernet padding or bytes beyond the
-             * IP total length advertised by the packet header. */
-            int l3_packet_end = (int)len;
-            if (l3_proto == 0x0800) {
-                struct iphdr validated_ip;
-                memcpy(&validated_ip, buffer + l3_offset, sizeof(validated_ip));
-                l3_packet_end = l3_offset + (int)ntohs(validated_ip.tot_len);
-            } else if (l3_proto == 0x86dd) {
-                struct ip6_hdr validated_ip6;
-                memcpy(&validated_ip6, buffer + l3_offset, sizeof(validated_ip6));
-                l3_packet_end = l3_offset + 40 + (int)ntohs(validated_ip6.ip6_plen);
-            }
+            int l3_packet_end = packet_view.packet_end;
 
             const struct in6_addr *filt_src_ip6 = is_ipv6_packet ? &src_ip6_addr : NULL;
             const struct in6_addr *filt_dst_ip6 = is_ipv6_packet ? &dst_ip6_addr : NULL;
@@ -2735,8 +2535,8 @@ int main(int argc, char *argv[]) {
                     argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac);
                     argos_raw_identity_v6(dst_ip6_addr.s6_addr, dst_mac);
                 } else {
-                    argos_raw_identity_v4(buffer + l3_offset + 12, src_mac);
-                    argos_raw_identity_v4(buffer + l3_offset + 16, dst_mac);
+                    argos_raw_identity_v4(packet_view.src_addr, src_mac);
+                    argos_raw_identity_v4(packet_view.dst_addr, dst_mac);
                 }
             }
 
