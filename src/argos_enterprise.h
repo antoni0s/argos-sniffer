@@ -438,6 +438,75 @@ static inline int ae_postgres(const unsigned char *p, int len, argos_enterprise_
     return 1;
 }
 
+static inline int ae_mqtt_varint(const unsigned char *p, int len, int *pos, uint32_t *out) {
+    if (!p || !pos || !out || *pos < 0 || *pos >= len) return 0;
+    uint32_t value = 0U, mult = 1U;
+    for (unsigned i = 0; i < 4U; ++i) {
+        if (*pos >= len) return 0;
+        uint8_t b = p[(*pos)++];
+        value += (uint32_t)(b & 0x7fU) * mult;
+        if ((b & 0x80U) == 0U) { *out = value; return 1; }
+        mult *= 128U;
+    }
+    return 0;
+}
+
+static inline int ae_mqtt_utf8_span(const unsigned char *p, int end, int *pos,
+                                    const unsigned char **s, uint16_t *n) {
+    if (!p || !pos || !s || !n || *pos < 0 || *pos + 2 > end) return 0;
+    uint16_t l = ae_be16(p + *pos); *pos += 2;
+    if (*pos + (int)l > end) return 0;
+    *s = p + *pos; *n = l; *pos += (int)l;
+    return 1;
+}
+
+/* MQTT CONNECT-only fingerprinting. The client identifier can be a stable
+ * device/application identifier, so Argos emits only its length and FNV-1a
+ * hash. Username, password and Will topic/payload are represented only by
+ * presence/flags and are never copied into telemetry. A successful CONNECT
+ * parse is marked complete so the existing app-flow DONE path suppresses all
+ * later PUBLISH/SUBSCRIBE traffic for that TCP flow. */
+static inline int ae_mqtt(const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (!p || !r || len < 10 || p[0] != 0x10U) return 0; /* CONNECT, flags=0 */
+    int pos = 1; uint32_t rem = 0U;
+    if (!ae_mqtt_varint(p, len, &pos, &rem) || rem > (uint32_t)(len - pos)) return 0;
+    int end = pos + (int)rem;
+
+    const unsigned char *proto = NULL; uint16_t proto_len = 0U;
+    if (!ae_mqtt_utf8_span(p, end, &pos, &proto, &proto_len)) return 0;
+    if (!((proto_len == 4U && memcmp(proto,"MQTT",4U)==0) ||
+          (proto_len == 6U && memcmp(proto,"MQIsdp",6U)==0))) return 0;
+    if (pos + 4 > end) return 0;
+    uint8_t level=p[pos++], flags=p[pos++]; uint16_t keepalive=ae_be16(p+pos); pos+=2;
+    if (!((proto_len==4U && (level==4U || level==5U)) || (proto_len==6U && level==3U))) return 0;
+    if ((flags & 0x01U) != 0U) return 0;
+    unsigned clean=(flags & 0x02U)?1U:0U, will=(flags & 0x04U)?1U:0U;
+    unsigned will_qos=(flags >> 3) & 0x03U, will_retain=(flags & 0x20U)?1U:0U;
+    unsigned password=(flags & 0x40U)?1U:0U, username=(flags & 0x80U)?1U:0U;
+    if (will_qos == 3U || (!will && (will_qos || will_retain))) return 0;
+
+    uint32_t property_len=0U;
+    if (level == 5U) {
+        if (!ae_mqtt_varint(p,end,&pos,&property_len) || property_len > (uint32_t)(end-pos)) return 0;
+        pos += (int)property_len;
+    }
+
+    const unsigned char *cid=NULL; uint16_t cid_len=0U;
+    if (!ae_mqtt_utf8_span(p,end,&pos,&cid,&cid_len)) return 0;
+    uint32_t cid_hash=2166136261U;
+    for (uint16_t i=0U; i<cid_len; ++i) { cid_hash ^= cid[i]; cid_hash *= 16777619U; }
+
+    /* Remaining CONNECT payload may contain Will, username and password. We
+     * deliberately do not walk/copy those private fields; flags are enough for
+     * fingerprinting and the fixed-header Remaining Length already bounded it. */
+    const char *version = level==5U ? "5.0" : level==4U ? "3.1.1" : "3.1";
+    ae_set(r,"mqtt",1,
+           "connect version=%s clean=%u keepalive=%u will=%u will_qos=%u will_retain=%u username_present=%u password_present=%u properties_len=%u client_id_len=%u client_id_hash=%08x",
+           version,clean,(unsigned)keepalive,will,will_qos,will_retain,username,password,
+           (unsigned)property_len,(unsigned)cid_len,(unsigned)cid_hash);
+    return 1;
+}
+
 static inline int ae_rdp(const unsigned char *p, int len, argos_enterprise_result_t *r) {
     if (len < 11 || p[0] != 0x03U || p[1] != 0x00U) return 0; /* TPKT */
     if (p[5] != 0xe0U && p[5] != 0xd0U) return 0;             /* X.224 CR/CC */
@@ -492,6 +561,7 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
         case 631: return ae_ipp(p, len, r);
         case 1433: return ae_tds(p, len, r);
         case 1521: return ae_tns(p, len, r);
+        case 1883: return ae_mqtt(p, len, r);
         case 2000: return ae_sccp(p, len, r);
         case 3260: return ae_iscsi(p, len, r);
         case 3306: return ae_mysql(p, len, r);

@@ -10,7 +10,8 @@ static const uint16_t ARGOS_TLS_TCP_PORTS[] = {
     853U,   /* DNS over TLS */
     993U,   /* IMAPS */
     995U,   /* POP3S */
-    8443U   /* common alternate HTTPS */
+    8443U,  /* common alternate HTTPS */
+    8883U   /* MQTT over implicit TLS */
 };
 #define ARGOS_TLS_TCP_PORT_COUNT (sizeof(ARGOS_TLS_TCP_PORTS) / sizeof(ARGOS_TLS_TCP_PORTS[0]))
 #define ARGOS_QUIC_UDP_PORT 443U
