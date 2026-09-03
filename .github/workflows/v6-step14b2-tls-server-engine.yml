@@ -1,0 +1,91 @@
+name: V6 step 14b2 - TLS server engine consolidation gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step14b2_merge_tls_server.py'
+      - '.github/workflows/v6-step14b2-tls-server-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged TLS ServerHello consolidation
+        run: python3 .github/scripts/v6_step14b2_merge_tls_server.py
+
+      - name: Architecture invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          t=Path('src/argos_tls.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          tst=Path('tests/test_tls_server.c').read_text()
+          assert not Path('src/argos_tls_server.h').exists()
+          assert '#include "argos_tls_server.h"' not in s
+          assert '#include "../src/argos_tls.h"' in tst
+          assert 'argos_tls_client_parse' in t
+          assert 'argos_tls_server_parse' in t
+          assert 'argos_tls_server_result_t' in t
+          assert 'ats1_' in t
+          assert 'JA4S' in t
+          assert 'dedup_should_suppress' not in t
+          assert 'emit_telemetry' not in t
+          print('Unified TLS engine architecture invariants: PASS')
+          PY
+
+      - name: TLS client and server fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client
+          /tmp/test-tls-client
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_server.c -o /tmp/test-tls-server
+          /tmp/test-tls-server
+
+      - name: TLS sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_tls_client.c -o /tmp/test-tls-client-san
+          /tmp/test-tls-client-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_tls_server.c -o /tmp/test-tls-server-san
+          /tmp/test-tls-server-san
+
+      - name: QUIC and existing regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_v2.c -o /tmp/test-quic-v2
+          /tmp/test-quic-v2
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_app_flow.c -lm -o /tmp/test-app-flow
+          /tmp/test-app-flow
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_framework.c -o /tmp/test-identity-framework
+          /tmp/test-identity-framework
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Commit production TLS consolidation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_tls.h src/argos-sniffer.c tests/test_tls_server.c
+          git rm src/argos_tls_server.h
+          git diff --cached --check
+          git commit -m 'refactor(v6): consolidate TLS server engine'
+          git push origin HEAD:version-6
