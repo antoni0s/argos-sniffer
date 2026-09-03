@@ -3743,15 +3743,24 @@ int main(int argc, char *argv[]) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
                 if (opt_enterprise && ttl == 1U && (sport == 1985U || dport == 1985U)) {
-                    argos_hsrp1_result_t hsrp;
-                    if (argos_hsrp1_parse(payload, (size_t)payload_len, &hsrp)) {
-                        char ent_mac[18], ent_sig[384];
-                        if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
-                        else format_mac(src_mac, ent_mac);
-                        snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP|%s", src_ip_str, hsrp.detail);
+                    char ent_mac[18], ent_sig[512];
+                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);
+                    else format_mac(src_mac, ent_mac);
+
+                    argos_hsrp2_result_t hsrp2;
+                    if (argos_hsrp2_parse(payload, (size_t)payload_len, &hsrp2)) {
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP2|%s", src_ip_str, hsrp2.detail);
                         if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
-                            emit_telemetry("ENT|%s|%s|%s|HSRP|%s%s\n",
-                                           ent_mac, src_ip_str, dst_ip_str, hsrp.detail, routed_str);
+                            emit_telemetry("ENT|%s|%s|%s|HSRP2|%s%s\n",
+                                           ent_mac, src_ip_str, dst_ip_str, hsrp2.detail, routed_str);
+                    } else {
+                        argos_hsrp1_result_t hsrp1;
+                        if (argos_hsrp1_parse(payload, (size_t)payload_len, &hsrp1)) {
+                            snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP|%s", src_ip_str, hsrp1.detail);
+                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                                emit_telemetry("ENT|%s|%s|%s|HSRP|%s%s\n",
+                                               ent_mac, src_ip_str, dst_ip_str, hsrp1.detail, routed_str);
+                        }
                     }
                 }
                 if (opt_enterprise && argos_enterprise_udp_port(sport, dport)) {
