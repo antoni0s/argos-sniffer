@@ -10,7 +10,9 @@ old2='''    expect(pass(&p, pkt, tcp4(pkt, 50000, 8443, 1, 40)), "TCP/8443 paylo
 new2='''    expect(pass(&p, pkt, tcp4(pkt, 50000, 8443, 0x18, 20)), "alternate HTTPS port passes");\\n'''
 old2r='''    expect(pass(&p, pkt, tcp4(pkt, 50000, 8443, 1, 40)), "TCP/8443 payload passes");\\n    expect(pass(&p, pkt, tcp4(pkt, 50000, 8883, 1, 40)), "MQTTS TCP/8883 payload passes");\\n'''
 new2r='''    expect(pass(&p, pkt, tcp4(pkt, 50000, 8443, 0x18, 20)), "alternate HTTPS port passes");\\n    expect(pass(&p, pkt, tcp4(pkt, 50000, 8883, 0x18, 20)), "MQTTS TCP/8883 payload passes");\\n'''
-for old,new,label in ((old1,new1,'44818 anchor'),(old1r,new1r,'44818 replacement'),(old2,new2,'8443 anchor'),(old2r,new2r,'8443 replacement')):
+# Rewrite the longer replacement literals first; each contains the shorter
+# anchor as a prefix, so doing the anchor first would match twice.
+for old,new,label in ((old1r,new1r,'44818 replacement'),(old1,new1,'44818 anchor'),(old2r,new2r,'8443 replacement'),(old2,new2,'8443 anchor')):
     if s.count(old)!=1:
         raise SystemExit(f'{label}: expected one match, got {s.count(old)}')
     s=s.replace(old,new,1)
