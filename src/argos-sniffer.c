@@ -120,6 +120,7 @@
 #include "argos_telemetry.h"
 #include "argos_packet.h"
 #include "argos_discovery.h"
+#include "argos_filter.h"
 #include "argos_dedup.h"
 #include "argos_flow_state.h"
 #include "argos_identity.h"
@@ -832,326 +833,6 @@ static void sanitize_field(const unsigned char *src, int len, char *dst, int max
 }
 
 /* ============================================================================
- * SECTION: Shunting-Yard Filter Engine
- * Parses and evaluates filter expressions for selective packet capturing and logging.
- * ============================================================================ */
-#define MAX_FILTER_TOKENS 64
-typedef enum { TOK_NONE, TOK_AND, TOK_OR, TOK_NOT, TOK_LPAREN, TOK_RPAREN, TOK_MAC, TOK_IPV4, TOK_IPV6 } filter_tok_type;
-
-typedef struct {
-    filter_tok_type type;
-    union {
-        uint8_t mac[6];
-        struct { uint32_t ip; uint32_t mask; } ipv4;
-        struct { struct in6_addr ip; struct in6_addr mask; } ipv6;
-    } val;
-} filter_token_t;
-
-typedef struct { filter_token_t rpn[MAX_FILTER_TOKENS]; int count; int is_active; } filter_program_t;
-
-/* Operator precedence table used by the shunting-yard algorithm below:
- * NOT binds tightest, then AND, then OR (same convention as most languages). */
-static int precedence(filter_tok_type op) {
-    if (op == TOK_NOT) return 3;
-    if (op == TOK_AND) return 2;
-    if (op == TOK_OR) return 1;
-    return 0;
-}
-
-/**
- * Checks whether `addr` matches an IPv6 filter token, i.e. whether
- * (addr & mask) == (token.ip & mask), compared 16 bytes at a time.
- */
-static int ipv6_masked_match(const struct in6_addr *addr, const struct in6_addr *filter_ip, const struct in6_addr *filter_mask) {
-    for (int i = 0; i < 16; i++) {
-        if ((addr->s6_addr[i] & filter_mask->s6_addr[i]) != (filter_ip->s6_addr[i] & filter_mask->s6_addr[i])) return 0;
-    }
-    return 1;
-}
-
-/**
- * Compiles a text filter expression (e.g. "192.168.1.5 and not 00:11:22:33:44:55")
- * into Reverse Polish Notation (RPN) using the classic shunting-yard algorithm:
- * operands (MAC/IPv4/IPv6 literals) go straight to the output program,
- * operators are pushed onto a local stack and popped into the output program
- * once a lower/equal-precedence operator or a closing paren is seen.
- */
-static int parse_mac_address(const char *text, uint8_t out[6]) {
-    unsigned int v[6]; char tail;
-    if (!text || !out) return 0;
-    if (sscanf(text, "%2x:%2x:%2x:%2x:%2x:%2x%c", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &tail) != 6) return 0;
-    for (int i = 0; i < 6; i++) {
-        if (v[i] > 0xffU) return 0;
-        out[i] = (uint8_t)v[i];
-    }
-    return 1;
-}
-
-static int parse_cidr_bits(const char *text, int max_bits, int *bits_out) {
-    char *end = NULL; long v;
-    if (!text || !*text || !bits_out) return 0;
-    errno = 0;
-    v = strtol(text, &end, 10);
-    if (errno != 0 || end == text || *end != '\0' || v < 0 || v > max_bits) return 0;
-    *bits_out = (int)v;
-    return 1;
-}
-
-static int append_filter_rpn(filter_program_t *prog, const filter_token_t *tok) {
-    if (prog->count >= MAX_FILTER_TOKENS) {
-        fprintf(stderr, "Filter parse error: expression is too complex\n");
-        return 0;
-    }
-    prog->rpn[prog->count++] = *tok;
-    return 1;
-}
-
-static int compile_filter(const char *expr_in, filter_program_t *prog) {
-    prog->count = 0;
-    prog->is_active = 0;
-    if (!expr_in || !*expr_in) return 0;
-
-    if (strlen(expr_in) >= 512U) {
-        fprintf(stderr, "Filter parse error: expression exceeds 511 characters\n");
-        return -1;
-    }
-
-    char expr[512];
-    memcpy(expr, expr_in, strlen(expr_in) + 1U);
-    filter_token_t op_stack[MAX_FILTER_TOKENS];
-    int op_sp = 0;
-    int expect_operand = 1;
-    char *p = expr;
-
-    while (*p) {
-        while (isspace((unsigned char)*p)) p++;
-        if (!*p) break;
-
-        if (*p == '(') {
-            if (!expect_operand) {
-                fprintf(stderr, "Filter parse error: missing operator before '('\n");
-                return -1;
-            }
-            if (op_sp >= MAX_FILTER_TOKENS) {
-                fprintf(stderr, "Filter parse error: expression is too complex\n");
-                return -1;
-            }
-            filter_token_t t = {0};
-            t.type = TOK_LPAREN;
-            op_stack[op_sp++] = t;
-            p++;
-            continue;
-        }
-
-        if (*p == ')') {
-            if (expect_operand) {
-                fprintf(stderr, "Filter parse error: unexpected ')'\n");
-                return -1;
-            }
-            int found_lparen = 0;
-            while (op_sp > 0) {
-                if (op_stack[op_sp - 1].type == TOK_LPAREN) {
-                    found_lparen = 1;
-                    op_sp--;
-                    break;
-                }
-                if (!append_filter_rpn(prog, &op_stack[--op_sp])) return -1;
-            }
-            if (!found_lparen) {
-                fprintf(stderr, "Filter parse error: unmatched ')'\n");
-                return -1;
-            }
-            p++;
-            expect_operand = 0;
-            continue;
-        }
-
-        filter_token_t t = {0};
-        if (*p == '!' && p[1] != '=') {
-            t.type = TOK_NOT;
-            if (!expect_operand) {
-                fprintf(stderr, "Filter parse error: unexpected '!'\n");
-                return -1;
-            }
-            p++;
-        } else if (*p == '&' && p[1] == '&') {
-            t.type = TOK_AND;
-            if (expect_operand) {
-                fprintf(stderr, "Filter parse error: unexpected '&&'\n");
-                return -1;
-            }
-            p += 2;
-        } else if (*p == '|' && p[1] == '|') {
-            t.type = TOK_OR;
-            if (expect_operand) {
-                fprintf(stderr, "Filter parse error: unexpected '||'\n");
-                return -1;
-            }
-            p += 2;
-        } else {
-            char word[64]; size_t w = 0;
-            while (*p && !isspace((unsigned char)*p) && *p != '(' && *p != ')') {
-                if (w >= sizeof(word) - 1U) {
-                    fprintf(stderr, "Filter parse error: token exceeds 63 characters\n");
-                    return -1;
-                }
-                word[w++] = *p++;
-            }
-            word[w] = '\0';
-            if (w == 0) continue;
-
-            if (strcasecmp(word, "and") == 0) t.type = TOK_AND;
-            else if (strcasecmp(word, "or") == 0) t.type = TOK_OR;
-            else if (strcasecmp(word, "not") == 0) t.type = TOK_NOT;
-            else {
-                if (!expect_operand) {
-                    fprintf(stderr, "Filter parse error: missing operator before '%s'\n", word);
-                    return -1;
-                }
-                if (parse_mac_address(word, t.val.mac)) {
-                    t.type = TOK_MAC;
-                } else {
-                    char ip_str[64];
-                    size_t wlen = strlen(word);
-                    if (wlen >= sizeof(ip_str)) {
-                        fprintf(stderr, "Filter parse error: IP token too long\n");
-                        return -1;
-                    }
-                    memcpy(ip_str, word, wlen + 1U);
-                    char *slash = strchr(ip_str, '/');
-                    int cidr;
-                    if (slash) {
-                        *slash++ = '\0';
-                    }
-                    if (slash) {
-                        if (strchr(slash, '/')) {
-                            fprintf(stderr, "Filter parse error: invalid CIDR '%s'\n", word);
-                            return -1;
-                        }
-                    }
-                    struct in_addr a4;
-                    struct in6_addr a6;
-                    if (inet_pton(AF_INET, ip_str, &a4) == 1) {
-                        cidr = 32;
-                        if (slash && !parse_cidr_bits(slash, 32, &cidr)) {
-                            fprintf(stderr, "Filter parse error: invalid IPv4 CIDR '%s'\n", word);
-                            return -1;
-                        }
-                        t.type = TOK_IPV4;
-                        t.val.ipv4.ip = a4.s_addr;
-                        uint32_t mask_host = (cidr == 0) ? 0U : (uint32_t)(0xffffffffU << (32 - cidr));
-                        t.val.ipv4.mask = htonl(mask_host);
-                        t.val.ipv4.ip &= t.val.ipv4.mask;
-                    } else if (inet_pton(AF_INET6, ip_str, &a6) == 1) {
-                        cidr = 128;
-                        if (slash && !parse_cidr_bits(slash, 128, &cidr)) {
-                            fprintf(stderr, "Filter parse error: invalid IPv6 CIDR '%s'\n", word);
-                            return -1;
-                        }
-                        t.type = TOK_IPV6;
-                        t.val.ipv6.ip = a6;
-                        memset(&t.val.ipv6.mask, 0, sizeof(t.val.ipv6.mask));
-                        int bits = cidr;
-                        for (int bi = 0; bi < 16; bi++) {
-                            if (bits >= 8) { t.val.ipv6.mask.s6_addr[bi] = 0xff; bits -= 8; }
-                            else if (bits > 0) { t.val.ipv6.mask.s6_addr[bi] = (uint8_t)(0xffU << (8 - bits)); bits = 0; }
-                        }
-                        for (int bi = 0; bi < 16; bi++) t.val.ipv6.ip.s6_addr[bi] &= t.val.ipv6.mask.s6_addr[bi];
-                    } else {
-                        fprintf(stderr, "Filter parse error: unrecognized token '%s'\n", word);
-                        return -1;
-                    }
-                }
-            }
-        }
-
-        if (t.type == TOK_NOT) {
-            if (!expect_operand) {
-                fprintf(stderr, "Filter parse error: unexpected NOT operator\n");
-                return -1;
-            }
-            /* NOT is right-associative; equal-precedence NOT operators stay on the stack. */
-            while (op_sp > 0 && op_stack[op_sp - 1].type != TOK_LPAREN &&
-                   (precedence(op_stack[op_sp - 1].type) > precedence(t.type) ||
-                    (precedence(op_stack[op_sp - 1].type) == precedence(t.type) && t.type != TOK_NOT))) {
-                if (!append_filter_rpn(prog, &op_stack[--op_sp])) return -1;
-            }
-            if (op_sp >= MAX_FILTER_TOKENS) {
-                fprintf(stderr, "Filter parse error: expression is too complex\n");
-                return -1;
-            }
-            op_stack[op_sp++] = t;
-            expect_operand = 1;
-        } else if (t.type == TOK_AND || t.type == TOK_OR) {
-            if (expect_operand) {
-                fprintf(stderr, "Filter parse error: binary operator without left operand\n");
-                return -1;
-            }
-            while (op_sp > 0 && op_stack[op_sp - 1].type != TOK_LPAREN &&
-                   precedence(op_stack[op_sp - 1].type) >= precedence(t.type)) {
-                if (!append_filter_rpn(prog, &op_stack[--op_sp])) return -1;
-            }
-            if (op_sp >= MAX_FILTER_TOKENS) {
-                fprintf(stderr, "Filter parse error: expression is too complex\n");
-                return -1;
-            }
-            op_stack[op_sp++] = t;
-            expect_operand = 1;
-        } else {
-            if (!append_filter_rpn(prog, &t)) return -1;
-            expect_operand = 0;
-        }
-    }
-
-    if (expect_operand) {
-        fprintf(stderr, "Filter parse error: expression ends with an operator or is empty\n");
-        return -1;
-    }
-    while (op_sp > 0) {
-        if (op_stack[op_sp - 1].type == TOK_LPAREN) {
-            fprintf(stderr, "Filter parse error: unmatched '('\n");
-            return -1;
-        }
-        if (!append_filter_rpn(prog, &op_stack[--op_sp])) return -1;
-    }
-
-    prog->is_active = (prog->count > 0);
-    return 0;
-}
-
-/**
- * Evaluates the compiled RPN filter program against packet metadata.
- * A MAC/IPv4/IPv6 token matches if it equals EITHER the source or the
- * destination (so a filter like "10.0.0.5" matches traffic to or from
- * that host). AND/OR/NOT combine matches using a small evaluation stack.
- *
- * src_ip6/dst_ip6 may be NULL when the current packet is not IPv6 (e.g. an
- * IPv4 or ARP packet) -- in that case any TOK_IPV6 token in the program
- * simply evaluates to "no match" instead of dereferencing a NULL pointer.
- */
-static inline int evaluate_filter(filter_program_t *prog, const uint8_t *src_mac, const uint8_t *dst_mac,
-                                   uint32_t src_ip, uint32_t dst_ip,
-                                   const struct in6_addr *src_ip6, const struct in6_addr *dst_ip6) {
-    if (!prog->is_active) return 1; 
-    int stack[MAX_FILTER_TOKENS], sp = 0;
-    for (int i = 0; i < prog->count; i++) {
-        filter_token_t *t = &prog->rpn[i];
-        if (sp >= MAX_FILTER_TOKENS) return 0;
-        if (t->type == TOK_MAC) stack[sp++] = (memcmp(src_mac, t->val.mac, 6) == 0 || memcmp(dst_mac, t->val.mac, 6) == 0);
-        else if (t->type == TOK_IPV4) stack[sp++] = ((src_ip & t->val.ipv4.mask) == t->val.ipv4.ip || (dst_ip & t->val.ipv4.mask) == t->val.ipv4.ip);
-        else if (t->type == TOK_IPV6) {
-            int match = (src_ip6 && ipv6_masked_match(src_ip6, &t->val.ipv6.ip, &t->val.ipv6.mask)) ||
-                        (dst_ip6 && ipv6_masked_match(dst_ip6, &t->val.ipv6.ip, &t->val.ipv6.mask));
-            stack[sp++] = match;
-        }
-        else if (t->type == TOK_AND) { if (sp < 2) return 0; int b = stack[--sp]; int a = stack[--sp]; stack[sp++] = (a && b); }
-        else if (t->type == TOK_OR) { if (sp < 2) return 0; int b = stack[--sp]; int a = stack[--sp]; stack[sp++] = (a || b); }
-        else if (t->type == TOK_NOT) { if (sp < 1) return 0; int a = stack[--sp]; stack[sp++] = !a; }
-    }
-    return sp == 1 ? stack[0] : 0;
-}
-
-/* ============================================================================
  * SECTION: Protocol Parsers
  * Parsers for TLS/JA4, QUIC, LLDP, NetBIOS, DHCP, DNS, and mDNS traffic.
  * ============================================================================ */
@@ -1647,7 +1328,7 @@ static int add_inside_prefix(const char *spec) {
     struct in6_addr a6;
     if (inet_pton(AF_INET, buf, &a4) == 1) {
         int bits = 32;
-        if (slash && !parse_cidr_bits(slash, 32, &bits)) {
+        if (slash && !argos_filter_parse_cidr_bits(slash, 32, &bits)) {
             fprintf(stderr, "Error: invalid IPv4 --inside CIDR: %s\n", spec);
             return 0;
         }
@@ -1657,7 +1338,7 @@ static int add_inside_prefix(const char *spec) {
         e.v4 = a4.s_addr & e.v4mask;
     } else if (inet_pton(AF_INET6, buf, &a6) == 1) {
         int bits = 128;
-        if (slash && !parse_cidr_bits(slash, 128, &bits)) {
+        if (slash && !argos_filter_parse_cidr_bits(slash, 128, &bits)) {
             fprintf(stderr, "Error: invalid IPv6 --inside CIDR: %s\n", spec);
             return 0;
         }
@@ -1785,9 +1466,9 @@ static void print_help(const char *prog) {
 int main(int argc, char *argv[]) {
     const char *iface = "any";
     
-    filter_program_t filter_mode1 = {0}; 
-    filter_program_t filter_mode2 = {0};
-    filter_program_t filter_exclude = {0};
+    argos_filter_program_t filter_mode1 = {0};
+    argos_filter_program_t filter_mode2 = {0};
+    argos_filter_program_t filter_exclude = {0};
 
     int max_packets = 0, packet_count = 0;
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
@@ -1851,7 +1532,7 @@ int main(int argc, char *argv[]) {
             case 'R': 
                 if (hard_exclude_mac_count < MAX_HARD_EXCLUDE_MACS) {
                     uint8_t parsed_mac[6];
-                    if (!parse_mac_address(optarg, parsed_mac)) {
+                    if (!argos_filter_parse_mac(optarg, parsed_mac)) {
                         fprintf(stderr, "Error: invalid MAC address for -R: %s\n", optarg); return 1;
                     }
                     memcpy(hard_exclude_macs[hard_exclude_mac_count], parsed_mac, 6);
@@ -1861,16 +1542,16 @@ int main(int argc, char *argv[]) {
             case 'r':
                 if (router_mac_count < MAX_ROUTER_MACS) {
                     uint8_t parsed_mac[6];
-                    if (!parse_mac_address(optarg, parsed_mac)) {
+                    if (!argos_filter_parse_mac(optarg, parsed_mac)) {
                         fprintf(stderr, "Error: invalid MAC address for -r: %s\n", optarg); return 1;
                     }
                     memcpy(router_macs[router_mac_count], parsed_mac, 6);
                     router_mac_count++;
                 }
                 break;
-            case 'x': if (compile_filter(optarg, &filter_exclude) < 0) return 1; break;
-            case 'z': if (compile_filter(optarg, &filter_mode1) < 0) return 1; opt_promisc = 1; break;
-            case 'Z': if (compile_filter(optarg, &filter_mode2) < 0) return 1; break;
+            case 'x': if (argos_filter_compile(optarg, &filter_exclude) < 0) return 1; break;
+            case 'z': if (argos_filter_compile(optarg, &filter_mode1) < 0) return 1; opt_promisc = 1; break;
+            case 'Z': if (argos_filter_compile(optarg, &filter_mode2) < 0) return 1; break;
             case 'o': 
                 if (ipc_sock >= 0) close(ipc_sock); /* defensive: avoid leaking a fd if -o is given more than once */
                 use_ipc = 1;
@@ -2272,12 +1953,12 @@ int main(int argc, char *argv[]) {
             const struct in6_addr *filt_src_ip6 = is_ipv6_packet ? &src_ip6_addr : NULL;
             const struct in6_addr *filt_dst_ip6 = is_ipv6_packet ? &dst_ip6_addr : NULL;
 
-            if (filter_exclude.is_active && evaluate_filter(&filter_exclude, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) {
+            if (filter_exclude.is_active && argos_filter_match(&filter_exclude, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) {
                 continue;
             }
 
             if (filter_mode1.is_active) {
-                if (!evaluate_filter(&filter_mode1, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
+                if (!argos_filter_match(&filter_mode1, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
                 dump_target_packet(buffer, (int)len, l3_offset, l3_proto);
                 packet_count++; if (max_packets > 0 && packet_count >= max_packets) running = 0;
                 continue;
@@ -2320,7 +2001,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (filter_mode2.is_active) {
-                if (!evaluate_filter(&filter_mode2, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
+                if (!argos_filter_match(&filter_mode2, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
             }
 
             int routed_evidence = source_offlink_routed;
