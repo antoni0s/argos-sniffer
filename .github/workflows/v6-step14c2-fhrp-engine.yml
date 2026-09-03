@@ -1,0 +1,83 @@
+name: V6 step 14c2 - FHRP engine consolidation gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step14c2_merge_fhrp_engine.py'
+      - '.github/workflows/v6-step14c2-fhrp-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged FHRP consolidation
+        run: python3 .github/scripts/v6_step14c2_merge_fhrp_engine.py
+
+      - name: Architecture invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_fhrp.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert '#include "argos_fhrp.h"' in s
+          for old in ('argos_vrrp.h','argos_hsrp.h'):
+              assert not Path('src/'+old).exists()
+              assert old not in s
+          for sym in ('argos_vrrp_parse','argos_hsrp1_parse','argos_hsrp2_parse'):
+              assert sym in h
+          assert 'emit_telemetry' not in h
+          assert 'dedup_should_suppress' not in h
+          print('Unified FHRP engine architecture invariants: PASS')
+          PY
+
+      - name: FHRP fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_vrrp.c -o /tmp/test-vrrp
+          /tmp/test-vrrp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp1.c -o /tmp/test-hsrp1
+          /tmp/test-hsrp1
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp2.c -o /tmp/test-hsrp2
+          /tmp/test-hsrp2
+
+      - name: FHRP sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          for t in test_vrrp test_hsrp1 test_hsrp2; do
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer tests/${t}.c -o /tmp/${t}-san
+            /tmp/${t}-san
+          done
+
+      - name: Existing engine regressions
+        run: |
+          for t in test_lldp_med test_lacp test_stp test_rstp test_mstp test_tls_client test_tls_server test_quic_v2 test_enterprise; do
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/${t}.c -o /tmp/${t}
+            /tmp/${t}
+          done
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Commit production FHRP consolidation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_fhrp.h src/argos-sniffer.c tests/test_vrrp.c tests/test_hsrp1.c tests/test_hsrp2.c
+          git rm src/argos_vrrp.h src/argos_hsrp.h
+          git diff --cached --check
+          git commit -m 'refactor(v6): consolidate FHRP engine'
+          git push origin HEAD:version-6
