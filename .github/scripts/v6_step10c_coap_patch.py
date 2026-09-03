@@ -26,13 +26,17 @@ static inline const char *ae_coap_method(unsigned detail) {
 static inline int ae_coap_ext(const unsigned char *p, int end, int *pos,
                               unsigned nibble, unsigned *out) {
     if (!p || !pos || !out || *pos < 0 || *pos > end) return 0;
-    if (nibble < 13U) { *out=nibble; return 1; }
+    if (nibble < 13U) { *out = nibble; return 1; }
     if (nibble == 13U) {
-        if (*pos >= end) return 0; *out=13U+p[(*pos)++]; return 1;
+        if (*pos >= end) return 0;
+        *out = 13U + p[(*pos)++];
+        return 1;
     }
     if (nibble == 14U) {
         if (*pos + 2 > end) return 0;
-        *out=269U+ae_be16(p+*pos); *pos+=2; return 1;
+        *out = 269U + ae_be16(p + *pos);
+        *pos += 2;
+        return 1;
     }
     return 0; /* 15 is reserved */
 }
@@ -72,11 +76,13 @@ static inline int ae_coap(const unsigned char *p, int len, argos_enterprise_resu
         if (option_count > 64U) return 0;
     }
     const char *method = cls==0U && detail ? ae_coap_method(detail) : "-";
+    char cf[16], ac[16];
+    if (content_format == 0xffffffffU) snprintf(cf,sizeof(cf),"-"); else snprintf(cf,sizeof(cf),"%u",content_format);
+    if (accept == 0xffffffffU) snprintf(ac,sizeof(ac),"-"); else snprintf(ac,sizeof(ac),"%u",accept);
     ae_set(r,"coap",0,
-           "type=%s code=%u.%02u method=%s token_len=%u options=%u uri_path_segments=%u uri_query_parts=%u observe=%u oscore=%u proxy_uri=%u content_format=%s%u accept=%s%u payload=%u",
+           "type=%s code=%u.%02u method=%s token_len=%u options=%u uri_path_segments=%u uri_query_parts=%u observe=%u oscore=%u proxy_uri=%u content_format=%s accept=%s payload=%u",
            ae_coap_type(type),cls,detail,method,tkl,option_count,uri_path_count,uri_query_count,
-           observe,oscore,proxy_uri,content_format==0xffffffffU?"-":"",content_format==0xffffffffU?0U:content_format,
-           accept==0xffffffffU?"-":"",accept==0xffffffffU?0U:accept,payload);
+           observe,oscore,proxy_uri,cf,ac,payload);
     return 1;
 }
 
@@ -94,7 +100,7 @@ Path('tests/test_coap.c').write_text(r'''#include <assert.h>
 
 int main(void){
     argos_enterprise_result_t r;
-    /* CON GET, TKL=2, token=SECRET, Uri-Path "sensors"/"temp", Content-Format=50, payload. */
+    /* CON GET, TKL=2, token opaque, Uri-Path "sensors"/"temp", Content-Format=50, payload. */
     unsigned char p[]={0x42,0x01,0x12,0x34,0xaa,0xbb,
                        0xb7,'s','e','n','s','o','r','s',
                        0x04,'t','e','m','p',
@@ -109,6 +115,7 @@ int main(void){
 
     unsigned char q[]={0x50,0x45,0x00,0x01}; /* NON 2.05 response */
     assert(ae_coap(q,(int)sizeof(q),&r)==1 && strstr(r.detail,"type=NON") && strstr(r.detail,"code=2.05"));
+    assert(strstr(r.detail,"content_format=-") && strstr(r.detail,"accept=-"));
 
     p[0]=0x02; assert(ae_coap(p,(int)sizeof(p),&r)==0); /* wrong version */
     p[0]=0x49; assert(ae_coap(p,(int)sizeof(p),&r)==0); /* reserved TKL */
