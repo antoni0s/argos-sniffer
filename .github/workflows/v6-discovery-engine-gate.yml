@@ -1,4 +1,5 @@
 name: V6 discovery engine consolidation gate
+# Staging-only gate; production source is applied only after every check passes.
 
 on:
   push:
