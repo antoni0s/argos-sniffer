@@ -16,6 +16,10 @@ ports_path.write_text(ports)
 
 ent_path=Path('src/argos_enterprise.h')
 ent=ent_path.read_text()
+ent=replace_once(ent,
+'''#include "argos_enterprise_ports.h"\n''',
+'''#include "argos_enterprise_ports.h"\n\n#include <ctype.h>\n#include <stdarg.h>\n#include <stdio.h>\n#include <string.h>\n''',
+'enterprise header dependencies')
 marker='''static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,\n'''
 radius=r'''static inline const char *ae_radius_code(uint8_t code) {
     switch (code) {
