@@ -87,6 +87,38 @@ jobs:
             tests/test_packet.c -o /tmp/test-packet-san
           /tmp/test-packet-san
 
+      - name: Stateless discovery engine regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_discovery.c -o /tmp/test-discovery
+          /tmp/test-discovery
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text()
+          engine = Path('src/argos_discovery.h').read_text()
+          assert src.count('#include "argos_discovery.h"') == 1
+          for symbol in ('argos_discovery_nbns_parse', 'argos_discovery_arp_parse',
+                         'argos_discovery_dhcp4_parse', 'argos_discovery_dhcp6_parse',
+                         'argos_discovery_ndp_parse', 'argos_discovery_ra_parse',
+                         'argos_discovery_mdns_parse', 'argos_discovery_dns_name'):
+              assert symbol in engine and symbol in src
+          for old in ('decode_netbios_name(', 'decode_dhcp6_name(', 'ndp_find_lladdr('):
+              assert old not in src
+          for forbidden in ('malloc(', 'calloc(', 'realloc(', 'emit_telemetry(',
+                            'dedup_should_suppress', 'owner4_', 'owner6_', 'is_routed_source_'):
+              assert forbidden not in engine
+          assert 'Stateless discovery protocol decoding' in engine
+          assert len(engine) < 20000
+          print('Discovery engine architecture/hot-path invariants: PASS')
+          PY
+
+      - name: Stateless discovery engine sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_discovery.c -o /tmp/test-discovery-san
+          /tmp/test-discovery-san
+
       - name: TLS ClientHello / JA4 regression
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client
