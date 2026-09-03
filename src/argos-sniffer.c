@@ -3682,6 +3682,24 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
+                /* Identity is a separate explicit vector. RDP extraction is
+                 * attempted only on client->server 3389 handshake payloads that
+                 * enterprise mode already admitted; default ENT remains redacted. */
+                if (opt_identity && dport == 3389U && payload_len > 0) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_rdp_mstshash(buffer + payload_offset, (size_t)payload_len,
+                                                    opt_identity_raw, &ident)) {
+                        char ident_mac[18], ident_sig[320];
+                        format_mac(src_mac, ident_mac);
+                        snprintf(ident_sig, sizeof(ident_sig), "%s|%s|%s|%s",
+                                 src_ip_str, ident.protocol, ident.type, ident.value);
+                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
+                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
+                                           ident_mac, src_ip_str, ident.protocol,
+                                           ident.type, ident.value, routed_str);
+                    }
+                }
+
                 if (app_track) {
                     int fingerprint_complete = app_flow_payload_complete(
                         sport, dport, buffer + payload_offset, payload_len);

@@ -68,4 +68,40 @@ static inline int argos_identity_build(argos_identity_result_t *r,
     return 1;
 }
 
+
+/* RDP identity evidence is limited to the mstshash cookie carried in the
+ * initial X.224 Connection Request. It is a user/login hint, not proof of an
+ * authenticated principal and never device ownership. No stream scan occurs:
+ * only the already-inspected initial RDP handshake payload is considered. */
+static inline int argos_identity_rdp_mstshash(const unsigned char *p, size_t len,
+                                              int raw_mode,
+                                              argos_identity_result_t *r) {
+    static const unsigned char prefix[] = "Cookie: mstshash=";
+    if (!p || !r || len < 11U || p[0] != 0x03U || p[1] != 0x00U || p[5] != 0xe0U)
+        return 0;
+
+    const size_t prefix_len = sizeof(prefix) - 1U;
+    const unsigned char *c = NULL;
+    for (size_t i = 0; i + prefix_len <= len; ++i) {
+        int match = 1;
+        for (size_t j = 0; j < prefix_len; ++j) {
+            unsigned char a = p[i + j], b = prefix[j];
+            if (a >= 'A' && a <= 'Z') a = (unsigned char)(a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = (unsigned char)(b - 'A' + 'a');
+            if (a != b) { match = 0; break; }
+        }
+        if (match) { c = p + i + prefix_len; break; }
+    }
+    if (!c || c >= p + len) return 0;
+
+    const unsigned char *end = NULL;
+    for (const unsigned char *q = c; q + 1 < p + len; ++q) {
+        if (q[0] == '\r' && q[1] == '\n') { end = q; break; }
+    }
+    if (!end || end <= c) return 0;
+    size_t n = (size_t)(end - c);
+    if (n > 120U) n = 120U;
+    return argos_identity_build(r, "rdp", "mstshash", c, n, raw_mode);
+}
+
 #endif
