@@ -120,6 +120,7 @@
 #include "argos_hsrp.h"
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
+#include "argos_identity.h"
 #include "argos_udp_suppress.h"
 #include "argos_dns_track.h"
 #include "argos_enterprise.h"
@@ -2733,7 +2734,13 @@ static void print_help(const char *prog) {
 "  RA|mac|src_ip|hop_limit|flags|router_lifetime|prefix|prefix_len|mtu[|routed]\n"
 "  MDNS|mac|src_ip|port|qname[|routed]\n"
 "  L7|mac|src_ip|dst_port|payload[|routed]\n"
-"  ENT|mac|src_ip|dst_ip|protocol|fingerprint[|routed]\n\n"
+"  ENT|mac|src_ip|dst_ip|protocol|fingerprint[|routed]\n"
+"  IDENT|mac|src_ip|protocol|type|identity[|routed]  (--identity only)\n\n"
+"IDENTITY OPTIONS (explicit opt-in; no generic payload scanning):\n"
+"  --identity      Observed identity metadata from already-inspected handshake/control fields.\n"
+"                  Requires --enterprise; pseudonymized/hash-only by default.\n"
+"  --identity-raw  Second opt-in for bounded readable identity values where supported.\n"
+"                  Requires --identity; never passwords, tickets, tokens or auth blobs.\n\n"
 "FEATURES EXPLAINED:\n"
 "  [|routed]       Source is off-link behind a next-hop MAC or conflicts with ARP/NDP ownership.\n"
 "  JA4-like FP     MD5-derived TLS cipher/extension fingerprint used for client correlation.\n"
@@ -2764,10 +2771,11 @@ int main(int argc, char *argv[]) {
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
     int opt_enterprise = 0, opt_enterprise_rl = 1;
+    int opt_identity = 0, opt_identity_raw = 0;
     uint16_t opt_wireguard_port = 51820U;
     int wireguard_port_explicit = 0;
     int opt;
-    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT };
+    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT, OPT_IDENTITY, OPT_IDENTITY_RAW };
     static const struct option long_options[] = {
         {"sensor", no_argument, NULL, OPT_SENSOR},
         {"sensor-name", required_argument, NULL, OPT_SENSOR_NAME},
@@ -2775,6 +2783,8 @@ int main(int argc, char *argv[]) {
         {"enterprise", no_argument, NULL, OPT_ENTERPRISE},
         {"enterprise-verbose", no_argument, NULL, OPT_ENTERPRISE_VERBOSE},
         {"wireguard-port", required_argument, NULL, OPT_WIREGUARD_PORT},
+        {"identity", no_argument, NULL, OPT_IDENTITY},
+        {"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW},
         {NULL, 0, NULL, 0}
     };
 
@@ -2799,6 +2809,8 @@ int main(int argc, char *argv[]) {
             case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
             case OPT_ENTERPRISE: opt_enterprise = 1; opt_enterprise_rl = 1; opt_v6 = 1; break;
             case OPT_ENTERPRISE_VERBOSE: opt_enterprise = 1; opt_enterprise_rl = 0; opt_v6 = 1; break;
+            case OPT_IDENTITY: opt_identity = 1; break;
+            case OPT_IDENTITY_RAW: opt_identity_raw = 1; break;
             case OPT_WIREGUARD_PORT: {
                 char *end = NULL; long v = strtol(optarg, &end, 10);
                 if (!end || *end || v < 1 || v > 65535) {
@@ -2919,6 +2931,15 @@ int main(int argc, char *argv[]) {
 
     if (wireguard_port_explicit && !opt_enterprise) {
         fprintf(stderr, "Error: --wireguard-port requires --enterprise or --enterprise-verbose.\n");
+        return 1;
+    }
+
+    if (opt_identity && !opt_enterprise) {
+        fprintf(stderr, "Error: --identity requires --enterprise or --enterprise-verbose.\n");
+        return 1;
+    }
+    if (opt_identity_raw && !opt_identity) {
+        fprintf(stderr, "Error: --identity-raw requires --identity.\n");
         return 1;
     }
 
