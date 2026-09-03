@@ -1,0 +1,71 @@
+name: V6 step 8c - CLDAP Netlogon gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step8c_cldap_netlogon_patch.py'
+      - '.github/workflows/v6-step8c-cldap-netlogon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step8c_cldap_netlogon_patch.py
+
+      - name: CLDAP Netlogon fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_cldap_netlogon.c -o /tmp/test-cldap
+          /tmp/test-cldap
+
+      - name: CLDAP privacy/integration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          assert 'SearchResultEntry [APPLICATION 4]' in h
+          assert 'NETLOGON_SAM_LOGON_RESPONSE_EX' in h
+          assert 'dc_site_hash=%08x client_site_hash=%08x' in h
+          assert 'not an exact OS' in h
+          assert 'case 389: return ae_cldap' in h
+          assert 'Site-A' not in h and 'Branch-1' not in h
+          print('CLDAP Netlogon integration/privacy: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: CLDAP sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_cldap_netlogon.c -o /tmp/test-cldap-san
+          /tmp/test-cldap-san
+
+      - name: Existing identity regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_kerberos_etypes.c -o /tmp/test-krb && /tmp/test-krb
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_radius.c -o /tmp/test-radius && /tmp/test-radius
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_enterprise.h tests/test_cldap_netlogon.c
+          git commit -m 'feat(v6): fingerprint CLDAP Netlogon topology'
+          git push origin HEAD:version-6
