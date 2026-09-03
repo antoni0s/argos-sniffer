@@ -314,4 +314,33 @@ static inline int argos_identity_kerberos_asreq(const unsigned char *p, size_t l
     return argos_identity_build(r, "kerberos", "principal", principal, used, raw_mode);
 }
 
+
+/* RADIUS observed identity is deliberately limited to User-Name (Attribute 1)
+ * in Access-Request (Code 1). The Request Authenticator and all other
+ * attributes -- including User-Password, CHAP-Password, State, EAP-Message
+ * and Message-Authenticator -- are skipped without copying their values. */
+static inline int argos_identity_radius_access_request(const unsigned char *p, size_t len,
+                                                       int raw_mode,
+                                                       argos_identity_result_t *r) {
+    if (!p || !r || len < 20U || p[0] != 1U) return 0; /* Access-Request only */
+    uint16_t plen = (uint16_t)(((uint16_t)p[2] << 8) | p[3]);
+    if (plen < 20U || plen > 4096U || (size_t)plen > len) return 0;
+
+    for (size_t pos = 20U; pos < (size_t)plen; ) {
+        if ((size_t)plen - pos < 2U) return 0;
+        uint8_t type = p[pos];
+        uint8_t alen = p[pos + 1U];
+        if (alen < 2U || (size_t)alen > (size_t)plen - pos) return 0;
+        size_t value_len = (size_t)alen - 2U;
+        if (type == 1U) {
+            if (value_len == 0U || value_len > 253U) return 0;
+            /* Common framework caps the emitted/hash input to 160 bytes. */
+            return argos_identity_build(r, "radius", "username",
+                                        p + pos + 2U, value_len, raw_mode);
+        }
+        pos += (size_t)alen;
+    }
+    return 0;
+}
+
 #endif

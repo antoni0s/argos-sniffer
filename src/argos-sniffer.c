@@ -3919,6 +3919,22 @@ int main(int argc, char *argv[]) {
                             emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
                     }
                 }
+                /* RADIUS observed identity: client Access-Request User-Name only. */
+                if (opt_identity && dport == 1812U) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_radius_access_request(payload, (size_t)payload_len,
+                                                             opt_identity_raw, &ident)) {
+                        char ident_mac[18], ident_sig[320];
+                        format_mac(src_mac, ident_mac);
+                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
+                                 src_ip_str, ident.protocol, ident.type, ident.value);
+                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
+                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
+                                           ident_mac, src_ip_str, ident.protocol,
+                                           ident.type, ident.value, routed_str);
+                    }
+                }
+
                 /* UDP/88 uses the same strictly bounded AS-REQ parser without
                  * the RFC 4120 TCP record-length prefix. */
                 if (opt_identity && dport == 88U) {
