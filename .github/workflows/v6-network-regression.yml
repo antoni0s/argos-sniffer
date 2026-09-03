@@ -38,6 +38,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_igmp_mld.c -o /tmp/test-igmp-mld
           /tmp/test-igmp-mld
 
+      - name: NTP time-message fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntp.c -o /tmp/test-ntp
+          /tmp/test-ntp
+
       - name: Dynamic BPF network matrix
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
@@ -64,6 +69,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_igmp_mld.c -o /tmp/test-igmp-mld-san
           /tmp/test-igmp-mld-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_ntp.c -o /tmp/test-ntp-san
+          /tmp/test-ntp-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
@@ -113,5 +122,11 @@ jobs:
           assert 'IPPROTO_ICMPV6' in s and 'argos_mld_parse' in s
           assert 'BPF_JEQ | BPF_K, 2' in b
           assert '239.1.2.3' not in m and 'ff02' not in m.lower()
+
+          assert '111, 123, 161' in p and 'case 123: return ae_ntp' in h
+          assert 'Reference ID and all four 64-bit' in h
+          assert 'mode < 1U || mode > 5U' in h
+          assert 'extra_bytes=%u' in h
+          assert 'PRIV' not in h and 'REF-TIME' not in h
           print('Network visibility permanent privacy/suppression invariants: PASS')
           PY
