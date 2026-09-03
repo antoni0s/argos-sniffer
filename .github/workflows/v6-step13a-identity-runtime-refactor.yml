@@ -1,0 +1,110 @@
+name: V6 step 13a - identity runtime refactor gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step13a_identity_runtime_refactor.py'
+      - '.github/workflows/v6-step13a-identity-runtime-refactor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  identity-runtime-refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged architecture refactor
+        run: python3 .github/scripts/v6_step13a_identity_runtime_refactor.py
+
+      - name: Identity mode fixture
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_config.c -o /tmp/test-identity-config
+          /tmp/test-identity-config
+
+      - name: Identity mode sanitizer
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_identity_config.c -o /tmp/test-identity-config-san
+          /tmp/test-identity-config-san
+
+      - name: Architecture and flag invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('src/argos-sniffer.c').read_text()
+          c=Path('src/argos_config.h').read_text()
+          checks={
+            'single mode enum': all(x in c for x in ('ARGOS_IDENTITY_OFF','ARGOS_IDENTITY_HASH','ARGOS_IDENTITY_RAW')),
+            'optional identity mode': '{"identity", optional_argument, NULL, OPT_IDENTITY}' in s,
+            'legacy alias retained': '{"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW}' in s,
+            'single runtime state': 'argos_identity_mode_t identity_mode = ARGOS_IDENTITY_OFF' in s,
+            'old booleans removed': 'opt_identity_raw' not in s and 'int opt_identity' not in s,
+            'enterprise remains explicit': 'argos_identity_enabled(identity_mode) && !opt_enterprise' in s,
+            'one common emitter definition': s.count('static void emit_identity_observation(')==1,
+            'five common emitter calls': s.count('emit_identity_observation(src_mac')==5,
+            'one IDENT serializer': s.count('emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"')==1,
+            'help exposes one primary flag': '--identity[=MODE]' in s,
+          }
+          bad=[k for k,v in checks.items() if not v]
+          assert not bad, 'failed contracts: '+', '.join(bad)
+          print('identity runtime architecture invariants: PASS')
+          PY
+
+      - name: Existing identity parser regressions
+        run: |
+          for f in \
+            tests/test_identity_framework.c \
+            tests/test_identity_rdp.c \
+            tests/test_identity_ntlm.c \
+            tests/test_identity_kerberos.c \
+            tests/test_identity_radius.c \
+            tests/test_ntlm_privacy.c \
+            tests/test_ntlm_flow_completion.c \
+            tests/test_enterprise.c; do
+            out="/tmp/$(basename "$f" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$f" -o "$out"
+            "$out"
+          done
+
+      - name: CLI compatibility contract
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub
+          /tmp/argos-sniffer-stub > /tmp/help.txt
+          grep -F -- '--identity[=MODE]' /tmp/help.txt
+          ! grep -F -- '  --identity-raw  Second opt-in' /tmp/help.txt
+          set +e
+          /tmp/argos-sniffer-stub --identity=unsafe --enterprise >/tmp/bad.out 2>/tmp/bad.err; bad_rc=$?
+          /tmp/argos-sniffer-stub --identity >/tmp/noent.out 2>/tmp/noent.err; noent_rc=$?
+          /tmp/argos-sniffer-stub --identity-raw >/tmp/alias.out 2>/tmp/alias.err; alias_rc=$?
+          set -e
+          test "$bad_rc" -ne 0
+          test "$noent_rc" -ne 0
+          test "$alias_rc" -ne 0
+          grep -F -- '--identity expects hash or raw' /tmp/bad.err
+          grep -F -- '--identity requires --enterprise or --enterprise-verbose' /tmp/noent.err
+          grep -F -- '--identity requires --enterprise or --enterprise-verbose' /tmp/alias.err
+
+      - name: Strict full and stub builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub2
+
+      - name: Commit refactor only after green gate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/argos_config.h src/argos-sniffer.c tests/test_identity_config.c
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor(v6): unify identity mode and telemetry runtime"
+          git push origin HEAD:version-6
