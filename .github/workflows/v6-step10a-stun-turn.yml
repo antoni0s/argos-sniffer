@@ -41,12 +41,14 @@ jobs:
           h=Path('src/argos_enterprise.h').read_text()
           b=Path('src/argos_bpf.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
+          hl=h.lower()
           assert 'ARGOS_STUN_TURN_UDP_PORT 3478U' in p
           assert 'case 3478: return ae_stun_turn' in h
           assert 'method == 0x006U || method == 0x007U' in h
           assert 'case 0x0013U: return 0' in h
-          for secret in ('transaction ID', 'USERNAME, REALM', 'NONCE, USERHASH'):
-              assert secret in h
+          for secret in ('transaction id', 'username', 'realm', 'nonce', 'userhash'):
+              assert secret in hl
+          assert 'never emitted' in hl and 'remain opaque' in hl
           assert 'ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT' in b
           assert 'BPF_ALU | BPF_AND | BPF_K, 0xc0' in b
           assert '0x0016' in b and '0x0017' in b
