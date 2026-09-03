@@ -1,0 +1,91 @@
+name: V6 step 14c1 - L2 engine consolidation gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step14c1_merge_l2_engine.py'
+      - '.github/workflows/v6-step14c1-l2-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged L2 consolidation
+        run: python3 .github/scripts/v6_step14c1_merge_l2_engine.py
+
+      - name: Architecture invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_l2.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert '#include "argos_l2.h"' in s
+          for old in ('argos_lldp_med.h','argos_lacp.h','argos_stp.h'):
+              assert not Path('src/'+old).exists()
+              assert old not in s
+          for sym in ('argos_lldp_med_result_t','argos_lacp_result_t','argos_stp_result_t'):
+              assert sym in h
+          assert 'emit_telemetry' not in h
+          assert 'dedup_should_suppress' not in h
+          print('Unified L2 engine architecture invariants: PASS')
+          PY
+
+      - name: L2 fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lldp_med.c -o /tmp/test-lldp
+          /tmp/test-lldp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_lacp.c -o /tmp/test-lacp
+          /tmp/test-lacp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stp.c -o /tmp/test-stp
+          /tmp/test-stp
+
+      - name: L2 sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          for t in test_lldp_med test_lacp test_stp; do
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer tests/${t}.c -o /tmp/${t}-san
+            /tmp/${t}-san
+          done
+
+      - name: Existing control-plane and core regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_vrrp.c -o /tmp/test-vrrp
+          /tmp/test-vrrp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp1.c -o /tmp/test-hsrp1
+          /tmp/test-hsrp1
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp2.c -o /tmp/test-hsrp2
+          /tmp/test-hsrp2
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client
+          /tmp/test-tls-client
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_v2.c -o /tmp/test-quic-v2
+          /tmp/test-quic-v2
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Commit production L2 consolidation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_l2.h src/argos-sniffer.c tests/test_lldp_med.c tests/test_lacp.c tests/test_stp.c
+          git rm src/argos_lldp_med.h src/argos_lacp.h src/argos_stp.h
+          git diff --cached --check
+          git commit -m 'refactor(v6): consolidate L2 engine'
+          git push origin HEAD:version-6
