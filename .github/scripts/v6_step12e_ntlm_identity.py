@@ -132,7 +132,9 @@ static void put32(unsigned char*p,unsigned v){p[0]=(unsigned char)v;p[1]=(unsign
 static size_t put_utf16(unsigned char*p,const char*s){size_t n=0;while(*s){p[n++]=(unsigned char)*s++;p[n++]=0;}return n;}
 static void secbuf(unsigned char*n,size_t o,unsigned len,unsigned off){put16(n+o,len);put16(n+o+2,len);put32(n+o+4,off);}
 static size_t make_type3(unsigned char*p,size_t cap){
-    if(cap<320)return 0;memset(p,0,cap);p[0]=0xfe;p[1]='S';p[2]='M';p[3]='B';put16(p+12,1);
+    if(cap<320) return 0;
+    memset(p,0,cap);
+    p[0]=0xfe;p[1]='S';p[2]='M';p[3]='B';put16(p+12,1);
     unsigned char*n=p+64;memcpy(n,"NTLMSSP\0",8);put32(n+8,3);
     /* Deliberately populate LM/NT response regions with secret-looking bytes.
      * Identity parser must never consult these security buffers. */
