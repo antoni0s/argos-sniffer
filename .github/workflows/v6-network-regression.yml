@@ -1,0 +1,65 @@
+name: V6 network visibility regression
+
+on:
+  push:
+    branches: [version-6]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  network-visibility:
+    name: Network visibility fixtures and sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: STUN TURN control fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stun_turn.c -o /tmp/test-stun-turn
+          /tmp/test-stun-turn
+
+      - name: Dynamic BPF relay fast-drop matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
+          /tmp/test-bpf
+
+      - name: STUN TURN sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_stun_turn.c -o /tmp/test-stun-turn-san
+          /tmp/test-stun-turn-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
+          /tmp/test-bpf-san
+
+      - name: STUN TURN privacy and fast-drop invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          b=Path('src/argos_bpf.h').read_text()
+          p=Path('src/argos_enterprise_ports.h').read_text()
+          hl=h.lower()
+          assert 'ARGOS_STUN_TURN_UDP_PORT 3478U' in p
+          assert 'case 3478: return ae_stun_turn' in h
+          assert 'method == 0x006U || method == 0x007U' in h
+          assert 'case 0x0013U: return 0' in h
+          for term in ('transaction id','username','realm','nonce','userhash'):
+              assert term in hl
+          assert 'never emitted' in hl and 'remain opaque' in hl
+          assert 'ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT' in b
+          assert 'BPF_ALU | BPF_AND | BPF_K, 0xc0' in b
+          assert '0x0016' in b and '0x0017' in b
+          assert 'ChannelData' in b and 'elephant flow' in b
+          print('STUN/TURN permanent privacy/fast-drop invariants: PASS')
+          PY
