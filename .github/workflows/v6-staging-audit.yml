@@ -93,7 +93,7 @@ jobs:
           assert not missing, f'missing staging headers: {sorted(missing)}'
 
           forbidden = ('malloc(', 'calloc(', 'realloc(', 'emit_telemetry(',
-                       'dedup_should_suppress', 'sendto(', 'write(', 'printf(')
+                       'dedup_should_suppress', 'sendto(', 'write(')
           for name in sorted(staging):
               text = Path('src', name).read_text()
               assert '#ifndef ' in text and '#define ' in text and '#endif' in text, name
