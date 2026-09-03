@@ -510,14 +510,34 @@ static inline int ae_mqtt(const unsigned char *p, int len, argos_enterprise_resu
 static inline int ae_rdp(const unsigned char *p, int len, argos_enterprise_result_t *r) {
     if (len < 11 || p[0] != 0x03U || p[1] != 0x00U) return 0; /* TPKT */
     if (p[5] != 0xe0U && p[5] != 0xd0U) return 0;             /* X.224 CR/CC */
-    char cookie[128] = {0};
+
+    /* mstshash is often derived from a login/user identifier. Enterprise mode
+     * must never expose it verbatim. Keep only bounded presence/length/hash
+     * metadata; explicit identity extraction is handled by a separate opt-in
+     * vector rather than weakening the default ENT privacy contract. */
+    unsigned cookie_present = 0U, cookie_len = 0U;
+    uint32_t cookie_hash = 0U;
     const unsigned char *c = ae_find_ci(p, len, "Cookie: mstshash=");
     if (c) {
-        c += 16; const unsigned char *e = ae_find(c, (int)((p + len) - c), (const unsigned char *)"\r\n", 2);
-        int n = e ? (int)(e - c) : 0; if (n > 120) n = 120; ae_clean(c, n, cookie, sizeof(cookie));
+        c += 17; /* strlen("Cookie: mstshash=") */
+        const unsigned char *e = ae_find(c, (int)((p + len) - c),
+                                         (const unsigned char *)"\r\n", 2);
+        if (e && e > c) {
+            size_t n = (size_t)(e - c);
+            if (n > 120U) n = 120U;
+            cookie_present = 1U;
+            cookie_len = (unsigned)n;
+            cookie_hash = 2166136261U;
+            for (size_t i = 0; i < n; ++i) {
+                cookie_hash ^= c[i];
+                cookie_hash *= 16777619U;
+            }
+        }
     }
-    ae_set(r, "rdp", 1, "x224=%s cookie=%s", p[5] == 0xe0U ? "connection-request" : "connection-confirm",
-           cookie[0] ? cookie : "-");
+    ae_set(r, "rdp", 1,
+           "x224=%s cookie_present=%u cookie_len=%u cookie_hash=%08x",
+           p[5] == 0xe0U ? "connection-request" : "connection-confirm",
+           cookie_present, cookie_len, cookie_hash);
     return 1;
 }
 

@@ -123,6 +123,27 @@ static void test_cip_tcp(void) {
     check(strcmp(r.proto, "ethernet-ip") == 0, "EtherNet/IP TCP protocol label");
 }
 
+static void test_rdp_privacy(void) {
+    static const char secret[] = "alice.enterprise.secret";
+    unsigned char p[96] = {0};
+    argos_enterprise_result_t r;
+    const char prefix[] = "Cookie: mstshash=";
+    const size_t off = 11U;
+    p[0] = 0x03U; p[1] = 0x00U; p[5] = 0xe0U;
+    memcpy(p + off, prefix, sizeof(prefix) - 1U);
+    memcpy(p + off + sizeof(prefix) - 1U, secret, sizeof(secret) - 1U);
+    memcpy(p + off + sizeof(prefix) - 1U + sizeof(secret) - 1U, "\r\n", 2U);
+    int len = (int)(off + sizeof(prefix) - 1U + sizeof(secret) - 1U + 2U);
+
+    check(argos_enterprise_parse_tcp(51000, 3389, p, len, &r) == 1, "RDP X.224 parsed");
+    check(r.emit && r.complete && strcmp(r.proto, "rdp") == 0, "RDP fingerprint emitted/completed");
+    check(strstr(r.detail, "cookie_present=1") != NULL, "RDP cookie presence retained");
+    check(strstr(r.detail, "cookie_len=23") != NULL, "RDP cookie bounded length retained");
+    check(strstr(r.detail, "cookie_hash=") != NULL, "RDP cookie hash retained");
+    check(strstr(r.detail, secret) == NULL, "RDP raw mstshash never emitted");
+    check(strstr(r.detail, "cookie=alice") == NULL, "RDP legacy raw cookie field removed");
+}
+
 static void test_elephant_fast_drop(void) {
     unsigned char iscsi[48] = {0};
     argos_enterprise_result_t r;
@@ -139,6 +160,7 @@ int main(void) {
     test_edp();
     test_fdp();
     test_cip_tcp();
+    test_rdp_privacy();
     test_elephant_fast_drop();
     puts("enterprise parser fixtures: PASS");
     return 0;
