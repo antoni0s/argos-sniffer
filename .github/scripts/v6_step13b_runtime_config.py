@@ -84,10 +84,13 @@ if s.count(old)!=1:
     raise SystemExit(f'validation block anchor count={s.count(old)}')
 s=s.replace(old,new,1)
 
-# Invariants: no legacy runtime locals remain.
-for legacy in ('opt_enterprise','opt_enterprise_rl','opt_wireguard_port','wireguard_port_explicit'):
+# Invariants: no legacy standalone runtime locals remain. Struct member names
+# intentionally preserve semantic field names such as wireguard_port_explicit.
+for legacy in ('opt_enterprise','opt_enterprise_rl','opt_wireguard_port'):
     if re.search(r'\b'+legacy+r'\b',s):
         raise SystemExit(f'legacy runtime identifier remains: {legacy}')
+if re.search(r'(?<!\.)\bwireguard_port_explicit\b',s):
+    raise SystemExit('standalone wireguard_port_explicit remains')
 if re.search(r'(?<!\.)\bidentity_mode\b',s):
     raise SystemExit('standalone identity_mode remains')
 
