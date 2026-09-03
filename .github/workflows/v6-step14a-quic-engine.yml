@@ -36,7 +36,7 @@ jobs:
           assert '#define QUIC_STATE_TTL 5' in q
           assert 'static quic_session_t *quic_sessions = NULL;' in q
           assert 'calloc(QUIC_STATE_SLOTS, sizeof(*quic_sessions))' in q
-          assert 'static void quic_heavy_gc(void)' in q
+          assert 'static inline void quic_heavy_gc(void)' in q
           assert 'decrypt_quic_sni_stateful' in q
           assert 'Optional runtime layer used by -W' in q
           print('QUIC engine consolidation invariants: PASS')
