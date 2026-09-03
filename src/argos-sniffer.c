@@ -112,9 +112,7 @@
 #endif
 #include "argos_tls_ports.h"
 #include "argos_tls.h"
-#include "argos_lldp_med.h"
-#include "argos_lacp.h"
-#include "argos_stp.h"
+#include "argos_l2.h"
 #include "argos_vrrp.h"
 #include "argos_hsrp.h"
 #include "argos_multicast_membership.h"
