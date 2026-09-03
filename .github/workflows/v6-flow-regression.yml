@@ -1,0 +1,51 @@
+name: V6 flow suppression regression
+
+on:
+  push:
+    branches: [version-6]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flow-suppression:
+    name: Flow suppression fixtures and sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: TCP inspect-once generation fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_app_flow.c -lm -o /tmp/test-app-flow
+          /tmp/test-app-flow
+
+      - name: TCP inspect-once sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_app_flow.c -lm -o /tmp/test-app-flow-san
+          /tmp/test-app-flow-san
+
+      - name: Flow-state invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('src/argos-sniffer.c').read_text()
+          assert 'APP_FLOW_SLOTS 1024' in s
+          assert 'APP_FLOW_PROBES 4' in s
+          assert 'APP_FLOW_TTL_SECS 60' in s
+          assert 'APP_FLOW_PACKET_BUDGET 8' in s
+          assert 'app_flow_reset_pair' in s
+          assert 'if (tcp->syn && !tcp->ack)' in s
+          assert 'app_flow_reset_pair(flow_ip_version' in s
+          assert 'if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;' in s
+          assert 'completed previous connection can never suppress the new handshake' in s
+          print('Flow suppression permanent invariants: PASS')
+          PY
