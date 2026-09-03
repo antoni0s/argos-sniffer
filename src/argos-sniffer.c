@@ -120,6 +120,7 @@
 #include "argos_hsrp.h"
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
+#include "argos_config.h"
 #include "argos_identity.h"
 #include "argos_udp_suppress.h"
 #include "argos_dns_track.h"
@@ -1032,6 +1033,27 @@ static int dedup_should_suppress_for(const char *mac, const char *evtype, const 
 
 static int dedup_should_suppress(const char *mac, const char *evtype, const char *payload, int rl_enabled) {
     return dedup_should_suppress_for(mac, evtype, payload, rl_enabled, rate_limit_ttl, 1);
+}
+
+/* format_mac is implemented with the packet/flow helpers below; declare it
+ * here because the telemetry runtime uses the same canonical formatter. */
+static void format_mac(const uint8_t mac[6], char out[18]);
+
+/* One wire-format boundary for all observed identity parsers. Protocol parsers
+ * produce bounded evidence; this runtime helper owns MAC formatting, dedup and
+ * IDENT serialization so those concerns cannot drift per protocol. */
+static void emit_identity_observation(const uint8_t mac[6], const char *src_ip,
+                                      const argos_identity_result_t *ident,
+                                      const char *routed_str, int rl_enabled) {
+    if (!mac || !src_ip || !ident || !ident->present) return;
+    char ident_mac[18], ident_sig[320];
+    format_mac(mac, ident_mac);
+    snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
+             src_ip, ident->protocol, ident->type, ident->value);
+    if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, rl_enabled))
+        emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
+                       ident_mac, src_ip, ident->protocol, ident->type,
+                       ident->value, routed_str ? routed_str : "");
 }
 
 /* Discovery records describe relatively stable ownership/fingerprint state.
@@ -2737,10 +2759,9 @@ static void print_help(const char *prog) {
 "  ENT|mac|src_ip|dst_ip|protocol|fingerprint[|routed]\n"
 "  IDENT|mac|src_ip|protocol|type|identity[|routed]  (--identity only)\n\n"
 "IDENTITY OPTIONS (explicit opt-in; no generic payload scanning):\n"
-"  --identity      Observed identity metadata from already-inspected handshake/control fields.\n"
-"                  Requires --enterprise; pseudonymized/hash-only by default.\n"
-"  --identity-raw  Second opt-in for bounded readable identity values where supported.\n"
-"                  Requires --identity; never passwords, tickets, tokens or auth blobs.\n\n"
+"  --identity[=MODE] Observed identity from already-inspected handshake/control fields.\n"
+"                    MODE is hash (default) or raw; raw is an explicit privacy opt-in.\n"
+"                    Requires --enterprise; never passwords, tickets, tokens or auth blobs.\n\n"
 "FEATURES EXPLAINED:\n"
 "  [|routed]       Source is off-link behind a next-hop MAC or conflicts with ARP/NDP ownership.\n"
 "  JA4-like FP     MD5-derived TLS cipher/extension fingerprint used for client correlation.\n"
@@ -2771,7 +2792,7 @@ int main(int argc, char *argv[]) {
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
     int opt_enterprise = 0, opt_enterprise_rl = 1;
-    int opt_identity = 0, opt_identity_raw = 0;
+    argos_identity_mode_t identity_mode = ARGOS_IDENTITY_OFF;
     uint16_t opt_wireguard_port = 51820U;
     int wireguard_port_explicit = 0;
     int opt;
@@ -2783,8 +2804,8 @@ int main(int argc, char *argv[]) {
         {"enterprise", no_argument, NULL, OPT_ENTERPRISE},
         {"enterprise-verbose", no_argument, NULL, OPT_ENTERPRISE_VERBOSE},
         {"wireguard-port", required_argument, NULL, OPT_WIREGUARD_PORT},
-        {"identity", no_argument, NULL, OPT_IDENTITY},
-        {"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW},
+        {"identity", optional_argument, NULL, OPT_IDENTITY},
+        {"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW}, /* compatibility alias */
         {NULL, 0, NULL, 0}
     };
 
@@ -2809,8 +2830,16 @@ int main(int argc, char *argv[]) {
             case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
             case OPT_ENTERPRISE: opt_enterprise = 1; opt_enterprise_rl = 1; opt_v6 = 1; break;
             case OPT_ENTERPRISE_VERBOSE: opt_enterprise = 1; opt_enterprise_rl = 0; opt_v6 = 1; break;
-            case OPT_IDENTITY: opt_identity = 1; break;
-            case OPT_IDENTITY_RAW: opt_identity_raw = 1; break;
+            case OPT_IDENTITY:
+                if (!argos_identity_mode_parse(optarg, &identity_mode)) {
+                    fprintf(stderr, "Error: --identity expects hash or raw (use --identity=hash or --identity=raw).\n");
+                    return 1;
+                }
+                break;
+            case OPT_IDENTITY_RAW:
+                /* v6 compatibility alias for the former second flag. */
+                identity_mode = ARGOS_IDENTITY_RAW;
+                break;
             case OPT_WIREGUARD_PORT: {
                 char *end = NULL; long v = strtol(optarg, &end, 10);
                 if (!end || *end || v < 1 || v > 65535) {
@@ -2934,12 +2963,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (opt_identity && !opt_enterprise) {
+    if (argos_identity_enabled(identity_mode) && !opt_enterprise) {
         fprintf(stderr, "Error: --identity requires --enterprise or --enterprise-verbose.\n");
-        return 1;
-    }
-    if (opt_identity_raw && !opt_identity) {
-        fprintf(stderr, "Error: --identity-raw requires --identity.\n");
         return 1;
     }
 
@@ -3685,58 +3710,37 @@ int main(int argc, char *argv[]) {
                 /* Identity is a separate explicit vector. RDP extraction is
                  * attempted only on client->server 3389 handshake payloads that
                  * enterprise mode already admitted; default ENT remains redacted. */
-                if (opt_identity && dport == 3389U && payload_len > 0) {
+                if (argos_identity_enabled(identity_mode) && dport == 3389U && payload_len > 0) {
                     argos_identity_result_t ident;
                     if (argos_identity_rdp_mstshash(buffer + payload_offset, (size_t)payload_len,
-                                                    opt_identity_raw, &ident)) {
-                        char ident_mac[18], ident_sig[320];
-                        format_mac(src_mac, ident_mac);
-                        snprintf(ident_sig, sizeof(ident_sig), "%s|%s|%s|%s",
-                                 src_ip_str, ident.protocol, ident.type, ident.value);
-                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
-                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
-                                           ident_mac, src_ip_str, ident.protocol,
-                                           ident.type, ident.value, routed_str);
+                                                    argos_identity_raw(identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  opt_enterprise_rl);
                     }
                 }
 
                 /* NTLM Type 3 is the client authentication handshake carrying
                  * observed domain/user/workstation identity metadata. Only those
                  * three bounded security buffers are parsed; auth responses are not. */
-                if (opt_identity && dport == 445U && payload_len > 0) {
+                if (argos_identity_enabled(identity_mode) && dport == 445U && payload_len > 0) {
                     argos_identity_result_t ids[3];
                     size_t id_count = argos_identity_ntlm_type3(
                         buffer + payload_offset, (size_t)payload_len,
-                        opt_identity_raw, ids);
+                        argos_identity_raw(identity_mode), ids);
                     for (size_t ii = 0; ii < id_count; ++ii) {
-                        char ident_mac[18], ident_sig[320];
-                        format_mac(src_mac, ident_mac);
-                        /* Keep the dedup signature bounded by the public field
-                         * contracts instead of relying on compiler inference through
-                         * an indexed result array. */
-                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
-                                 src_ip_str, ids[ii].protocol, ids[ii].type, ids[ii].value);
-                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
-                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
-                                           ident_mac, src_ip_str, ids[ii].protocol,
-                                           ids[ii].type, ids[ii].value, routed_str);
+                        emit_identity_observation(src_mac, src_ip_str, &ids[ii], routed_str,
+                                                  opt_enterprise_rl);
                     }
                 }
 
                 /* Kerberos observed identity: only client->KDC AS-REQ cname/realm. */
-                if (opt_identity && dport == 88U && payload_len > 0) {
+                if (argos_identity_enabled(identity_mode) && dport == 88U && payload_len > 0) {
                     argos_identity_result_t ident;
                     if (argos_identity_kerberos_asreq(buffer + payload_offset,
                                                       (size_t)payload_len, 1,
-                                                      opt_identity_raw, &ident)) {
-                        char ident_mac[18], ident_sig[320];
-                        format_mac(src_mac, ident_mac);
-                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
-                                 src_ip_str, ident.protocol, ident.type, ident.value);
-                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
-                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
-                                           ident_mac, src_ip_str, ident.protocol,
-                                           ident.type, ident.value, routed_str);
+                                                      argos_identity_raw(identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  opt_enterprise_rl);
                     }
                 }
 
@@ -3920,35 +3924,23 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 /* RADIUS observed identity: client Access-Request User-Name only. */
-                if (opt_identity && dport == 1812U) {
+                if (argos_identity_enabled(identity_mode) && dport == 1812U) {
                     argos_identity_result_t ident;
                     if (argos_identity_radius_access_request(payload, (size_t)payload_len,
-                                                             opt_identity_raw, &ident)) {
-                        char ident_mac[18], ident_sig[320];
-                        format_mac(src_mac, ident_mac);
-                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
-                                 src_ip_str, ident.protocol, ident.type, ident.value);
-                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
-                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
-                                           ident_mac, src_ip_str, ident.protocol,
-                                           ident.type, ident.value, routed_str);
+                                                             argos_identity_raw(identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  opt_enterprise_rl);
                     }
                 }
 
                 /* UDP/88 uses the same strictly bounded AS-REQ parser without
                  * the RFC 4120 TCP record-length prefix. */
-                if (opt_identity && dport == 88U) {
+                if (argos_identity_enabled(identity_mode) && dport == 88U) {
                     argos_identity_result_t ident;
                     if (argos_identity_kerberos_asreq(payload, (size_t)payload_len, 0,
-                                                      opt_identity_raw, &ident)) {
-                        char ident_mac[18], ident_sig[320];
-                        format_mac(src_mac, ident_mac);
-                        snprintf(ident_sig, sizeof(ident_sig), "%.45s|%.23s|%.23s|%.191s",
-                                 src_ip_str, ident.protocol, ident.type, ident.value);
-                        if (!dedup_should_suppress(ident_mac, "IDENT", ident_sig, opt_enterprise_rl))
-                            emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\n",
-                                           ident_mac, src_ip_str, ident.protocol,
-                                           ident.type, ident.value, routed_str);
+                                                      argos_identity_raw(identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  opt_enterprise_rl);
                     }
                 }
             }
