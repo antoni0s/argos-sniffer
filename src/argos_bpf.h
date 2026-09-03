@@ -20,6 +20,7 @@
 
 typedef struct {
     uint8_t syn, multi, dhcp, netbios, dns, http, tls, l2, ipv6, enterprise;
+    uint16_t wireguard_port;
 } argos_bpf_config_t;
 
 typedef struct {
@@ -87,6 +88,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             if (ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT) continue;
             ADD(ud, ud_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
             ADD(us, us_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
+        }
+        if (cfg->wireguard_port != 0U) {
+            ADD(ud, ud_n, cfg->wireguard_port);
+            ADD(us, us_n, cfg->wireguard_port);
         }
     }
 

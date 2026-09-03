@@ -119,6 +119,7 @@
 #include "argos_vrrp.h"
 #include "argos_hsrp.h"
 #include "argos_multicast_membership.h"
+#include "argos_wireguard.h"
 #include "argos_enterprise.h"
 #include "argos_raw_identity.h"
 #ifndef ARGOS_PORTABLE_TEST
@@ -2657,7 +2658,7 @@ static void print_help(const char *prog) {
 "argos-sniffer v" VERSION " - Passive LAN traffic fingerprinter & live inspector\n"
 "                  for OpenWrt/Linux gateways and SPAN/TAP sensors\n\n"
 "USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u ip:port] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
-"     [--sensor --sensor-name name [--inside CIDR ...]] [--enterprise|--enterprise-verbose]\n"
+"     [--sensor --sensor-name name [--inside CIDR ...]] [--enterprise|--enterprise-verbose] [--wireguard-port port]\n"
 "  OR:     %s [iface] (Automatically sets -i <iface> and enables all vectors with -a)\n\n"
 "OPTIONS:\n"
 "  -i <iface>      Interface to listen on (default: any). Comma-separated list or any.\n"
@@ -2685,6 +2686,8 @@ static void print_help(const char *prog) {
 "                  (management VLAN, VPN, etc).\n"
 "  --enterprise    Enable v6 enterprise handshake/discovery fingerprints (rate-limited).\n"
 "  --enterprise-verbose  Enable enterprise fingerprints without telemetry deduplication.\n"
+"  --wireguard-port <port>  WireGuard UDP port for structural detection (default: 51820).\n"
+"                          Requires --enterprise; packet structure is validated before emission.\n"
 "  -W              Enable Stateful QUIC Inspection (reassembles fragmented Kyber ClientHellos)\n"
 "  -E              Enable Extended Metrics (TCPLVL RTT, DNSEXT Latency, DNS Entropy)\n\n"
 "TELEMETRY VECTORS (Lowercase = ENABLE WITH RATE LIMIT | Uppercase = ENABLE NO LIMIT):\n"
@@ -2757,14 +2760,17 @@ int main(int argc, char *argv[]) {
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
     int opt_enterprise = 0, opt_enterprise_rl = 1;
+    uint16_t opt_wireguard_port = 51820U;
+    int wireguard_port_explicit = 0;
     int opt;
-    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE };
+    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT };
     static const struct option long_options[] = {
         {"sensor", no_argument, NULL, OPT_SENSOR},
         {"sensor-name", required_argument, NULL, OPT_SENSOR_NAME},
         {"inside", required_argument, NULL, OPT_INSIDE},
         {"enterprise", no_argument, NULL, OPT_ENTERPRISE},
         {"enterprise-verbose", no_argument, NULL, OPT_ENTERPRISE_VERBOSE},
+        {"wireguard-port", required_argument, NULL, OPT_WIREGUARD_PORT},
         {NULL, 0, NULL, 0}
     };
 
@@ -2789,6 +2795,13 @@ int main(int argc, char *argv[]) {
             case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
             case OPT_ENTERPRISE: opt_enterprise = 1; opt_enterprise_rl = 1; opt_v6 = 1; break;
             case OPT_ENTERPRISE_VERBOSE: opt_enterprise = 1; opt_enterprise_rl = 0; opt_v6 = 1; break;
+            case OPT_WIREGUARD_PORT: {
+                char *end = NULL; long v = strtol(optarg, &end, 10);
+                if (!end || *end || v < 1 || v > 65535) {
+                    fprintf(stderr, "Error: invalid --wireguard-port: %s\n", optarg); return 1;
+                }
+                opt_wireguard_port = (uint16_t)v; wireguard_port_explicit = 1; break;
+            }
             case 'E': opt_ext_metrics = 1; break;
             case 'i': iface = optarg; break;
             case 'R': 
@@ -2900,6 +2913,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if (wireguard_port_explicit && !opt_enterprise) {
+        fprintf(stderr, "Error: --wireguard-port requires --enterprise or --enterprise-verbose.\n");
+        return 1;
+    }
+
     if (filter_mode1.is_active && filter_mode2.is_active) {
         fprintf(stderr, "warning: -z and -Z both given; -Z ignored in live sniffer mode.\n");
     }
@@ -2924,7 +2942,8 @@ int main(int argc, char *argv[]) {
         .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
         .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),
         .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),
-        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0)
+        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0),
+        .wireguard_port = (uint16_t)(opt_enterprise ? opt_wireguard_port : 0U)
     };
 
     install_signal_handlers();
@@ -3655,7 +3674,8 @@ int main(int argc, char *argv[]) {
                                                   dport == 5353U || sport == 5353U)) ||
                                    (opt_dns && (dport == 53U || sport == 53U)) ||
                                    (opt_tls && dport == 443U) ||
-                                   (opt_enterprise && argos_enterprise_udp_port(sport, dport));
+                                   (opt_enterprise && (argos_enterprise_udp_port(sport, dport) ||
+                                                       sport == opt_wireguard_port || dport == opt_wireguard_port));
                 if (!udp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
                     if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
@@ -3785,6 +3805,17 @@ int main(int argc, char *argv[]) {
                                 emit_telemetry("ENT|%s|%s|%s|HSRP|%s%s\n",
                                                ent_mac, src_ip_str, dst_ip_str, hsrp1.detail, routed_str);
                         }
+                    }
+                }
+                if (opt_enterprise && (sport == opt_wireguard_port || dport == opt_wireguard_port)) {
+                    argos_wireguard_result_t wg;
+                    if (argos_wireguard_parse(payload, (size_t)payload_len, &wg) && wg.emit) {
+                        char ent_mac[18], ent_sig[384];
+                        format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|WireGuard|%s", src_ip_str, wg.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            emit_telemetry("ENT|%s|%s|%s|WireGuard|%s%s\n",
+                                           ent_mac, src_ip_str, dst_ip_str, wg.detail, routed_str);
                     }
                 }
                 if (opt_enterprise && argos_enterprise_udp_port(sport, dport)) {

@@ -108,11 +108,14 @@ int main(void) {
     expect(!pass(&p, pkt, udp4(pkt, 443, 50000, 1200)), "QUIC server direction drops in client-only TLS mode");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 853, 1200)), "DoT is TCP; UDP/853 drops in TLS mode");
 
-    memset(&c, 0, sizeof(c)); c.enterprise = 1; c.ipv6 = 1; expect(argos_bpf_build(&c, &p), "build enterprise");
+    memset(&c, 0, sizeof(c)); c.enterprise = 1; c.ipv6 = 1; c.wireguard_port = 51821; expect(argos_bpf_build(&c, &p), "build enterprise");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 44818, 0x18, 24)), "EtherNet/IP TCP/44818 passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 1883, 0x18, 24)), "MQTT TCP/1883 destination passes");
     expect(pass(&p, pkt, tcp4(pkt, 44818, 50000, 0x18, 24)), "EtherNet/IP TCP response passes");
     expect(pass(&p, pkt, udp4(pkt, 50000, 123, 48)), "NTP UDP/123 passes");
+    expect(pass(&p, pkt, udp4(pkt, 50000, 51821, 148)), "custom WireGuard destination port passes");
+    expect(pass(&p, pkt, udp4(pkt, 51821, 50000, 92)), "custom WireGuard source port passes");
+    expect(!pass(&p, pkt, udp4(pkt, 50000, 51820, 148)), "default WireGuard port is not hard-coded when custom port is configured");
     expect(pass(&p, pkt, udp4(pkt, 50000, 47808, 20)), "BACnet/IP passes");
     expect(pass(&p, pkt, udp4(pkt, 50000, 5683, 20)), "CoAP UDP/5683 passes");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 5684, 20)), "CoAPS UDP/5684 stays out of plaintext enterprise parser");
