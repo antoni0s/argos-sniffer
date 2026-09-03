@@ -1,3 +1,4 @@
+# Staged-only patch applied and committed by the gated workflow after all checks pass.
 from pathlib import Path
 
 src = Path("src/argos_enterprise.h")
