@@ -1,0 +1,82 @@
+name: V6 step 7h - HSRPv2 gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step7h_hsrp2_patch.py'
+      - '.github/workflows/v6-step7h-hsrp2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step7h_hsrp2_patch.py
+
+      - name: HSRPv2 fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp2.c -o /tmp/test-hsrp2
+          /tmp/test-hsrp2
+
+      - name: HSRPv1 regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp1.c -o /tmp/test-hsrp1
+          /tmp/test-hsrp1
+
+      - name: Dynamic BPF matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+          grep -F '1985' src/argos_enterprise_ports.h
+
+      - name: HSRPv2 integration/privacy invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_hsrp.h').read_text(); s=Path('src/argos-sniffer.c').read_text()
+          assert 'type == 1U && len == 40U' in h
+          assert 'group > 4095U' in h
+          assert 'hello_ms' in h and 'hold_ms' in h
+          assert 'Virtual IP and' in h and 'never emitted' in h
+          assert 'ENT|%s|%s|%s|HSRP2|%s%s' in s
+          assert 'ttl == 1U && (sport == 1985U || dport == 1985U)' in s
+          assert '192.0.2.254' not in s
+          print('HSRPv2 integration/privacy: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: HSRPv2 sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_hsrp2.c -o /tmp/test-hsrp2-san
+          /tmp/test-hsrp2-san
+
+      - name: Existing enterprise regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_vrrp.c -o /tmp/test-vrrp && /tmp/test-vrrp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_hsrp.h src/argos-sniffer.c tests/test_hsrp2.c
+          git commit -m 'feat(v6): fingerprint HSRPv2 TLV state'
+          git push origin HEAD:version-6
