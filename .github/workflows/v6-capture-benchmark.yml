@@ -1,0 +1,58 @@
+name: V6 capture batching benchmark
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - 'bench/capture_batch_bench.c'
+      - '.github/workflows/v6-capture-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture-benchmark:
+    name: recvmsg vs recvmmsg microbenchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Strict compile
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror bench/capture_batch_bench.c -o /tmp/capture-bench
+
+      - name: Run five paired trials
+        run: |
+          /tmp/capture-bench | tee /tmp/capture-bench.csv
+          python3 - <<'PY'
+          import csv, statistics
+          rows=list(csv.DictReader(open('/tmp/capture-bench.csv')))
+          by={}
+          for r in rows:
+              by.setdefault(r['method'],[]).append(float(r['packets_per_sec']))
+          print('\nMedian packets/sec (CI runner; directional signal only):')
+          for method,vals in by.items():
+              print(f'{method}: {statistics.median(vals):.0f} pps')
+          if 'recvmsg' in by and 'recvmmsg32' in by:
+              base=statistics.median(by['recvmsg'])
+              batch=statistics.median(by['recvmmsg32'])
+              print(f'recvmmsg32 median ratio: {batch/base:.3f}x')
+          print('No pass/fail threshold is applied: hosted-runner timing is intentionally non-gating.')
+          PY
+
+      - name: Benchmark contract invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path('bench/capture_batch_bench.c').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert 'recvmsg(current_iface->fd, &msg, MSG_TRUNC)' in s
+          assert 'epoll_wait(epoll_fd' in s
+          assert 'BENCH_BATCH 32U' in b
+          assert 'recvmmsg(' in b and 'recvmsg(' in b
+          assert 'SO_TIMESTAMPNS' in b
+          assert 'MSG_TRUNC' in b
+          print('Capture benchmark contract invariants: PASS')
+          PY
