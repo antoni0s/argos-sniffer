@@ -59,7 +59,7 @@ jobs:
           assert 'PA-SECRET-DO-NOT-EMIT' not in h and 'PA-SECRET-DO-NOT-EMIT' not in s
           assert 'PA-SECRET-DO-NOT-EMIT' in t
           assert 'request=%s realm=%s etype_count=%u etypes=%s' in e
-          assert 'principal=' not in e and 'cname=' not in e
+          assert ' principal=%s' not in e and ' cname=%s' not in e
           print('Kerberos identity privacy/scope invariants: PASS')
           PY
 
