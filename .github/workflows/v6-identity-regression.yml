@@ -31,6 +31,73 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_raw_identity.c -o /tmp/test-raw-id
           /tmp/test-raw-id
 
+      - name: Passive owner-cache lifecycle fixture
+        run: |
+          cat > tests/.owner_cache_ci.c <<'C'
+          #define ARGOS_QUIC_STUB 1
+          #define main argos_sniffer_embedded_main
+          #include "../src/argos-sniffer.c"
+          #undef main
+          #include <assert.h>
+          #include <stdint.h>
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include <time.h>
+
+          static void reset_owner_tables(void) {
+              free(owner4_table); owner4_table = NULL;
+              free(owner6_table); owner6_table = NULL;
+          }
+
+          int main(void) {
+              const uint8_t mac_a[6] = {0x02,0x11,0x22,0x33,0x44,0x55};
+              const uint8_t mac_b[6] = {0x02,0xaa,0xbb,0xcc,0xdd,0xee};
+              reset_owner_tables();
+              assert(owner4_table == NULL && owner6_table == NULL);
+
+              uint32_t ip4 = 0x0100000aU;
+              struct in6_addr ip6 = {{0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,1}};
+              assert(owner4_mismatch(ip4, mac_a) == 0);
+              assert(owner6_mismatch(&ip6, mac_a) == 0);
+              assert(owner4_table == NULL && owner6_table == NULL);
+
+              owner4_note(ip4, mac_a);
+              assert(owner4_table != NULL);
+              assert(owner4_mismatch(ip4, mac_a) == 0);
+              assert(owner4_mismatch(ip4, mac_b) == 1);
+              size_t base4=(size_t)(hash_bytes(&ip4,sizeof(ip4)) & (OWNER4_SLOTS-1U));
+              int found4=0;
+              for(size_t p=0;p<OWNER_PROBES;++p){
+                  owner4_entry_t *e=&owner4_table[(base4+p)&(OWNER4_SLOTS-1U)];
+                  if(e->valid && e->ip==ip4){ e->last_seen=time(NULL)-OWNER_TTL_SECS-1; found4=1; break; }
+              }
+              assert(found4 && owner4_mismatch(ip4,mac_b)==0);
+              owner4_note(ip4,mac_b);
+              assert(owner4_mismatch(ip4,mac_b)==0 && owner4_mismatch(ip4,mac_a)==1);
+
+              owner6_note(&ip6,mac_a);
+              assert(owner6_table != NULL);
+              assert(owner6_mismatch(&ip6,mac_a)==0 && owner6_mismatch(&ip6,mac_b)==1);
+              size_t base6=(size_t)(hash_bytes(ip6.s6_addr,16) & (OWNER6_SLOTS-1U));
+              int found6=0;
+              for(size_t p=0;p<OWNER_PROBES;++p){
+                  owner6_entry_t *e=&owner6_table[(base6+p)&(OWNER6_SLOTS-1U)];
+                  if(e->valid && IN6_ARE_ADDR_EQUAL(&e->ip,&ip6)){ e->last_seen=time(NULL)-OWNER_TTL_SECS-1; found6=1; break; }
+              }
+              assert(found6 && owner6_mismatch(&ip6,mac_b)==0);
+
+              const uint8_t multicast_mac[6]={0x01,0,0,0,0,1};
+              owner4_note(0x0200000aU,multicast_mac);
+              assert(owner4_mismatch(0x0200000aU,mac_a)==0);
+              reset_owner_tables();
+              puts("Passive owner-cache lifecycle fixtures: PASS");
+              return 0;
+          }
+          C
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/.owner_cache_ci.c -lm -o /tmp/test-owner-cache
+          /tmp/test-owner-cache
+
       - name: Sanitized identity fixtures
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -42,6 +109,10 @@ jobs:
               tests/test_${t}.c -o /tmp/test-${t}-san
             /tmp/test-${t}-san
           done
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/.owner_cache_ci.c -lm -o /tmp/test-owner-cache-san
+          /tmp/test-owner-cache-san
 
       - name: Identity privacy and integration invariants
         run: |
@@ -68,5 +139,12 @@ jobs:
           assert 'argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac)' in s
           assert 'snprintf(mac_str, sizeof(mac_str), "%s", current_iface->name)' not in s
           assert 'pkt_type == LINK_RAW_IP) snprintf(ent_mac' not in s
+
+          assert '#define OWNER4_SLOTS 256U' in s
+          assert '#define OWNER6_SLOTS 128U' in s
+          assert '#define OWNER_PROBES 4U' in s
+          assert '#define OWNER_TTL_SECS 180' in s
+          assert 'owner4_table = (owner4_entry_t *)calloc' in s
+          assert 'owner6_table = (owner6_entry_t *)calloc' in s
           print('enterprise identity privacy/integration: PASS')
           PY
