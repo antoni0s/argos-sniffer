@@ -3,7 +3,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 main_path = ROOT / "src/argos-sniffer.c"
-identity_ci_path = ROOT / ".github/workflows/v6-identity-regression.yml"
 
 source = main_path.read_text()
 
@@ -115,14 +114,3 @@ if source.count(old_raw_v4) != 1:
 source = source.replace(old_raw_v4, new_raw_v4, 1)
 
 main_path.write_text(source)
-
-identity_ci = identity_ci_path.read_text()
-identity_ci = identity_ci.replace(
-    "assert 'argos_raw_identity_v4(buffer + l3_offset + 12, src_mac)' in s",
-    "assert 'argos_raw_identity_v4(packet_view.src_addr, src_mac)' in s",
-)
-identity_ci = identity_ci.replace(
-    "assert 'argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac)' in s",
-    "assert 'argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac)' in s",
-)
-identity_ci_path.write_text(identity_ci)
