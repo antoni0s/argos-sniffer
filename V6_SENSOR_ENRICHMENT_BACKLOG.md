@@ -266,6 +266,280 @@ Outside the passive packet path and default OFF:
 - [ ] Document safety/rate limits and default-off policy.
 - [ ] Keep this after passive v6 release hardening unless a concrete use case justifies earlier work.
 
+## Candidate output / fingerprint contracts
+
+These are **candidate semantic contracts**, not permission to change the current v6 wire format. The final telemetry grammar, escaping and field ordering remain gated by the schema-freeze phase in `V6_BACKLOG.md`.
+
+The objective is to make every staged parser answer four questions before promotion:
+
+1. What evidence does it emit?
+2. Which fields form a stable fingerprint?
+3. When is the evidence complete?
+4. What data must never be emitted?
+
+### TLS client enrichment
+
+Candidate vector: `TLS-CLIENT` or extension of the canonical `TLS` vector after schema freeze.
+
+Required fields:
+
+```text
+version=<negotiated-or-client-max>
+ja4=<existing-ja4>
+alpn=<first-or-selected-client-alpn>
+sni=<bounded-sni-or-empty>
+```
+
+Optional enrichment fields:
+
+```text
+ech=0|1
+psk=0|1
+psk_modes=<bounded-list-or-count>
+early_data=0|1
+supported_versions=<bounded-list>
+```
+
+Stable fingerprint material:
+
+```text
+JA4
++ ALPN class
++ ECH presence
++ PSK/resumption capability
++ supported-version family
+```
+
+Do not include SNI in the stable client fingerprint because hostname changes should not change the client implementation identity.
+
+Fast-complete point: after ClientHello extensions required for JA4/SNI/ALPN/ECH/PSK metadata are parsed.
+
+Never emit:
+
+```text
+PSK identities
+session tickets
+early-data payload
+key shares/private key material
+raw ClientHello body
+```
+
+### TLS server / ServerHello enrichment
+
+Candidate vector: `TLS-SERVER` or server-side fields on canonical `TLS`.
+
+Required fields:
+
+```text
+version=<negotiated-version>
+cipher=<selected-cipher>
+ext_count=<non-grease-count>
+```
+
+Optional fields:
+
+```text
+alpn=<selected-alpn-if-visible>
+hrr=0|1
+psk_selected=0|1
+early_data=0|1
+ech=0|1
+extensions=<bounded-normalized-extension-list>
+```
+
+Stable fingerprint material:
+
+```text
+transport + negotiated_version + extension_count + ALPN class
++ selected_cipher + sorted/non-GREASE extension set
+```
+
+This material is intentionally suitable for a future JA4S-compatible or Argos-native server fingerprint. Exact JA4S hashing/naming is not frozen here.
+
+Fast-complete point: after ServerHello plus any immediately required bounded handshake metadata used by the selected server fingerprint contract.
+
+Never emit raw key-share bytes, random values, session secrets or handshake bodies.
+
+### TLS certificate framing
+
+Candidate vector: `TLS-CERT` only if certificate evidence remains useful enough to justify a separate vector; otherwise fold into server-side TLS evidence.
+
+Required fields:
+
+```text
+present=1
+chain_count=<bounded-count>
+leaf_len=<bounded-length>
+```
+
+Optional fields:
+
+```text
+chain_truncated=0|1
+```
+
+Stable fingerprint material: none by itself. Framing metadata is an input to certificate-lite extraction, not a long-term device fingerprint.
+
+Fast-complete point: once the leaf certificate range and bounded chain count are known.
+
+Never emit certificate body bytes or the full certificate chain.
+
+### X.509 leaf certificate-lite
+
+Candidate vector: `TLS-CERT` or certificate fields embedded in `TLS-SERVER`.
+
+Required candidate fields when available:
+
+```text
+subject_cn=<bounded-cn>
+issuer_cn=<bounded-cn>
+self_signed=<0|1-hint>
+```
+
+Optional fields:
+
+```text
+san=<first-bounded-dns-san-values>
+san_count=<count>
+san_truncated=0|1
+not_before=<normalized-time>
+not_after=<normalized-time>
+cert_hash=<compact-leaf-hash-if-later-approved>
+```
+
+Stable fingerprint material:
+
+```text
+leaf certificate hash               (strongest, if implemented)
+OR
+issuer CN + subject CN + bounded SAN set + validity window class
+```
+
+The textual tuple is correlation evidence, not a cryptographic identity. A future compact leaf hash should hash only the DER leaf certificate and should never require storing the body after hashing.
+
+Fast-complete point: after the leaf DER range has been bounded and the selected leaf metadata has been extracted.
+
+Never emit:
+
+```text
+full DER certificate
+full certificate chain
+public-key blob unless a future explicit fingerprint requires a bounded hash only
+certificate extensions unrelated to device/service fingerprinting
+```
+
+### Fast-complete / fast-drop policy
+
+This staging unit does not emit a network vector. Its output is a runtime policy decision.
+
+Candidate internal result:
+
+```text
+protocol=<id>
+action=continue|complete|drop
+reason=fingerprint_complete|bulk_tail|malformed|unsupported|budget_exhausted
+packets_seen=<bounded-counter>
+bytes_seen=<bounded-counter>
+```
+
+Fingerprint contribution: none. The policy protects the fingerprint engines from inspecting traffic after useful evidence is exhausted.
+
+Telemetry should normally **not** expose these fields. Optional debug/performance modes may expose aggregate counters, not per-flow policy spam.
+
+### Bounded flow-shape
+
+Candidate vector: `FLOW-SHAPE` only when explicitly enabled and only if benchmark gates pass.
+
+Required candidate fields:
+
+```text
+transport=tcp|udp
+first_dir=out|in
+up_packets=<saturated-count>
+down_packets=<saturated-count>
+up_sizes=<fixed-N-list>
+down_sizes=<fixed-N-list>
+transitions=<saturated-count>
+```
+
+Optional fields:
+
+```text
+duration_bucket=<coarse-bucket>
+interarrival_buckets=<fixed-N-list>
+truncated=0|1
+```
+
+Stable fingerprint material:
+
+```text
+transport
++ first direction
++ fixed prefix of packet-size sequence
++ direction-transition pattern
++ optional coarse timing buckets
+```
+
+The stable fingerprint should be encoded from the normalized bounded sequence and may later be hashed by the collector. The sniffer must not perform application classification from it.
+
+Fast-complete point: hard N-packet/N-byte ceiling or timeout, whichever occurs first.
+
+Never emit payload bytes, exact high-resolution timing traces or unbounded packet sequences.
+
+### Normalized observation metadata
+
+Candidate common semantic envelope, not necessarily a literal wire vector:
+
+```text
+protocol=<canonical-id>
+role=client|server|peer|controller|agent|exporter
+phase=discovery|handshake|auth|control|data
+fingerprint=<protocol-specific-id-or-empty>
+completion=complete|truncated|unsupported|malformed
+```
+
+Optional common fields:
+
+```text
+capabilities=<bounded-flags>
+identity=<allowed-passive-identity>
+product=<bounded-product/banner>
+```
+
+Protocol-specific fields remain protocol-specific. Do not force all observations into one giant generic key/value object.
+
+### Targeted active-enrichment result
+
+This remains post-v6/default-OFF and should probably be produced by a separate enrichment component rather than the passive capture loop.
+
+Candidate result envelope:
+
+```text
+ENRICH|device=<stable-device-key>|probe=<probe-type>|status=<ok|timeout|rejected>|evidence=<bounded-metadata>
+```
+
+Fingerprint contribution: active evidence may raise collector confidence, but it must not silently overwrite passive fingerprint evidence.
+
+Never emit credentials, secrets, write-capable probe results or arbitrary response bodies.
+
+## Output/fingerprint promotion rule
+
+No staged enrichment parser is ready for production until all of the following are defined and tested:
+
+- canonical vector owner;
+- required/optional fields;
+- maximum length for every string/list field;
+- deterministic ordering for fingerprint inputs;
+- GREASE/noise exclusion rules where applicable;
+- fingerprint stability test: irrelevant session changes do not change the fingerprint;
+- discrimination test: meaningful implementation/server changes can change the fingerprint;
+- exact fast-complete condition;
+- privacy exclusion assertions;
+- collector compatibility fixture;
+- malformed/truncated fixture;
+- native + sanitizer + ARM64 gate;
+- text-size and packet-path performance gate.
+
 ## Proposed sequencing relative to `V6_BACKLOG.md`
 
 These items should not interrupt the existing ordered delivery plan.
