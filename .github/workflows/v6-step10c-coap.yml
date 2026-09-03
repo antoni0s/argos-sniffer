@@ -1,0 +1,83 @@
+name: V6 step 10c - CoAP gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step10c_coap_patch.py'
+      - '.github/workflows/v6-step10c-coap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step10c_coap_patch.py
+
+      - name: CoAP fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_coap.c -o /tmp/test-coap
+          /tmp/test-coap
+
+      - name: Dynamic BPF CoAP matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
+          /tmp/test-bpf
+
+      - name: CoAP privacy invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          p=Path('src/argos_enterprise_ports.h').read_text()
+          assert '5683' in p and '5684' not in p
+          assert 'case 5683: return ae_coap' in h
+          assert 'Token, Message ID, Uri-Host' in h
+          assert 'uri_path_segments=%u' in h and 'uri_query_parts=%u' in h
+          assert 'proxy_uri=%u' in h and 'payload=%u' in h
+          assert 'sensors' not in h and 'SECRET' not in h
+          print('CoAP privacy invariants: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: CoAP sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_coap.c -o /tmp/test-coap-san
+          /tmp/test-coap-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
+          /tmp/test-bpf-san
+
+      - name: Existing network regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stun_turn.c -o /tmp/test-stun && /tmp/test-stun
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_mqtt.c -o /tmp/test-mqtt && /tmp/test-mqtt
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_enterprise_ports.h src/argos_enterprise.h tests/test_dynamic_bpf.c tests/test_coap.c
+          git commit -m 'feat(v6): fingerprint CoAP control metadata'
+          git push origin HEAD:version-6
