@@ -57,7 +57,9 @@ jobs:
               assert(owner4_table == NULL && owner6_table == NULL);
 
               uint32_t ip4 = 0x0100000aU;
-              struct in6_addr ip6 = {{0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,1}};
+              struct in6_addr ip6 = IN6ADDR_ANY_INIT;
+              const uint8_t ip6_bytes[16] = {0x20,0x01,0x0d,0xb8,0,0,0,0,0,0,0,0,0,0,0,1};
+              memcpy(ip6.s6_addr, ip6_bytes, sizeof(ip6_bytes));
               assert(owner4_mismatch(ip4, mac_a) == 0);
               assert(owner6_mismatch(&ip6, mac_a) == 0);
               assert(owner4_table == NULL && owner6_table == NULL);
