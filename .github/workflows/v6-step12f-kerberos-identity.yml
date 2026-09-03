@@ -46,20 +46,21 @@ jobs:
           s=Path('src/argos-sniffer.c').read_text()
           e=Path('src/argos_enterprise.h').read_text()
           t=Path('tests/test_identity_kerberos.c').read_text()
-          assert 'argos_identity_kerberos_asreq' in h
-          assert 'tag != 0x6aU' in h
-          assert 'AS-REQ only; never TGS-REQ' in h
-          assert 'PA-DATA, tickets, authenticators, encrypted data and TGS-REQ identity' in h
-          assert 'ct == 0xa1U' in h and 'ct == 0xa2U' in h
-          assert 'components >= 8U' in h and 'realm_len > 120U' in h
-          assert 'if (opt_identity && dport == 88U && payload_len > 0)' in s
-          assert 'if (opt_identity && dport == 88U)' in s
-          assert 'argos_identity_kerberos_asreq(buffer + payload_offset' in s
-          assert 'argos_identity_kerberos_asreq(payload' in s
-          assert 'PA-SECRET-DO-NOT-EMIT' not in h and 'PA-SECRET-DO-NOT-EMIT' not in s
-          assert 'PA-SECRET-DO-NOT-EMIT' in t
-          assert 'request=%s realm=%s etype_count=%u etypes=%s' in e
-          assert ' principal=%s' not in e and ' cname=%s' not in e
+          checks = {
+              'extractor': 'argos_identity_kerberos_asreq' in h,
+              'AS-REQ tag only': 'tag != 0x6aU' in h and 'AS-REQ only; never TGS-REQ' in h,
+              'sensitive-scope comment': 'PA-DATA, tickets, authenticators, encrypted data and TGS-REQ identity' in h,
+              'cname/realm contexts': 'ct == 0xa1U' in h and 'ct == 0xa2U' in h,
+              'bounded components': 'components >= 8U' in h and 'realm_len > 120U' in h,
+              'TCP/88 integration': 'if (opt_identity && dport == 88U && payload_len > 0)' in s and 'argos_identity_kerberos_asreq(buffer + payload_offset' in s,
+              'UDP/88 integration': 'if (opt_identity && dport == 88U)' in s and 'argos_identity_kerberos_asreq(payload' in s,
+              'secret absent production': 'PA-SECRET' not in h and 'PA-SECRET' not in s,
+              'secret assertion in fixture': 'PA-SECRET' in t,
+              'ENT metadata unchanged': 'request=%s realm=%s etype_count=%u etypes=%s' in e,
+              'ENT no emitted principal': ' principal=%s' not in e and ' cname=%s' not in e,
+          }
+          bad=[name for name,ok in checks.items() if not ok]
+          assert not bad, 'failed contracts: ' + ', '.join(bad)
           print('Kerberos identity privacy/scope invariants: PASS')
           PY
 
