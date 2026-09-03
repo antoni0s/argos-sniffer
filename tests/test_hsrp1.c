@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../src/argos_hsrp.h"
+#include "../src/argos_fhrp.h"
 static void expect(int ok,const char *s){if(!ok){fprintf(stderr,"FAIL: %s\n",s);exit(1);}}
 int main(void){
  unsigned char p[20]={0,0,16,3,10,105,1,0,'c','i','s','c','o',0,0,0,172,28,230,1};

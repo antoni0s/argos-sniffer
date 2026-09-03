@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../src/argos_hsrp.h"
+#include "../src/argos_fhrp.h"
 
 static void put32(unsigned char *p, uint32_t v) {
     p[0]=(unsigned char)(v>>24); p[1]=(unsigned char)(v>>16);
