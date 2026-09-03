@@ -94,8 +94,8 @@ jobs:
               if (!n || !argos_tls_client_parse(b,(int)n,&r1)) return 1;
               if (strcmp(r1.sni,"example.com") != 0) return 2;
               if (strcmp(r1.alpn,"h2") != 0) return 3;
-              if (strncmp(r1.ja4,"t13d0201h2_",12) != 0) return 4;
-              if (strlen(r1.ja4) != 38U) return 5;
+              if (strncmp(r1.ja4,"t13d0201h2_",11) != 0) return 4;
+              if (strlen(r1.ja4) != 36U) return 5;
               if (!argos_tls_client_parse(b,(int)n,&r2)) return 6;
               if (strcmp(r1.ja4,r2.ja4) != 0) return 7;
               b[5]=0x02;
