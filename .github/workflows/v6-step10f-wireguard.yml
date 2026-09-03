@@ -1,0 +1,105 @@
+name: V6 step 10f - WireGuard gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step10f_wireguard_patch.py'
+      - '.github/workflows/v6-step10f-wireguard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step10f_wireguard_patch.py
+
+      - name: WireGuard structural fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_wireguard.c -o /tmp/test-wireguard
+          /tmp/test-wireguard
+
+      - name: Dynamic BPF custom-port matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
+          /tmp/test-bpf
+
+      - name: WireGuard privacy and CLI invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('src/argos_wireguard.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          b=Path('src/argos_bpf.h').read_text()
+          assert 'len != 148U' in w and 'len != 92U' in w and 'len != 64U' in w
+          assert 'p[1] != 0U || p[2] != 0U || p[3] != 0U' in w
+          assert 'len < 32U || (len & 15U) != 0U' in w
+          for secret in ('sender_index','receiver_index','ephemeral','encrypted_static','mac1','mac2'):
+              assert secret not in w.lower() or secret in ('sender_index','receiver_index')
+          assert 'keys, MACs, cookies and ciphertext stay opaque' in w
+          assert '--wireguard-port' in s and 'opt_wireguard_port = 51820U' in s
+          assert 'requires --enterprise' in s
+          assert '.wireguard_port = (uint16_t)(opt_enterprise ? opt_wireguard_port : 0U)' in s
+          assert 'cfg->wireguard_port' in b
+          assert 'WireGuard|%s' in s
+          print('WireGuard privacy and CLI invariants: PASS')
+          PY
+
+      - name: CLI custom-port contract
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-wg-cli
+          /tmp/argos-wg-cli --help 2>&1 | grep -F -- '--wireguard-port <port>'
+          if /tmp/argos-wg-cli --wireguard-port 51821 >/tmp/wg-no-ent.out 2>&1; then
+            echo 'WireGuard port unexpectedly accepted without --enterprise' >&2; exit 1
+          fi
+          grep -F -- '--wireguard-port requires --enterprise' /tmp/wg-no-ent.out
+          if /tmp/argos-wg-cli --enterprise --wireguard-port 0 >/tmp/wg-zero.out 2>&1; then
+            echo 'WireGuard port 0 unexpectedly accepted' >&2; exit 1
+          fi
+          grep -F -- 'invalid --wireguard-port' /tmp/wg-zero.out
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: WireGuard sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_wireguard.c -o /tmp/test-wireguard-san
+          /tmp/test-wireguard-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
+          /tmp/test-bpf-san
+
+      - name: Existing network regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stun_turn.c -o /tmp/test-stun && /tmp/test-stun
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_mqtt.c -o /tmp/test-mqtt && /tmp/test-mqtt
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_coap.c -o /tmp/test-coap && /tmp/test-coap
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_igmp_mld.c -o /tmp/test-igmp-mld && /tmp/test-igmp-mld
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntp.c -o /tmp/test-ntp && /tmp/test-ntp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_wireguard.h src/argos_bpf.h src/argos-sniffer.c tests/test_wireguard.c tests/test_dynamic_bpf.c
+          git commit -m 'feat(v6): detect WireGuard by validated packet structure'
+          git push origin HEAD:version-6
