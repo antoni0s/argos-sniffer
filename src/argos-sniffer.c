@@ -1687,1065 +1687,1247 @@ static void print_help(const char *prog) {
 "                  for OpenWrt/Linux gateways and SPAN/TAP sensors\n\n"
 "USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u ip:port] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
 "     [--sensor --sensor-name name [--inside CIDR ...]] [--enterprise|--enterprise-verbose] [--wireguard-port port]\n"
-"  OR:     %s [iface] (Automatically sets -i#Ћy¶‰ћЛkєwµзH[€ЩXЫЫ™И
-Y][€НJK—€‚€€]ZY]T”У‘\ЩHЏNLИ[™ђHЏLNИљ^Y™Yњ™\ЪЪ[™ЭЬЛ—€‚€€[И]€Э™X[H[[Y]ћHЭ]]ИH[љ^ЫXZ[€ЫШЪЩ]—€‚€€]H\ЋЏЬќ€Э™X[H[[Y]ћHИH™[[ЭHQЫЫXЭЬ€Ы›K—€‚€€UH\ЋЏЬќ€Э™X[H[[Y]ћHИH™[[ЭHQЫЫXЭЬ€[™ЭЭ]—€‚€€
-K™Л€UHLЊЊЌNЌLMЬ€UHОЋЊWNЌLM
-K—€‚€€“ХN€[[Y]ћH\ИЩ[ќ[™[Ьћ\YЭ[]][ќXШ]YKHЫ›W€‚€€Ъ[ќ\И]Hќ\ЭYЬЭ™XXЪX›HЭ™\€Hќ\ЭY]€‚€€
-X[YЩ[Y[ќ“S‹”‹]КK—€‚€€KY[ќ\њљ\ЩH[X›HЌ€[ќ\њљ\ЩH[™ЪZЩKЩ\ШЫЭ™\ћHљ[™Щ\њљ[ќИ
-]K[[Z]Y
-K—€‚€€KY[ќ\њљ\ЩK]™\›ЬЩH[X›H[ќ\њљ\ЩHљ[™Щ\њљ[ќИЪ]Э][[Y]ћHY\XШ][Ы‹—€‚€€K]Ъ\™YЭX\™\ЬќЬќ€Ъ\™QЭX\™QЬќ›Ь€ЭќXЭ\[]XЭ[Ы€
-Y][€LNЊ
-K—€‚€€™\]Z\™\ИKY[ќ\њљ\ЩNИXЪЩ]ЭќXЭ\™H\И[Y]Y™Y›Ь™H[Z\ЬЪ[Ы‹—€‚€€UИ[X›HЭ]Yќ[URPИ[њЬXЭ[Ы€
-™X\ЬЩ[X›\ИњYЫY[ќYЮX™\€ЫY[ќ[ЬКW€‚€€QH[X›H^[™YY]љXЬИ
-Ф“•”СV][ЮK”И[ќ›ЬJW—€‚€•SSQU–H‘PХФ”И
-ЭЩ\Ш\ЩHHSђP“HТUђUHSRU\\Ш\ЩHHSђP“H“ИSRU
-N—€‚€€\ИИTИФЦS€
-€ФИљ[™Щ\њљ[ќ[™КKЦSђPТИ	€Ф“][ЮHXЪЪ[™Ч€‚€€[HИSHQ”И
-LНLКHИФС
-NL
-HИФС
-НМЉH^[ШYЩЩЪ[™Ч€‚€€YИQФЌ
-ИФЌ€ЫY[ќљ[™Щ\њљ[ќЩЩЪ[™Ч€‚€€[€ИS€™]’SФИ[YHЩ\ќљXЩH
-QLНКHЩЩЪ[™Ч€‚€€\HИTH”И]Y\љY\И	€”СV][ЮKЩ[ќ›ЬHXЪЪ[™И
-QЬќLКW€‚€€ZИR\Щ\‹PYЩ[ќ^XЭ[Ы€
-ЬќО
-W€‚€€]ИUИЫY[ќ[И
-ЛНЌKОLЛОNLЛОNMKОКH
-ИURPИQНЧ€‚€€ФОLИ[ЫИ[Z]ИY]]™H”Л[Э™\‹UИ
-Х
-HЫ\ЬЪYљXШ][Ы—€‚€€[ИS
-ИT”
-ИTЌ€‘Ф›Э]\€Y™\ќ\Щ[Y[ќ\ШЫЭ™\ћW€‚€€KY[ќ\њљ\ЩH[ќ\њљ\ЩKЬЭЬYЩKЪY[ќ]KЬ›Э][™ЛУХЫЫќ›Ы\[™Hљ[™Щ\њљ[ќЧ€‚€€
-]™[ЬY[ќЬZ[ЋИ[ќ[ќ[Ы[H›Э[\YYћHXKЛPHY]
-W€‚€€XHИPH[X›HSYШXЮH™XЭЬњИX›Э™H
-HHЪ][Z]ЛHHЪ]Э][Z]КW€‚€€]€ИU€[X›HTЌ€[™[™И
-ЭXљ™XЭИ\ЧЬљ]]WЪ\ЌЉ
-Hљ[\љ[™ЛЩYHЫЭ\ЩJW—€‹›ЩЛ›ЩКNВ€њ]К€“ХUU“Ф“PU—€‚€€Ш]]Ш^H[ЩHЩY\ИHYШXЮH™XЫЬ™И™[ЭИ[Ъ[™ЩY—€‚€€Щ[њЫЬ€[ЩN€Р”ЯЩ[њЫЬ—Ы[Y_[ќ\™XЩ_›[џYШXЮWЬ™XЫЬ™—€‚€€›[ЏL[ќYЩЩY€Ъ[™ЫK]YЛЭ]\‹Ъ[›™\€›Ь€Z[”K—€‚€€ЦSџXXЯЬЧЪ\Ъ[™ЭЯЬШШ[_\ЬЯЬ[ЫњЯЭЬЬќЯ›Э]YW€‚€€ЦSђPТЯXXЯЬЧЪ\Ъ[™ЭЯЬШШ[_\ЬЯЬ[ЫњЯЬЧЬЬќЯ›Э]YW€‚€€”ЯXXЯЬЧЪ\]Y\ћWЩЫXZ[–Я›Э]YW€‚€€Ф“XXЯЬЧЪ\ЭЪ\ЭЬЬќќЭ\Я™][њЧШЫЭ[ќЭ]WЩ]™[ќЯ›Э]YW€‚€€ЯXXЯЬЧЪ\ЭЪ\ЭЬЬќЫљ_MЩљ[™Щ\њљ[ќ[–Я›Э]YW€‚€€ХXXЯЬЧЪ\ЭЪ\Ыљ_MЩљ[™Щ\њљ[ќ[–Я›Э]YW€‚€€ФФ•џXXЯЩ\ќ™\—Ъ\ЫY[ќЪ\Щ\ќ™\—ЬЬќ]МWЩљ[™Щ\њљ[ќ[–Я›Э]YW€‚€€URPЯXXЯЬЧЪ\ЭЪ\ЭЬЬќЫљ_™\њЪ[Ы–Я›Э]YW€‚€€”СVXXЯЬЧЪ\ЭЪ\]Y\ћWЩЫXZ[џ]\_ЫЩ_][ЮWЫ\Я[ќ›ЬVЯ›Э]YW€‚€€ST•XXЯЬЧЪ\QТС”ЧСS•“Ф_]Y\ћWЩЫXZ[џ[ќ›ЬVЯ›Э]YW€‚€€XXЯЬЧЪ\\Щ\—ШYЩ[ќЯ›Э]YW€‚€€XXЯЮ\Ы[Y_Ю\Щ\ШЦЯ›Э]YW€‚€€ђ“”ЯXXЯЬЧЪ\™]љ[ЬЧЫ[YVЯ›Э]YW€‚€€ФXXЯЬЧЪ\ЬЭ[Y_™[™Ь—ШЫ\ЬЯ›Я›Э]YW€‚€€ФџXXЯЬЧЪ\\ЩЧЭ\_ZYЭ\_™[™Ь—ШЫ\ЬЯЬ›ЯњY–Я›Э]YW€‚€€T”XXЯЩ[™\—Ъ\\™Щ]Ъ\ЬЯ›Э]YW€‚€€‘XXЯЬЧЪ\\_\™Щ]Ъ\›YЬЦЯ›Э]YW€‚€€ђ_XXЯЬЧЪ\ЬЫ[Z]›YЬЯ›Э]\—ЫY™][Y_™Yљ^™Yљ^Ы[џ]VЯ›Э]YW€‚€€Q”ЯXXЯЬЧЪ\Ьќ[[YVЯ›Э]YW€‚€€ЯXXЯЬЧЪ\ЭЬЬќ^[ШYЯ›Э]YW€‚€€S•XXЯЬЧЪ\ЭЪ\›ЭШЫЫљ[™Щ\њљ[ќЯ›Э]YW€‚€€QS•XXЯЬЧЪ\›ЭШЫЫ\_Y[ќ]VЯ›Э]YH
-KZY[ќ]HЫ›JW—€‚€’QS•UHФSУ”И
-^XЪ]ЬZ[ЋИ›ИЩ[™\љXИ^[ШYШШ[›љ[™КN—€‚€€KZY[ќ]VПSSСWHШњЩ\ќ™YY[ќ]Hњ›ЫH[™XYKZ[њЬXЭY[™ЪZЩKШЫЫќ›ЫљY[Л—€‚€€SСH\И\Ъ
-Y][
-HЬ€]ОИ]И\И[€^XЪ]љ]XЮHЬZ[‹—€‚€€™\]Z\™\ИKY[ќ\њљ\ЩNИ™]™\€\ЬЭЫЬ™ЛXЪЩ]ЛЪЩ[њИЬ€]]›ШњЛ——€‚€‘‘PUT‘TИVRS‘Q—€‚€€Я›Э]YHЫЭ\ЩH\ИЩ™‹[[љИ™Z[™H™^ZЬPPИЬ€ЫЫ™›XЭИЪ]T”У‘ЭЫ™\њЪ\—€‚€€ђM[ZЩH”QKY\љ]™YИЪ\\‹Щ^[њЪ[Ы€љ[™Щ\њљ[ќ\ЩY›Ь€ЫY[ќЫЬњ™[][Ы‹—€‚€€”И[ќ›ЬHYX\Э\™\И]Y\ћH[™Ы[™\ЬЛ€ЌЊ€љYЩЩ\њИQТС”ЧСS•“ФH[\ќ
-РKХ[›™[КK—€‚€€МИ
-URPКHXЬћ\YЭ]Yќ[URPИ[™ЪZЩ\ИЭ]]\ИИ™XЫЬ™ИЪ]	ЪЙИS‹——€‹ЭЭ]
-NВџB‚‹К€OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOB€
-€СPХSУЋ€XZ[Љ
-B€
-€[ќћHЪ[ќ€\њЩ\ИЫЫ[X[™[[™H\™Э[Y[ќЛЩ]И\™]ЫЬљИ[ќ\™XЩ\ЛЫЫ™љYЭ\™\И€
-€\Ы[™ќ[њИHљ[X\ћHXЪЩ]›ШЩ\ЬЪ[™ИЫЬ‚€
-€OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOH
-‹В‚‹К€OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOB€
-€СPХSУЋ€Щ\›™[Q—ФPТСU™Yљ[\‚€
-€™XЭЬ‹X]Ш\™HЫ\ЬЪXЛP”€ЫЫњЭќXЭ[Ы€]™\И[€\™ЫЬЧШњ‹љЫИHЩ[™\]Y€
-€›ЩЬ[HШ[€™H™YЬ™\ЬЪ[Ы‹]\ЭYYШZ[њЭЮ[ќ]XИXЪЩ]љ^\™\Л‚€
-€OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOH
-‹В€ЪY›™Y€T‘УФЧФФ•P“WХTХљ[ќXZ[Љ[ќ\™ШЛЪ\€
-\™Э–ЧJHВ€ЫЫњЭЪ\€
-љYXЩHH[ћHЋВ€€љ[\—Ь›ЩЬ[WЭљ[\—Ы[ЩLHHМNИ€љ[\—Ь›ЩЬ[WЭљ[\—Ы[ЩL€HМNВ€љ[\—Ь›ЩЬ[WЭљ[\—Щ^ЫYHHМNВ‚€[ќX^ЬXЪЩ]ИHXЪЩ]ШЫЭ[ќHВ€[ќЬЬЮ[€HЬЫ][HHЬЩЬHЬЫ™]љ[ЬИHЬЩњИHЬЪHЬЭИHЬЫ€HЬЭЌ€HЬЬ›ЫZ\ШИHВ€[ќЬЬЮ[—Ь›HЬЫ][WЬ›HЬЩЬЬ›HЬЫ™]љ[ЬЧЬ›HЬЩњЧЬ›HЬЪЬ›HЬЭЧЬ›HЬЫ—Ь›HВ€\™ЫЬЧЬќ[ќ[YWШЫЫ™љYЧЭќ[ќ[YWШЩ™ОВ€\™ЫЬЧЬќ[ќ[YWШЫЫ™љYЧЪ[љ]
-	њќ[ќ[YWШЩ™КNВ€[ќЬВ€[ќ[HИФФСS”УФ€HLФФСS”УФ—УђSQKФТS”ТQKФСS•T”’TСKФСS•T”’TСWХ‘Tђ“ФСKФХТT‘QХPT‘ФФ•ФТQS•UKФТQS•UWФђUИNВ€Э]XИЫЫњЭЭќXЭЬ[Ы€Ы™ЧЫЬ[ЫњЦЧHHВ€ИњЩ[њЫЬ€‹›ЧШ\™Э[Y[ќ•SФФСS”УФџK€ИњЩ[њЫЬ‹[[YH‹™\]Z\™YШ\™Э[Y[ќ•SФФСS”УФ—УђSQ_K€Иљ[њЪYH‹™\]Z\™YШ\™Э[Y[ќ•SФТS”ТQ_K€И™[ќ\њљ\ЩH‹›ЧШ\™Э[Y[ќ•SФСS•T”’TС_K€И™[ќ\њљ\ЩK]™\›ЬЩH‹›ЧШ\™Э[Y[ќ•SФСS•T”’TСWХ‘Tђ“ФС_K€ИќЪ\™YЭX\™\Ьќ‹™\]Z\™YШ\™Э[Y[ќ•SФХТT‘QХPT‘ФФ•K€ИљY[ќ]H‹Ь[Ы[Ш\™Э[Y[ќ•SФТQS•U_K€ИљY[ќ]K\]И‹›ЧШ\™Э[Y[ќ•SФТQS•UWФђUЯKК€ЫЫ\]Xљ[]H[X\И
-‹В€У•S•SB€NВ‚€Y€
-\™ШИOHJHИљ[ќЪ[
-\™Э–МJNИ™]\›€ИB‚€К€УH›YИЫЫќ™[ќ[ЫЋ€›Ь€XXЪ[[Y]ћHШ]YЫЬћH\™H\ИHЭЩ\Ш\ЩB€
-€›YИ
-[X›H
-И]K[[Z]YЩY\XШ]YЭ]]H]ZY]Y][
-B€
-€[™[€\\Ш\ЩH›YИ
-[X›H
-И™\›ЬЩKЫ›И]K[[Z][™Л›Ь‚€
-€XќYЩЪ[™КK€XH[X›\И]™\ћ][™И]K[[Z]YИPH[X›\И]™\ћ][™В€
-€™\›ЬЩK€T‹Л\€ЫЫ™љYЭ\™HPPИY™\ЬИ\ЭИ
-\™ЬЫЩќ^ЫYJH]\‚€
-€[€[[Y]ћHШ]YЫЬљY\Л[™^Л^‹ЛV€ЫЫ\[HШ\\™Hљ[\њЛ€
-‹В€Ъ[H
+"  OR:     %s [iface] (Automatically sets -i <iface> and enables all vectors with -a)\n\n"
+"OPTIONS:\n"
+"  -i <iface>      Interface to listen on (default: any). Comma-separated list or any.\n"
+"                  'any' uses SOCK_RAW + per-packet sll_hatype (Ethernet/PPP/TUN).\n"
+"                  LAN prefixes are learned from these interfaces (IPv6 GUA included).\n"
+"  -r <mac>        Soft Exclude MAC. Excludes traffic but permits DNS responses for telemetry.\n"
+"  -R <mac>        Hard Exclude MAC. Instantly and completely drops all outbound traffic from this MAC.\n"
+"  -x <expr>       Exclude Filter: Drops traffic matching this expression before parsing.\n"
+"  -z <expr>       Mode 1: Native Live Sniffer (replaces tcpdump). Matches MAC, IP, or logic.\n"
+"  -Z <expr>       Mode 2 target filter: restricts telemetry vectors below to matches.\n"
+"  -c <count>      Maximum packet count before exiting, Mode 1 only (default: 0 for unlimited)\n"
+"  -p              Enable promiscuous mode (auto-enabled by -z and --sensor)\n"
+"  --sensor        SPAN/TAP sensor mode. Requires an explicit -i interface.\n"
+"  --sensor-name   Stable sensor name used in the OBS telemetry envelope.\n"
+"  --inside CIDR   Explicit inside IPv4/IPv6 network; repeat for multiple prefixes.\n"
+"                  Recommended for unnumbered SPAN NICs and required for IPv6 GUA.\n"
+"  -f <seconds>    General deduplication window in seconds (default: 35).\n"
+"                  Quiet ARP/NDP use >=900s and RA >=1800s fixed refresh windows.\n"
+"  -o <path>       Stream telemetry output to a Unix domain socket.\n"
+"  -u <ip>:<port>  Stream telemetry to a remote UDP collector only.\n"
+"  -U <ip>:<port>  Stream telemetry to a remote UDP collector and stdout.\n"
+"                  (e.g. -U 10.0.0.5:5140 or -U [::1]:5140).\n"
+"                  NOTE: telemetry is sent unencrypted/unauthenticated -- only\n"
+"                  point this at a trusted host reachable over a trusted path\n"
+"                  (management VLAN, VPN, etc).\n"
+"  --enterprise    Enable v6 enterprise handshake/discovery fingerprints (rate-limited).\n"
+"  --enterprise-verbose  Enable enterprise fingerprints without telemetry deduplication.\n"
+"  --wireguard-port <port>  WireGuard UDP port for structural detection (default: 51820).\n"
+"                          Requires --enterprise; packet structure is validated before emission.\n"
+"  -W              Enable Stateful QUIC Inspection (reassembles fragmented Kyber ClientHellos)\n"
+"  -E              Enable Extended Metrics (TCPLVL RTT, DNSEXT Latency, DNS Entropy)\n\n"
+"TELEMETRY VECTORS (Lowercase = ENABLE WITH RATE LIMIT | Uppercase = ENABLE NO LIMIT):\n"
+"  -s / -S         TCP SYN (p0f OS fingerprinting), SYNACK & TCPLVL latency tracking\n"
+"  -m / -M         mDNS (5353) / SSDP (1900) / WSD (3702) payload logging\n"
+"  -d / -D         DHCPv4 + DHCPv6 client fingerprint logging\n"
+"  -n / -N         NetBIOS Name Service (UDP 137) logging\n"
+"  -q / -Q         DNS Queries & DNSEXT latency/entropy tracking (UDP port 53)\n"
+"  -h / -H         HTTP User-Agent extraction (port 80/8080)\n"
+"  -t / -T         TLS ClientHello (443/465/853/993/995/8443) + QUIC UDP/443\n"
+"                  TCP/853 also emits additive DNS-over-TLS (DOT) classification\n"
+"  -l / -L         LLDP + ARP + IPv6 NDP/Router Advertisement discovery\n"
+"  --enterprise    Enterprise/storage/identity/routing/OT control-plane fingerprints\n"
+"                  (development opt-in; intentionally not implied by -a/-A yet)\n"
+"  -a / -A         Enable ALL legacy vectors above (a = with limits, A = without limits)\n"
+"  -v / -V         Enable IPv6 handling (subject to is_private_ipv6() filtering, see source)\n\n", prog, prog);
+    fputs(
+"OUTPUT FORMAT:\n"
+"  Gateway mode keeps the legacy records below unchanged.\n"
+"  Sensor mode: OBS|sensor_name|interface|vlan|<legacy_record>\n"
+"               vlan=0 untagged, N single-tag, outer/inner for QinQ.\n"
+"  SYN|mac|src_ip|ttl|window|wscale|mss|options|dst_port[|routed]\n"
+"  SYNACK|mac|src_ip|ttl|window|wscale|mss|options|src_port[|routed]\n"
+"  DNS|mac|src_ip|query_domain[|routed]\n"
+"  TCPLVL|mac|src_ip|dst_ip|dst_port|rtt_us|retrans_count|state_event[|routed]\n"
+"  TLS|mac|src_ip|dst_ip|dst_port|sni|ja4_fingerprint|alpn[|routed]\n"
+"  DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn[|routed]\n"
+"  TLSSRV|mac|server_ip|client_ip|server_port|ats1_fingerprint|alpn[|routed]\n"
+"  QUIC|mac|src_ip|dst_ip|dst_port|sni|version[|routed]\n"
+"  DNSEXT|mac|src_ip|dst_ip|query_domain|qtype|rcode|latency_ms|entropy[|routed]\n"
+"  ALERT|mac|src_ip|HIGH_DNS_ENTROPY|query_domain|entropy[|routed]\n"
+"  HTTP|mac|src_ip|user_agent[|routed]\n"
+"  LLDP|mac|sysname|sysdesc[|routed]\n"
+"  NBNS|mac|src_ip|netbios_name[|routed]\n"
+"  DHCP|mac|src_ip|hostname|vendor_class|prl[|routed]\n"
+"  DHCP6|mac|src_ip|msg_type|duid_type|vendor_class|oro|fqdn[|routed]\n"
+"  ARP|mac|sender_ip|target_ip|op[|routed]\n"
+"  NDP|mac|src_ip|type|target_ip|flags[|routed]\n"
+"  RA|mac|src_ip|hop_limit|flags|router_lifetime|prefix|prefix_len|mtu[|routed]\n"
+"  MDNS|mac|src_ip|port|qname[|routed]\n"
+"  L7|mac|src_ip|dst_port|payload[|routed]\n"
+"  ENT|mac|src_ip|dst_ip|protocol|fingerprint[|routed]\n"
+"  IDENT|mac|src_ip|protocol|type|identity[|routed]  (--identity only)\n\n"
+"IDENTITY OPTIONS (explicit opt-in; no generic payload scanning):\n"
+"  --identity[=MODE] Observed identity from already-inspected handshake/control fields.\n"
+"                    MODE is hash (default) or raw; raw is an explicit privacy opt-in.\n"
+"                    Requires --enterprise; never passwords, tickets, tokens or auth blobs.\n\n"
+"FEATURES EXPLAINED:\n"
+"  [|routed]       Source is off-link behind a next-hop MAC or conflicts with ARP/NDP ownership.\n"
+"  JA4-like FP     MD5-derived TLS cipher/extension fingerprint used for client correlation.\n"
+"  DNS Entropy     Measures query randomness. >4.2 triggers HIGH_DNS_ENTROPY Alert (DGA/Tunnels).\n"
+"  HTTP/3 (QUIC)   Decrypted Stateful QUIC handshakes output as TLS records with 'h3' ALPN.\n\n", stdout);
+}
 
-ЬHЩ]ЬЫЫ™К\™ШЛ\™Э‹љNњЋ”ЋћћЋ–Ћ›ОќN•NО™ЋњФЫSY“њTZ•њPUСH‹Ы™ЧЫЬ[ЫњЛ•S
-JHOHLJHВ€ЭЪ]Ъ
-Ь
-HВ€Ш\ЩHФФСS”УФЋ€ЬЬЩ[њЫЬ—Ы[ЩHHNИЬЬ›ЫZ\ШИHNИњ™XZОВ€Ш\ЩHФФСS”УФ—УђSQN‚€Y€
-][YЬЩ[њЫЬ—Ы[YJЬ\™КJHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€K\Щ[њЫЬ‹[[YHX^HЫЫќZ[€Ы›H]\њЛYЪ]Л	Л‰Л	ЧЙИ[™	ЛIИ
-X^ЊИЪ\њКK—€ЉNВ€™]\›€NВ€B€Ыњљ[ќЉЩ[њЫЬ—Ы[YKЪ^™[ЩЉЩ[њЫЬ—Ы[YJK‰\И‹Ь\™КNВ€њ™XZОВ€Ш\ЩHФТS”ТQN€Y€
-XYЪ[њЪYWЬ™Yљ^
-Ь\™КJH™]\›€NИњ™XZОВ€Ш\ЩHФСS•T”’TСN€\™ЫЬЧЬќ[ќ[YWЩ[X›WЩ[ќ\њљ\ЩJ	њќ[ќ[YWШЩ™Л
-NИЬЭЌ€HNИњ™XZОВ€Ш\ЩHФСS•T”’TСWХ‘Tђ“ФСN€\™ЫЬЧЬќ[ќ[YWЩ[X›WЩ[ќ\њљ\ЩJ	њќ[ќ[YWШЩ™ЛJNИЬЭЌ€HNИњ™XZОВ€Ш\ЩHФТQS•UN‚€Y€
-X\™ЫЬЧЪY[ќ]WЫ[ЩWЬ\њЩJЬ\™Л	њќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJJHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€KZY[ќ]H^XЭИ\ЪЬ€]И
-\ЩHKZY[ќ]OZ\ЪЬ€KZY[ќ]O\]КK—€ЉNВ€™]\›€NВ€B€њ™XZОВ€Ш\ЩHФТQS•UWФђUО‚€К€Ќ€ЫЫ\]Xљ[]H[X\И›Ь€H›Ь›Y\€ЩXЫЫ™›YЛ€
-‹В€ќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩHHT‘УФЧТQS•UWФђUОВ€њ™XZОВ€Ш\ЩHФХТT‘QХPT‘ФФ•€В€Ъ\€
-™[™H•SИЫ™И€HЭќЫ
-Ь\™Л	™[™L
-NВ€Y€
-Y[™
-™[™€H€€ЌMLНJHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€[ќ[YK]Ъ\™YЭX\™\Ьќ€	\Ч€‹Ь\™КNИ™]\›€NВ€B€ќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќH
-Z[ќM—Э
-]ЋИќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќЩ^XЪ]HNИњ™XZОВ€B€Ш\ЩH	СIО€ЬЩ^ЫY]љXЬИHNИњ™XZОВ€Ш\ЩH	ЪIО€YXЩHHЬ\™ОИњ™XZОВ€Ш\ЩH	Ф‰О€€Y€
-\™Щ^ЫYWЫXXЧШЫЭ[ќPVТT‘СVУQWУPPФКHВ€Z[ќЭ\њЩYЫXXЦН—NВ€Y€
-\\њЩWЫXXЧШY™\ЬКЬ\™Л\њЩYЫXXКJHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€[ќ[YPPИY™\ЬИ›Ь€TЋ€	\Ч€‹Ь\™КNИ™]\›€NВ€B€Y[XЬJ\™Щ^ЫYWЫXXЬЦЪ\™Щ^ЫYWЫXXЧШЫЭ[ќK\њЩYЫXXЛЉNВ€\™Щ^ЫYWЫXXЧШЫЭ[ќ
-КОВ€B€њ™XZОВ€Ш\ЩH	Ь‰О‚€Y€
-›Э]\—ЫXXЧШЫЭ[ќPVФ“ХUT—УPPФКHВ€Z[ќЭ\њЩYЫXXЦН—NВ€Y€
-\\њЩWЫXXЧШY™\ЬКЬ\™Л\њЩYЫXXКJHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€[ќ[YPPИY™\ЬИ›Ь€\Ћ€	\Ч€‹Ь\™КNИ™]\›€NВ€B€Y[XЬJ›Э]\—ЫXXЬЦЬ›Э]\—ЫXXЧШЫЭ[ќK\њЩYЫXXЛЉNВ€›Э]\—ЫXXЧШЫЭ[ќ
-КОВ€B€њ™XZОВ€Ш\ЩH	Ю	О€Y€
-ЫЫ\[WЩљ[\ЉЬ\™Л	™љ[\—Щ^ЫYJH
-H™]\›€NИњ™XZОВ€Ш\ЩH	Ю‰О€Y€
-ЫЫ\[WЩљ[\ЉЬ\™Л	™љ[\—Ы[ЩLJH
-H™]\›€NИЬЬ›ЫZ\ШИHNИњ™XZОВ€Ш\ЩH	Ц‰О€Y€
-ЫЫ\[WЩљ[\ЉЬ\™Л	™љ[\—Ы[ЩLЉH
-H™]\›€NИњ™XZОВ€Ш\ЩH	ЫЙО€€Y€
-\ЧЬЫШЪИЏH
-HЫЬЩJ\ЧЬЫШЪКNИК€Y™[њЪ]™N€]›ЪYXZЪ[™ИH™Y€[И\ИЪ]™[€[Ь™H[€ЫЩH
-‹В€\ЩWЪ\ИHNВ€Y€
+/* ============================================================================
+ * SECTION: main()
+ * Entry point: parses command-line arguments, sets up network interfaces, configures 
+ * epoll, and runs the primary packet processing loop.
+ * ============================================================================ */
 
-\ЧЬЫШЪИHЫШЪЩ]
-Q—ХS’VУРТЧСФђSK
-JH
-HИ\њ›ЬЉњЫШЪЩ]Q—ХS’VЉNИ™]\›€NИB€Y[\Щ]
-	љ\ЧШY‹Ъ^™[ЩЉЭќXЭЫШЪШY—Э[ЉJNВ€\ЧШY‹њЭ[—Щ[Z[HHQ—ХS’VВ€Э›ЬJ\ЧШY‹њЭ[—Ь]Ь\™ЛЪ^™[ЩЉ\ЧШY‹њЭ[—Ь]
-HHJNВ€њ™XZОВ€Ш\ЩH	ЭIО€К€Q[Ы›H™[[ЭH[[Y]ћHЪ[љЛ€
-‹В€Y€
-™[[ЭWЬЫШЪИЏH
-HЫЬЩJ™[[ЭWЬЫШЪКNВ€Y€
-\њЩWЪЬЭЬЬќ
-Ь\™Л	њ™[[ЭWШY‹	њ™[[ЭWШY—Ы[ЉH
-H™]\›€NВ€Y€
+/* ============================================================================
+ * SECTION: Kernel AF_PACKET Prefilter
+ * Vector-aware classic-BPF construction lives in argos_bpf.h so the generated
+ * program can be regression-tested against synthetic packet fixtures.
+ * ============================================================================ */
+#ifndef ARGOS_PORTABLE_TEST
+int main(int argc, char *argv[]) {
+    const char *iface = "any";
+    
+    filter_program_t filter_mode1 = {0}; 
+    filter_program_t filter_mode2 = {0};
+    filter_program_t filter_exclude = {0};
 
-™[[ЭWЬЫШЪИHЫШЪЩ]
-™[[ЭWШY‹њЬЧЩ[Z[KУРТЧСФђSK
-JH
-HИ\њ›ЬЉњЫШЪЩ]]HЉNИ™]\›€NИB€\ЩWЬ™[[ЭHHNВ€YЫЫ›HHNВ€њ™XZОВ€Ш\ЩH	ХIО€К€]]™H™[[ЭHЫШЪЩ]€Ъ\[[Y]ћH\™XЭHИH™[[ЭHQЫЫXЭЬ‹‚€
-€Ш]][ЫЋ€Y€H\Э[][Ы€\И™XXЪX›HљXHЫ™HЩ€H[ќ\™XЩ\И\В€
-€›ШЩ\ЬИ\И]Щ[€Ш\\љ[™ИЫ€
-K™Л€HРS€[ќ\™XЩH[ЫИ\ЬЩYИZJK€
-€HЭ]ЫЪ[™И[[Y]ћH]YЬ[\ИЪ[™Hљ\ЪX›HИHШ\\™HЫЬZЩB€
-€[ћHЭ\€Y™љXОИ\ЩH^И^ЫYHHЫЫXЭЬ‰ЬИTЬЬќY€]ЫЭ[€
-€Ь™X]H›Ъ\ЩHЬ€H™YYXЪИЫЬ€
-‹В€Y€
-™[[ЭWЬЫШЪИЏH
-HЫЬЩJ™[[ЭWЬЫШЪКNИК€Y™[њЪ]™N€]›ЪYXZЪ[™ИH™Y€UH\ИЪ]™[€[Ь™H[€ЫЩH
-‹В€Y€
-\њЩWЪЬЭЬЬќ
-Ь\™Л	њ™[[ЭWШY‹	њ™[[ЭWШY—Ы[ЉH
-H™]\›€NИК€\њЩWЪЬЭЬЬќ
+    int max_packets = 0, packet_count = 0;
+    int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
+    int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
+    argos_runtime_config_t runtime_cfg;
+    argos_runtime_config_init(&runtime_cfg);
+    int opt;
+    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT, OPT_IDENTITY, OPT_IDENTITY_RAW };
+    static const struct option long_options[] = {
+        {"sensor", no_argument, NULL, OPT_SENSOR},
+        {"sensor-name", required_argument, NULL, OPT_SENSOR_NAME},
+        {"inside", required_argument, NULL, OPT_INSIDE},
+        {"enterprise", no_argument, NULL, OPT_ENTERPRISE},
+        {"enterprise-verbose", no_argument, NULL, OPT_ENTERPRISE_VERBOSE},
+        {"wireguard-port", required_argument, NULL, OPT_WIREGUARD_PORT},
+        {"identity", optional_argument, NULL, OPT_IDENTITY},
+        {"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW}, /* compatibility alias */
+        {NULL, 0, NULL, 0}
+    };
 
-H[™XYHљ[ќYЪH
-‹В€Y€
+    if (argc == 1) { print_help(argv[0]); return 0; }
 
-™[[ЭWЬЫШЪИHЫШЪЩ]
-™[[ЭWШY‹њЬЧЩ[Z[KУРТЧСФђSK
-JH
-HИ\њ›ЬЉњЫШЪЩ]UHЉNИ™]\›€NИB€\ЩWЬ™[[ЭHHNВ€YЫЫ›HHВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€UHЭ™X[\И[[Y]ћHИ	\ИЭ™\€Z[€Q[™ЭЭ]ИQ\И[™[Ьћ\Y\ЩHЫ›HЭ™\€Hќ\ЭY]—€‹Ь\™КNВ€њ™XZОВ€Ш\ЩH	ШЙО€ИЪ\€
-™[™H•SИЫ™И€HЭќЫ
-Ь\™Л	™[™L
-NИY€
-Y[™
-™[™€€€S•М—УPV
-HИњљ[ќЉЭ\њ‹‘\њ›ЬЋ€[ќ[YXЪЩ]ЫЭ[ќ€	\Ч€‹Ь\™КNИ™]\›€NИHX^ЬXЪЩ]ИH
-[ќ
-]ЋИњ™XZОИB€Ш\ЩH	Щ‰О€ИЪ\€
-™[™H•SИЫ™И€HЭќЫ
-Ь\™Л	™[™L
-NИY€
-Y[™
-™[™€€€S•М—УPV
-HИњљ[ќЉЭ\њ‹‘\њ›ЬЋ€[ќ[YY\XШ][Ы€Ъ[™ЭО€	\Ч€‹Ь\™КNИ™]\›€NИH]WЫ[Z]ЭH
-[ќ
-]ЋИњ™XZОИB€Ш\ЩH	Ь	О€ЬЬ›ЫZ\ШИHNИњ™XZОВ€Ш\ЩH	ЬЙО€ЬЬЮ[€HNИЬЬЮ[—Ь›HNИњ™XZОВ€Ш\ЩH	ФЙО€ЬЬЮ[€HNИЬЬЮ[—Ь›HИњ™XZОВ€Ш\ЩH	ЫIО€ЬЫ][HHNИЬЫ][WЬ›HNИњ™XZОВ€Ш\ЩH	УIО€ЬЫ][HHNИЬЫ][WЬ›HИњ™XZОВ€Ш\ЩH	Щ	О€ЬЩЬHNИЬЩЬЬ›HNИњ™XZОВ€Ш\ЩH	С	О€ЬЩЬHNИЬЩЬЬ›HИњ™XZОВ€Ш\ЩH	Ы‰О€ЬЫ™]љ[ЬИHNИЬЫ™]љ[ЬЧЬ›HNИњ™XZОВ€Ш\ЩH	У‰О€ЬЫ™]љ[ЬИHNИЬЫ™]љ[ЬЧЬ›HИњ™XZОВ€Ш\ЩH	ЬIО€ЬЩњИHNИЬЩњЧЬ›HNИњ™XZОВ€Ш\ЩH	ФIО€ЬЩњИHNИЬЩњЧЬ›HИњ™XZОВ€Ш\ЩH	Ъ	О€ЬЪHNИЬЪЬ›HNИњ™XZОВ€Ш\ЩH	Т	О€ЬЪHNИЬЪЬ›HИњ™XZОВ€Ш\ЩH	Э	О€ЬЭИHNИЬЭЧЬ›HNИњ™XZОВ€Ш\ЩH	Х	О€ЬЭИHNИЬЭЧЬ›HИњ™XZОВ€Ш\ЩH	Ы	О€ЬЫ€HNИЬЫ—Ь›HNИњ™XZОВ€Ш\ЩH	У	О€ЬЫ€HNИЬЫ—Ь›HИњ™XZОВ€Ш\ЩH	Э‰О‚€Ш\ЩH	Х‰О€ЬЭЌ€HNИњ™XZОВ€Ш\ЩH	ШIО‚€ЬЬЮ[€HЬЫ][HHЬЩЬHЬЫ™]љ[ЬИHЬЩњИHЬЪHЬЭИHЬЫ€HNВ€ЬЬЮ[—Ь›HЬЫ][WЬ›HЬЩЬЬ›HЬЫ™]љ[ЬЧЬ›HЬЩњЧЬ›HЬЪЬ›HЬЭЧЬ›HЬЫ—Ь›HNВ€ЬЭЌ€HNИњ™XZОВ€Ш\ЩH	РIО‚€ЬЬЮ[€HЬЫ][HHЬЩЬHЬЫ™]љ[ЬИHЬЩњИHЬЪHЬЭИHЬЫ€HNВ€ЬЬЮ[—Ь›HЬЫ][WЬ›HЬЩЬЬ›HЬЫ™]љ[ЬЧЬ›HЬЩњЧЬ›HЬЪЬ›HЬЭЧЬ›HЬЫ—Ь›HВ€ЬЭЌ€HNИњ™XZОВ€Ш\ЩH	ХЙО€ЬЬ]ZXЧЪX]ћHHNИњ™XZОИ€Y][€љ[ќЪ[
-\™Э–МJNИ™]\›€NВ€B€B‚€Y€
-Ь[™\™ШКHВ€YXЩHH\™Э–ЫЬ[™
-КЧNВ€ЬЬЮ[€HЬЫ][HHЬЩЬHЬЫ™]љ[ЬИHЬЩњИHЬЪHЬЭИHЬЫ€HNВ€ЬЬЮ[—Ь›HЬЫ][WЬ›HЬЩЬЬ›HЬЫ™]љ[ЬЧЬ›HЬЩњЧЬ›HЬЪЬ›HЬЭЧЬ›HЬЫ—Ь›HNВ€ЬЭЌ€HNВ€B‚€Y€
-Ь[™\™ШКHИњљ[ќЉЭ\њ‹‘\њ›ЬЋ€[њ™XЫЩЫљ^™Y^H\™Э[Y[ќ—€ЉNИ™]\›€NИB‚€Y€
-[ЬЬЩ[њЫЬ—Ы[ЩH	‰€
-Щ[њЫЬ—Ы[YVМHЫЫ™љYЭ\™YЪ[њЪYWШЫЭ[ќ€
-JHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€K\Щ[њЫЬ‹[[YKЛKZ[њЪYH™\]Z\™HK\Щ[њЫЬ‹—€ЉNВ€™]\›€NВ€B€Y€
-ЬЬЩ[њЫЬ—Ы[ЩJHВ€Y€
-\Щ[њЫЬ—Ы[YVМJHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€K\Щ[њЫЬ€™\]Z\™\ИK\Щ[њЫЬ‹[[YK—€ЉNВ€™]\›€NВ€B€Y€
-ЭШ\ЩXЫ\
-YXЩK[ћHЉHOH
-HВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€K\Щ[њЫЬ€™\]Z\™\И[€^XЪ]ФS‹ХT[ќ\™XЩHљXHZH
-›Э	Ш[ћIКK—€ЉNВ€™]\›€NВ€B€B‚€ЫЫњЭЪ\€
-њќ[ќ[YWШЩ™ЧЩ\њ›Ь€H\™ЫЬЧЬќ[ќ[YWШЫЫ™љYЧЭ[Y]J	њќ[ќ[YWШЩ™КNВ€Y€
-ќ[ќ[YWШЩ™ЧЩ\њ›ЬЉHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€	\Ч€‹ќ[ќ[YWШЩ™ЧЩ\њ›ЬЉNВ€™]\›€NВ€B‚€Y€
-љ[\—Ы[ЩLKљ\ЧШXЭ]™H	‰€љ[\—Ы[ЩL‹љ\ЧШXЭ]™JHВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€^€[™V€›ЭЪ]™[ЋИV€YЫ›Ь™Y[€]™HЫљY™™\€[ЩK—€ЉNВ€B‚€Y€
-ЬЩ^ЫY]љXЬКHВ€Ю[—ЭX›HH
-Ю[—ЭXЪЧЭ
-ЉXШ[ШКђPТЧФУХЛЪ^™[ЩЉ
-њЮ[—ЭX›JJNВ€њЧЭX›HH
-\™ЫЬЧЩњЧЭXЪЧЭ
-ЉXШ[ШКђPТЧФУХЛЪ^™[ЩЉ
-™њЧЭX›JJNВ€Y€
-\Ю[—ЭX›HYњЧЭX›JHВ€њљ[ќЉЭ\њ‹‘\њ›ЬЋ€[X›HИ[ШШ]H^[™Y[Y]љXЬИЭ]K—€ЉNВ€њ™YJЮ[—ЭX›JNИњ™YJњЧЭX›JNИ\™ЫЬЧЩY\Щ\Э›ЮJ	™Y\ЬЭ]JNИњ™YJЭЫ™\ЌЭX›JNИњ™YJЭЫ™\Ќ—ЭX›JNИ™]\›€NВ€B€B‚€Y€
-Yљ[\—Ы[ЩLKљ\ЧШXЭ]™H	‰€[ЬЬЮ[€	‰€[ЬЫ][H	‰€[ЬЩЬ	‰€[ЬЫ™]љ[ЬИ	‰€[ЬЩњИ	‰€[ЬЪ	‰€[ЬЭИ	‰€[ЬЫ€	‰€\ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y
-HВ€ЬЬЮ[€HЬЫ][HHЬЩЬHЬЫ™]љ[ЬИHNВ€ЬЬЮ[—Ь›HЬЫ][WЬ›HЬЩЬЬ›HЬЫ™]љ[ЬЧЬ›HNВ€ЬЭЌ€HNВ€B‚€\™ЫЬЧШњ—ШЫЫ™љYЧЭњ—ШЩ™ИHВ€њЮ[€H
-Z[ќЭ
-JЬЬЮ[€OH
-K›][HH
-Z[ќЭ
-JЬЫ][HOH
-K€™ЬH
-Z[ќЭ
-JЬЩЬOH
-K›™]љ[ЬИH
-Z[ќЭ
-JЬЫ™]љ[ЬИOH
-K€™њИH
-Z[ќЭ
-JЬЩњИOH
-KљH
-Z[ќЭ
-JЬЪOH
-K€ќИH
-Z[ќЭ
-JЬЭИOH
-K›€H
-Z[ќЭ
-JЬЫ€OH
-K€љ\Ќ€H
-Z[ќЭ
-JЬЭЌ€OH
-K™[ќ\њљ\ЩHH
-Z[ќЭ
-Jќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›YOH
-K€ќЪ\™YЭX\™ЬЬќH
-Z[ќM—Э
-Jќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›YИќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќ€JB€NВ‚€[њЭ[ЬЪYЫ[Ъ[™\њК
-NВ‚€[ќ\ЫЩ™H\ЫШЬ™X]LJ
-NВ€Y€
-\ЫЩ™
-HИ\њ›ЬЉ™\ЫШЬ™X]LHЉNИ™]\›€NИB€[ќ[—Ы™][љЧЩ™HLNВ‚€К€ZHZЩ\ИHЫЫ[XK\Щ\\]Y[ќ\™XЩH\Э
-K™Л€™]Ы[ЊЉNИXZЩHB€
-€]]X›HЫЬHЪ[ЩHЭќЪК
-HЬљ]\И	Ч	ИЩ\\]ЬњИ[ќИ][€XЩK€
-‹В€Ъ\€
-љYXЩWЫ\ЭHЭ™\
-YXЩJNВ€Y€
-ZYXЩWЫ\Э
-HИњљ[ќЉЭ\њ‹‘\њ›ЬЋ€Э]Щ€Y[[ЬћH\XШ][™И[ќ\™XЩH\Э—€ЉNИ™]\›€NИB€Ъ\€
-ќЪЩ[€HЭќЪКYXЩWЫ\Э‹ЉNВ€€К€Ь[€Ы™HQ—ФPТСU]ИЫШЪЩ]\€™\]Y\ЭY[ќ\™XЩH
-Ь€HЬXЪX[€
-€[ћH€Щ]YЛZ[ќ\™XЩKЪXЪШ\\™\ИЫ€[[ќ\™XЩ\И]ЫЩH\Ъ[™В€
-€[ќ^	ЬИЫЫЪЩY€Уњ[Z[™И[њЭXYЩ€H™X[[љЛ[^Y\€XY\ЉH[™€
-€™YЪ\Э\€XXЪЪ]\ЫЫИHXZ[€ЫЬШ[€][\^™]ЩY[€[K€
-‹В€Ъ[H
-ЪЩ[€OH•S	‰€ќ[WЪYXЩ\ИPVТS•T‘ђPСTКHВ€[ќЫШЪИHЫШЪЩ]
-Q—ФPТСUУРТЧФђUЛЫњКUФРS
-JNВ€Y€
-ЫШЪИ
-HИЪЩ[€HЭќЪК•S‹ЉNИЫЫќ[ќYNИB‚€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧK™™HЫШЪОВ€Э›ЬJXЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧK›[YKЪЩ[‹Q“ђSTТV€HJNВ€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧK›[YVТQ“ђSTТV€HWHH	Ч	ОВ‚€ЭќXЭЫШЪШY—ЫЫИY[\Щ]
-	њЫЪ^™[ЩЉЫ
-JNВ€ЫњЫЩ[Z[HHQ—ФPТСUВ€ЫњЫЬ›ЭШЫЫHЫњКUФРS
-NВ‚€Y€
-ЭШ\ЩXЫ\
-ЪЩ[‹[ћHЉHOH
-HВ€К€УРТЧФђUИ
-ИYљ[™^[]™\њИ]]™H€њ[Z[™Л€™\ЫЫ™HB€
-€XЭX[[љИ\Hњ›ЫHЫШЪШY—Ы›Ь€XXЪ™XЩZ]™YXЪЩ]€
-‹В€Y€
-ќ[WЪYXЩ\И€
-HВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€	Ш[ћIИЪЭ[›Э™HЫЫXљ[™YЪ]^XЪ][ќ\™XЩ\ОИЪЪ\[™И	Й\ЙЧ€‹ЪЩ[ЉNВ€ЫЬЩJЫШЪКNИЪЩ[€HЭќЪК•S‹ЉNИЫЫќ[ќYNВ€B€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKљYљ[™^HВ€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKќ\HHS’ЧФT—ФPТСUВ€ЫњЫЪYљ[™^HВ€H[ЩHВ€ЭќXЭYњ™\HYњЋИY[\Щ]
-	љYњ‹Ъ^™[ЩЉYњЉJNВ€Э›ЬJYњ‹љYњ—Ы[YKЪЩ[‹Q“ђSTТV€HJNВ€Y€
-[ШЭ
-ЫШЪЛТSРСТQ’S‘V	љYњЉH
-HИЫЬЩJЫШЪКNИЪЩ[€HЭќЪК•S‹ЉNИЫЫќ[ќYNИB€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKљYљ[™^HYњ‹љYњ—ЪYљ[™^В€ЫњЫЪYљ[™^HYњ‹љYњ—ЪYљ[™^В‚€Y€
-[ШЭ
-ЫШЪЛТSРСТQ’РQ‹	љYњЉHOH
-HВ€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKќ\HH]\WЭЧЫ[љК
-[њЪYЫ™YЪЬќ
-ZYњ‹љYњ—ЪШY‹њШWЩ[Z[JNВ€H[ЩHВ€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKќ\HHS’ЧХS”ХTФ•QВ€B€Y€
-XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKќ\HOHS’ЧХS”ХTФ•Q
-HВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€[њЭ\ЬќY[љЛ[^Y\€\HЫ€	\ОИЪЪ\[™Ч€‹ЪЩ[ЉNВ€ЫЬЩJЫШЪКNИЪЩ[€HЭќЪК•S‹ЉNИЫЫќ[ќYNВ€B€B€€Y€
-љ[™
-ЫШЪЛ
-ЭќXЭЫШЪШY€
-ЉIњЫЪ^™[ЩЉЫ
-JH
-HИЫЬЩJЫШЪКNИЪЩ[€HЭќЪК•S‹ЉNИЫЫќ[ќYNИB‚€Y€
-XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKќ\HOHS’ЧСUT“‘U	‰€Yљ[\—Ы[ЩLKљ\ЧШXЭ]™JHВ€Y€
-\™ЫЬЧШњ—Ш]XЪ
-ЫШЪЛ	њ—ШЩ™КH
-HВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€[X›HИ]XЪ™XЭЬ‹X]Ш\™HQ—ФPТСU™Yљ[\€Ы€	\О€	\Ч€‹€ЪЩ[‹Э™\њ›ЬЉ\њ››КJNВ€B€B‚€Y€
-ЬЬ›ЫZ\ШИ	‰€XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKќ\HOHS’ЧСUT“‘U
-HВ€ЭќXЭXЪЩ]Ы\™\H\ЋИY[\Щ]
-	›\‹Ъ^™[ЩЉ\ЉJNВ€\‹›\—ЪYљ[™^HXЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧKљYљ[™^И\‹›\—Э\HHPТСUУT—Ф“УRTРОВ€Щ]ЫШЪЫЬ
-ЫШЪЛУУФPТСUPТСUРQУQSP‘T”ТT	›\‹Ъ^™[ЩЉ\ЉJNВ€B‚€[ќЭќY€H€
-€LЌ
-€LЌИЩ]ЫШЪЫЬ
-ЫШЪЛУУФУРТСUУЧФђХђ•Q‹	њЭќY‹Ъ^™[ЩЉЭќYЉJNВ€[ќЫ™HHNВ€Щ]ЫШЪЫЬ
-ЫШЪЛУУФPТСUPТСUРUVUK	›Ы™KЪ^™[ЩЉЫ™JJNИК€™XЫЭ™\€Л\Эљ\Y“S€
-‹В€ЪY™Y€УЧХSQTХST”В€Щ]ЫШЪЫЬ
-ЫШЪЛУУФУРТСUУЧХSQTХST”Л	›Ы™KЪ^™[ЩЉЫ™JJNВ€Щ[™Y‚€ЭќXЭ\ЫЩ]™[ќ]ЋИY[\Щ]
-	™]‹Ъ^™[ЩЉ]ЉJNИ]‹™]™[ќИHTУSЋИ]‹™]Kњ€H	XЭ]™WЪYXЩ\ЦЫќ[WЪYXЩ\ЧNВ€Y€
-\ЫШЭ
-\ЫЩ™TУРХРQЫШЪЛ	™]ЉH
-HВ€\њ›ЬЉ™\ЫШЭЉNИЫЬЩJЫШЪКNИЪЩ[€HЭќЪК•S‹ЉNИЫЫќ[ќYNВ€B‚€ќ[WЪYXЩ\ККОИЪЩ[€HЭќЪК•S‹ЉNВ€B€њ™YJYXЩWЫ\Э
-NВ€Y€
-ЬЬ›ЫZ\ШИ	‰€ќ[WЪYXЩ\ИOHH	‰€XЭ]™WЪYXЩ\ЦМKќ\HOHS’ЧФT—ФPТСU
-HВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€›ЫZ\ШЭ[Э\И[ЩHЪ]ZH[ћH\И›Э[X›YЫШ[NИ\ЩH^XЪ][ќ\™XЩ\ИЪ]\›Ь€ќ[€љ\ЪXљ[]W€ЉNВ€B‚€Y€
-ќ[WЪYXЩ\ИOH
-HИњљ[ќЉЭ\њ‹“›И[Y[ќ\™XЩ\И›Э[™€^][™Л—€ЉNИ™]\›€NИB€X\›—Ы[—Ь™Yљ^\К
-NВ‚€[—Ы™][љЧЩ™H[—Ы™][љЧЫЬ[Љ
-NВ€Y€
-[—Ы™][љЧЩ™ЏH
-HВ€ЭќXЭ\ЫЩ]™[ќ™]ЋВ€Y[\Щ]
-	›™]‹Ъ^™[ЩЉ™]ЉJNВ€™]‹™]™[ќИHTУSЋВ€™]‹™]Kњ€H	›[—Ы™][љЧЩ\ЫЭYОВ€Y€
-\ЫШЭ
-\ЫЩ™TУРХРQ[—Ы™][љЧЩ™	›™]ЉH
-HВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€[X›HИY›Э]K[™][љИ\Э[™\€И\Ы€	\Ч€‹Э™\њ›ЬЉ\њ››КJNВ€ЫЬЩJ[—Ы™][љЧЩ™
-NВ€[—Ы™][љЧЩ™HLNВ€B€H[ЩHВ€њљ[ќЉЭ\њ‹ќШ\›љ[™О€›Э]K[™][љИ™Yљ^™Yњ™\Ъ[]Z[X›N€	\Ч€‹Э™\њ›ЬЉ\њ››КJNВ€B‚€К€ЩY\ЭЭ][™KXќY™™\™YЪ[™]™\€]\ИXЭ]™K€Ъ]UH]\ИB€
-€[X™\]HШШ[[‹[Э][Ы™ЬЪYHH™[[ЭHQЪ[љЛ€
-‹В€Y€
-]\ЩWЪ\И\ЩWЬ™[[ЭJHЩ]ќYЉЭЭ]•SТSУ‘‹
-NВ‚€ЭќXЭ\ЫЩ]™[ќ]™[ќЦУPVСTУСU‘S•ЧNВ€[њЪYЫ™YЪ\€ќY™™\–РРTT‘WР•Q—NВ‚€К€XZ[€XЪЩ]Ш\\™H[™›ШЩ\ЬЪ[™ИЫЬ
-‹В€Ъ[H
-ќ[›љ[™КHВ€Э]XИZ[ќЌЭ\ЭЩШИH\ЭЬЭ]ИHX^ЫЫЬЭ\ИHВ€Z[ќЌЭ›ЭЧЭ\ИHЩ]ШЭ\њ™[ќЭ\ЩXК
-NВ€Y€
-ЬЬ]ZXЧЪX]ћH	‰€
-›ЭЧЭ\ИH\ЭЩШИ€ЊS
-JHВ€]ZXЧЪX]ћWЩШК
-NВ€\ЭЩШИH›ЭЧЭ\ОВ€B€Y€
-›ЭЧЭ\ИH\ЭЬЭ]И€LS
-HВ€›Ь€
-[ќЪHHИЪHќ[WЪYXЩ\ОИЪJККHВ€ЭќXЭXЪЩ]ЬЭ]ИЭИY[\Щ]
-	њЭЪ^™[ЩЉЭ
-JNВ€ЫШЪЫ[—ЭЫHЪ^™[ЩЉЭ
-NВ€Y€
-Щ]ЫШЪЫЬ
-XЭ]™WЪYXЩ\ЦЬЪWK™™УУФPТСUPТСUФХUTХPФЛ	њЭ	њЫ
-HOH
-HВ€XЭ]™WЪYXЩ\ЦЬЪWKќЭ[ЬXЪЩ]И
-ПHЭќЬXЪЩ]ОВ€XЭ]™WЪYXЩ\ЦЬЪWKќЭ[Щ›ЬИ
-ПHЭќЩ›ЬОВ€К€ЩY\™\Щ][Ы‹\™XYXШЫЭ[ќ[™ИЫЫќ[ќ[Э\ЫKќ]]›ЪYB€
-€™\›ЛY›ЬX\ќ™X][€Ю\ЫЩИ]™\ћH[€ЩXЫЫ™Л€
-‹В€Y€
-ЭќЩ›ЬКHВ€ЭX›H›ЬЬЭHЭќЬXЪЩ]ИИ
-LЊ
-€
-ЭX›J\ЭќЩ›ЬИИ
-ЭX›J\ЭќЬXЪЩ]КH€ЊВ€њљ[ќЉЭ\њ‹\™ЫЬО€	\ИЭПI]H›ЬПI]H›ЬIKЊ™‰IHЭ[ЬЭПI[HЭ[Щ›ЬПI[H‹€XЭ]™WЪYXЩ\ЦЬЪWK›[YKЭќЬXЪЩ]ЛЭќЩ›ЬЛ›ЬЬЭ€
-[њЪYЫ™YЫ™ИЫ™КXXЭ]™WЪYXЩ\ЦЬЪWKќЭ[ЬXЪЩ]Л€
-[њЪYЫ™YЫ™ИЫ™КXXЭ]™WЪYXЩ\ЦЬЪWKќЭ[Щ›ЬКNВ€Y€
-ЬЭЌЉHњљ[ќЉЭ\њ‹€X^ЫЫЬЭ\ПI[H‹
-[њЪYЫ™YЫ™ИЫ™К[X^ЫЫЬЭ\КNВ€њ]К	Ч‰ЛЭ\њЉNВ€B€B€B€Y€
-ЬЭЌЉHX^ЫЫЬЭ\ИHВ€\ЭЬЭ]ИH›ЭЧЭ\ОВ€B€[ќ™™ИH\ЫЭШZ]
-\ЫЩ™]™[ќЛPVСTУСU‘S•ЛL
-NВ€Y€
-™™И	‰€\њ››ИOHRS•ЉHњ™XZОВ€Z[ќЌЭ›ШЩ\ЬЪ[™ЧЬЭ\ќЭ\ИHЬЭЌ€ИЩ]ШЭ\њ™[ќЭ\ЩXК
-H€В‚€›Ь€
-[ќHHИH™™ОИJККHВ€Y€
-]™[ќЦЪWK™]Kњ€OH	›[—Ы™][љЧЩ\ЫЭYКHВ€Y€
-[—Ы™][љЧЩ™ЏH	‰€[—Ы™][љЧЩZ[Љ[—Ы™][љЧЩ™
-JB€X\›—Ы[—Ь™Yљ^\К
-NВ€ЫЫќ[ќYNВ€B‚€Ш\\™WЪYXЩWЭ
-Э\њ™[ќЪYXЩHH
-Ш\\™WЪYXЩWЭ
-ЉY]™[ќЦЪWK™]KњЋВ‚€ЭќXЭЫШЪШY—Ыњ›ЫWЫВ€Y[\Щ]
-	™њ›ЫWЫЪ^™[ЩЉњ›ЫWЫ
-JNВ€ЭќXЭ[Э™XИ[ЭЋВ€[Э‹љ[Э—Ш\ЩHHќY™™\ЋВ€[Э‹љ[Э—Ы[€HЪ^™[ЩЉќY™™\ЉNВ€Ъ\€Ы\ЩЧШќY–РУTСЧФФPСJЪ^™[ЩЉЭќXЭXЪЩ]Ш]^]JJH
-ИУTСЧФФPСJЪ^™[ЩЉЭќXЭ[Y\ЬXКJWNВ€ЭќXЭ\ЩЪ€\ЩОВ€Y[\Щ]
-	›\ЩЛЪ^™[ЩЉ\ЩКJNВ€\ЩЛ›\ЩЧЫ[YHH	™њ›ЫWЫВ€\ЩЛ›\ЩЧЫ[Y[[€HЪ^™[ЩЉњ›ЫWЫ
-NВ€\ЩЛ›\ЩЧЪ[Э€H	љ[ЭЋВ€\ЩЛ›\ЩЧЪ[Э›[€HNВ€\ЩЛ›\ЩЧШЫЫќ›ЫHЫ\ЩЧШќYЋВ€\ЩЛ›\ЩЧШЫЫќ›Ы[€HЪ^™[ЩЉЫ\ЩЧШќYЉNВ‚€ЬЪ^™WЭ[€H™XЭ›\ЩКЭ\њ™[ќЪYXЩKO™™	›\ЩЛTСЧХ•SђКNВ€Y€
-[€H
-HЫЫќ[ќYNВ€Y€
+    /* CLI flag convention: for each telemetry category there is a lowercase
+     * flag (enable + rate-limited/deduplicated output, the quiet default)
+     * and an uppercase flag (enable + verbose/no rate-limiting, for
+     * debugging). -a enables everything rate-limited; -A enables everything
+     * verbose. -R/-r configure MAC address lists (hard/soft exclude) rather
+     * than telemetry categories, and -x/-z/-Z compile capture filters. */
+    while ((opt = getopt_long(argc, argv, "i:r:R:x:z:Z:o:u:U:c:f:sSmMdDnNqQhHtTlLvVpaAWE", long_options, NULL)) != -1) {
+        switch (opt) {
+            case OPT_SENSOR: opt_sensor_mode = 1; opt_promisc = 1; break;
+            case OPT_SENSOR_NAME:
+                if (!valid_sensor_name(optarg)) {
+                    fprintf(stderr, "Error: --sensor-name may contain only letters, digits, '.', '_' and '-' (max 63 chars).\n");
+                    return 1;
+                }
+                snprintf(sensor_name, sizeof(sensor_name), "%s", optarg);
+                break;
+            case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
+            case OPT_ENTERPRISE: argos_runtime_enable_enterprise(&runtime_cfg, 0); opt_v6 = 1; break;
+            case OPT_ENTERPRISE_VERBOSE: argos_runtime_enable_enterprise(&runtime_cfg, 1); opt_v6 = 1; break;
+            case OPT_IDENTITY:
+                if (!argos_identity_mode_parse(optarg, &runtime_cfg.identity_mode)) {
+                    fprintf(stderr, "Error: --identity expects hash or raw (use --identity=hash or --identity=raw).\n");
+                    return 1;
+                }
+                break;
+            case OPT_IDENTITY_RAW:
+                /* v6 compatibility alias for the former second flag. */
+                runtime_cfg.identity_mode = ARGOS_IDENTITY_RAW;
+                break;
+            case OPT_WIREGUARD_PORT: {
+                char *end = NULL; long v = strtol(optarg, &end, 10);
+                if (!end || *end || v < 1 || v > 65535) {
+                    fprintf(stderr, "Error: invalid --wireguard-port: %s\n", optarg); return 1;
+                }
+                runtime_cfg.wireguard_port = (uint16_t)v; runtime_cfg.wireguard_port_explicit = 1; break;
+            }
+            case 'E': opt_ext_metrics = 1; break;
+            case 'i': iface = optarg; break;
+            case 'R': 
+                if (hard_exclude_mac_count < MAX_HARD_EXCLUDE_MACS) {
+                    uint8_t parsed_mac[6];
+                    if (!parse_mac_address(optarg, parsed_mac)) {
+                        fprintf(stderr, "Error: invalid MAC address for -R: %s\n", optarg); return 1;
+                    }
+                    memcpy(hard_exclude_macs[hard_exclude_mac_count], parsed_mac, 6);
+                    hard_exclude_mac_count++;
+                }
+                break;
+            case 'r':
+                if (router_mac_count < MAX_ROUTER_MACS) {
+                    uint8_t parsed_mac[6];
+                    if (!parse_mac_address(optarg, parsed_mac)) {
+                        fprintf(stderr, "Error: invalid MAC address for -r: %s\n", optarg); return 1;
+                    }
+                    memcpy(router_macs[router_mac_count], parsed_mac, 6);
+                    router_mac_count++;
+                }
+                break;
+            case 'x': if (compile_filter(optarg, &filter_exclude) < 0) return 1; break;
+            case 'z': if (compile_filter(optarg, &filter_mode1) < 0) return 1; opt_promisc = 1; break;
+            case 'Z': if (compile_filter(optarg, &filter_mode2) < 0) return 1; break;
+            case 'o': 
+                if (ipc_sock >= 0) close(ipc_sock); /* defensive: avoid leaking a fd if -o is given more than once */
+                use_ipc = 1;
+                if ((ipc_sock = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) { perror("socket AF_UNIX"); return 1; }
+                memset(&ipc_addr, 0, sizeof(struct sockaddr_un));
+                ipc_addr.sun_family = AF_UNIX;
+                strncpy(ipc_addr.sun_path, optarg, sizeof(ipc_addr.sun_path) - 1);
+                break;
+            case 'u': /* UDP-only remote telemetry sink. */
+                if (remote_sock >= 0) close(remote_sock);
+                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1;
+                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -u"); return 1; }
+                use_remote = 1;
+                udp_only = 1;
+                break;
+            case 'U': /* Native Remote Socket: ship telemetry directly to a remote UDP collector.
+                       * Caution: if the destination is reachable via one of the interfaces this
+                       * process is itself capturing on (e.g. a WAN interface also passed to -i),
+                       * the outgoing telemetry datagrams will be visible to the capture loop like
+                       * any other traffic; use -x to exclude the collector's IP/port if that would
+                       * create noise or a feedback loop. */
+                if (remote_sock >= 0) close(remote_sock); /* defensive: avoid leaking a fd if -U is given more than once */
+                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1; /* parse_host_port() already printed why */
+                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -U"); return 1; }
+                use_remote = 1;
+                udp_only = 0;
+                fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP and stdout; UDP is unencrypted, use only over a trusted path.\n", optarg);
+                break;
+            case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); return 1; } max_packets = (int)v; break; }
+            case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); return 1; } rate_limit_ttl = (int)v; break; }
+            case 'p': opt_promisc = 1; break;
+            case 's': opt_syn = 1; opt_syn_rl = 1; break;
+            case 'S': opt_syn = 1; opt_syn_rl = 0; break;
+            case 'm': opt_multi = 1; opt_multi_rl = 1; break;
+            case 'M': opt_multi = 1; opt_multi_rl = 0; break;
+            case 'd': opt_dhcp = 1; opt_dhcp_rl = 1; break;
+            case 'D': opt_dhcp = 1; opt_dhcp_rl = 0; break;
+            case 'n': opt_netbios = 1; opt_netbios_rl = 1; break;
+            case 'N': opt_netbios = 1; opt_netbios_rl = 0; break;
+            case 'q': opt_dns = 1; opt_dns_rl = 1; break;
+            case 'Q': opt_dns = 1; opt_dns_rl = 0; break;
+            case 'h': opt_http = 1; opt_http_rl = 1; break;
+            case 'H': opt_http = 1; opt_http_rl = 0; break;
+            case 't': opt_tls = 1; opt_tls_rl = 1; break;
+            case 'T': opt_tls = 1; opt_tls_rl = 0; break;
+            case 'l': opt_l2 = 1; opt_l2_rl = 1; break;
+            case 'L': opt_l2 = 1; opt_l2_rl = 0; break;
+            case 'v':
+            case 'V': opt_v6 = 1; break;
+            case 'a':
+                opt_syn = opt_multi = opt_dhcp = opt_netbios = opt_dns = opt_http = opt_tls = opt_l2 = 1;
+                opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 1;
+                opt_v6 = 1; break;
+            case 'A':
+                opt_syn = opt_multi = opt_dhcp = opt_netbios = opt_dns = opt_http = opt_tls = opt_l2 = 1;
+                opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 0;
+                opt_v6 = 1; break;
+            case 'W': opt_quic_heavy = 1; break;    
+            default: print_help(argv[0]); return 1;
+        }
+    }
 
-Ъ^™WЭ
-[[€€Ъ^™[ЩЉќY™™\ЉJH[€HЪ^™[ЩЉќY™™\ЉNВ‚€Z[ќЌЭЭЭ\ЩXИHВ€Z[ќM—Э]^Э›[€HВ€[ќ]^Э›[—Э[YHВ€›Ь€
-ЭќXЭЫ\ЩЪ€
-ИHУTСЧС’T”ХЉ	›\ЩКNИОИИHУTСЧУ–Љ	›\ЩЛКJHВ€ЪY™Y€УЧХSQTХST”В€Y€
-ЛOЫ\ЩЧЫ]™[OHУУФУРТСU	‰€ЛOЫ\ЩЧЭ\HOHУЧХSQTХST”КHВ€ЭќXЭ[Y\ЬXИОВ€Y[XЬJ	ќЛУTСЧСUJКKЪ^™[ЩЉКJNВ€ЭЭ\ЩXИH
-Z[ќЌЭ
-]Лќ—ЬЩXИ
-€LS
-И
-Z[ќЌЭ
-]Лќ—ЫњЩXИИLSВ€B€Щ[™Y‚€Y€
-ЛOЫ\ЩЧЫ]™[OHУУФPТСU	‰€ЛOЫ\ЩЧЭ\HOHPТСUРUVUH	‰‚€ЛOЫ\ЩЧЫ[€ЏHУTСЧУSЉЪ^™[ЩЉЭќXЭXЪЩ]Ш]^]JJJHВ€ЭќXЭXЪЩ]Ш]^]H]^В€Y[XЬJ	]^УTСЧСUJКKЪ^™[ЩЉ]^
-JNВ€Y€
-]^ќЬЭ]\И	€ФХUTЧХ“S—ХђSQ
-HВ€]^Э›[€H
-Z[ќM—Э
-J]^ќЭ›[—ЭЪH	€™™•JNВ€]^Э›[—Э[YHNВ€B€B€B€Y€
-ЭЭ\ЩXИOH
-HЭЭ\ЩXИHЩ]ШЭ\њ™[ќЭ\ЩXК
-NВ‚€[љЧЭ\WЭЭЭ\HHЭ\њ™[ќЪYXЩKOќ\NВ€Y€
-ЭЭ\HOHS’ЧФT—ФPТСU
-HЭЭ\HH]\WЭЧЫ[љКњ›ЫWЫњЫЪ]\JNВ€К€HЫШЪЩ]›Э[™И[€^XЪ]њљYЩH\ИЫ\ЬЪYљYYYШZ[њЭ]€
-€њљYЩIЬИЫЫ›™XЭY™Yљ^\Л€ЫЫYHЩ\›™[И™\ЬќH[™Ь™\ЬВ€
-€њљYЩK\ЬќYљ[™^[€ЫШЪШY—ЫИ\Ъ[™И]XYH[YЩ™‹[[љВ€
-€TЌ€ЫЭ\Щ\ИZ\ЬИHњ‹[[€™Yљ^ЫЫќ^€[ћXЭ[\Щ\ИB€
-€XЭX[\‹\XЪЩ]Yљ[™^И]›ЪYЬ›ЬЬЛZ[ќ\™XЩH[ЩHЬЪ]]™\Л€
-‹В€[ќXЪЩ]ЪYљ[™^H™Yљ^ШЫЫќ^ЪYљ[™^
-Э\њ™[ќЪYXЩKњ›ЫWЫњЫЪYљ[™^
-NВ‚€\™ЫЬЧЬXЪЩ]ЭљY]ЧЭXЪЩ]ЭљY]ОВ€Y€
-X\™ЫЬЧЬXЪЩ]ЩXЫЩJЭЭ\KќY™™\‹
-[ќ
-[[‹ЬЭЌ‹	њXЪЩ]ЭљY]КJHЫЫќ[ќYNВ‚€[њЪYЫ™YЪ\€
-њЬЧЫXXИHXЪЩ]ЭљY]ЛњЬЧЫXXОВ€[њЪYЫ™YЪ\€
-™ЭЫXXИHXЪЩ]ЭљY]Л™ЭЫXXОВ€Z[ќM—ЭЧЬ›ЭИHXЪЩ]ЭљY]Л›ЧЬ›ЭОВ€[ќЧЫЩ™њЩ]HXЪЩ]ЭљY]Л›ЧЫЩ™њЩ]В‚€Y€
-ЬЬЩ[њЫЬ—Ы[ЩJHВ€Z[ќM—ЭЭ]\€HXЪЩ]ЭљY]Л›Э]\—Э›[ЋВ€Z[ќM—Э[›™\€HXЪЩ]ЭљY]Лљ[›™\—Э›[ЋВ€Y€
-]^Э›[—Э[Y
-HВ€Y€
-Э]\€OHJHЭ]\€H]^Э›[ЋВ€[ЩHY€
-]^Э›[€OHЭ]\ЉHИ[›™\€HЭ]\ЋИЭ]\€H]^Э›[ЋИB€B€Ыњљ[ќЉЩ[њЫЬ—ЫШњЩ\ќ][Ы—ЪYXЩKЪ^™[ЩЉЩ[њЫЬ—ЫШњЩ\ќ][Ы—ЪYXЩJK‰\И‹Э\њ™[ќЪYXЩKO›[YJNВ€Щ[њЫЬ—ЫШњЩ\ќ][Ы—ЫЭ]\—Э›[€HЭ]\ЋВ€Щ[њЫЬ—ЫШњЩ\ќ][Ы—Ъ[›™\—Э›[€H[›™\ЋВ€B‚€Э]XИЫЫњЭ[њЪYЫ™YЪ\€™\›ЧЫXXЦН—HHМNВ€Э]XИЫЫњЭ[њЪYЫ™YЪ\€Ш\ЭЫXXЦН—HHМ™‹™‹™‹™‹™‹™џNВ€К€ђUЧТT
-ХS‹ХЪ\™QЭX\™
-H\И›ИPPЛЫИ™\›ЛSPPИ[Y][Ы‚€
-€\Y\ИЫ›HИ]\›™][™ЫЫЪЩY[љЛ[^Y\€њ[Y\Л€
-‹В€Y€
-ЭЭ\HOHS’ЧСUT“‘UЭЭ\HOHS’ЧРУУТСQ
-HВ€Y€
-Y[XЫ\
-ЬЧЫXXЛ™\›ЧЫXXЛЉHOHY[XЫ\
-ЬЧЫXXЛШ\ЭЫXXЛЉHOH
-HЫЫќ[ќYNВ€B‚€Z[ќМ—ЭЬЧЪ\Ыќ[HHЭЪ\Ыќ[HHВ€[ќ\ЧЫЭ]›Э[™HВ€[ќЫЭ\ЩWЫЩ™›[љЧЬ›Э]YHВ€ЭќXЭ[Ќ—ШY€ЬЧЪ\—ШY‹ЭЪ\—ШYЋВ€Y[\Щ]
-	њЬЧЪ\—ШY‹Ъ^™[ЩЉЬЧЪ\—ШYЉJNВ€Y[\Щ]
-	™ЭЪ\—ШY‹Ъ^™[ЩЉЭЪ\—ШYЉJNВ€[ќ\ЧЪ\Ќ—ЬXЪЩ]HXЪЩ]ЭљY]Лљ\Э™\њЪ[Ы€OH•NВ€[ќ\ЧЪ\ЬXЪЩ]HXЪЩ]ЭљY]Лљ\ЧЪ\В€Z[ќЭ\Ь›ЭШЫЫHXЪЩ]ЭљY]Лљ\Ь›ЭШЫЫВ€Z[ќЭ\ЭHXЪЩ]ЭљY]Лљ\ЭВ€[ќЫЩ™њЩ]HXЪЩ]ЭљY]Л›ЫЩ™њЩ]В€[ќ\ЌЪ\ЧЩњYИHXЪЩ]ЭљY]Л››Ы™љ\њЭЩњYЫY[ќВ‚€Y€
-XЪЩ]ЭљY]Лљ\Э™\њЪ[Ы€OHJHВ€Y[XЬJ	њЬЧЪ\Ыќ[KXЪЩ]ЭљY]ЛњЬЧШY‹JNВ€Y[XЬJ	™ЭЪ\Ыќ[KXЪЩ]ЭљY]Л™ЭШY‹JNВ€[ќЬЧЫ[€H\ЧЫ[—Ъ\Ќ
-ЬЧЪ\Ыќ[JNВ€[ќЭЫ[€H\ЧЫ[—Ъ\Ќ
-ЭЪ\Ыќ[JNВ€ЫЭ\ЩWЫЩ™›[љЧЬ›Э]YH\ЧЬ›Э]YЬЫЭ\ЩWЪ\Ќ
-ЬЧЪ\Ыќ[KXЪЩ]ЪYљ[™^
-NВ€Y€
-\ЬЧЫ[€	‰€YЭЫ[€	‰€\ЫЭ\ЩWЫЩ™›[љЧЬ›Э]Y
-HЫЫќ[ќYNВ€\ЧЫЭ]›Э[™HЬЧЫ[€ЫЭ\ЩWЫЩ™›[љЧЬ›Э]YВ€H[ЩHY€
-XЪЩ]ЭљY]Лљ\Э™\њЪ[Ы€OH•JHВ€Y[XЬJ	њЬЧЪ\—ШY‹XЪЩ]ЭљY]ЛњЬЧШY‹M•JNВ€Y[XЬJ	™ЭЪ\—ШY‹XЪЩ]ЭљY]Л™ЭШY‹M•JNВ€[ќЬЧЫ[€H\ЧЫ[—Ъ\ЌЉ	њЬЧЪ\—ШYЉNВ€[ќЭЫ[€H\ЧЫ[—Ъ\ЌЉ	™ЭЪ\—ШYЉNВ€ЫЭ\ЩWЫЩ™›[љЧЬ›Э]YH\ЧЬ›Э]YЬЫЭ\ЩWЪ\ЌЉ	њЬЧЪ\—ШY‹XЪЩ]ЪYљ[™^
-NВ€Y€
-\ЬЧЫ[€	‰€YЭЫ[€	‰€\ЫЭ\ЩWЫЩ™›[љЧЬ›Э]Y
-HЫЫќ[ќYNВ€\ЧЫЭ]›Э[™HЬЧЫ[€ЫЭ\ЩWЫЩ™›[љЧЬ›Э]YВ€H[ЩHY€
-ЧЬ›ЭИOHШХHЧЬ›ЭИOH•H€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰‚€
-ЧЬ›ЭИHMLHЧЬ›ЭИOHUHЧЬ›ЭИOHUH€ЧЬ›ЭИOHL•HЧЬ›ЭИOHЊHЧЬ›ЭИOH™UH€ЧЬ›ЭИOH•HЧЬ›ЭИOHЊЊJJJHВ€К€€\ШЫЭ™\ћKШЫЫќ›Ыњ[Y\И[ќ[ќ[Ы[H]™H›ИTљY]Л€
-‹В€H[ЩHВ€ЫЫќ[ќYNВ€B‚€[ќЧЬXЪЩ]Щ[™HXЪЩ]ЭљY]ЛњXЪЩ]Щ[™В‚€ЫЫњЭЭќXЭ[Ќ—ШY€
-™љ[ЬЬЧЪ\€H\ЧЪ\Ќ—ЬXЪЩ]И	њЬЧЪ\—ШY€€•SВ€ЫЫњЭЭќXЭ[Ќ—ШY€
-™љ[ЩЭЪ\€H\ЧЪ\Ќ—ЬXЪЩ]И	™ЭЪ\—ШY€€•SВ‚€Y€
-љ[\—Щ^ЫYKљ\ЧШXЭ]™H	‰€][X]WЩљ[\Љ	™љ[\—Щ^ЫYKЬЧЫXXЛЭЫXXЛЬЧЪ\Ыќ[KЭЪ\Ыќ[Kљ[ЬЬЧЪ\‹љ[ЩЭЪ\ЉJHВ€ЫЫќ[ќYNВ€B‚€Y€
-љ[\—Ы[ЩLKљ\ЧШXЭ]™JHВ€Y€
-Y][X]WЩљ[\Љ	™љ[\—Ы[ЩLKЬЧЫXXЛЭЫXXЛЬЧЪ\Ыќ[KЭЪ\Ыќ[Kљ[ЬЬЧЪ\‹љ[ЩЭЪ\ЉJHЫЫќ[ќYNВ€[\Э\™Щ]ЬXЪЩ]
-ќY™™\‹
-[ќ
-[[‹ЧЫЩ™њЩ]ЧЬ›ЭКNВ€XЪЩ]ШЫЭ[ќ
-КОИY€
-X^ЬXЪЩ]И€	‰€XЪЩ]ШЫЭ[ќЏHX^ЬXЪЩ]КHќ[›љ[™ИHВ€ЫЫќ[ќYNВ€B‚€Y€
-ЭЭ\HOHS’ЧСUT“‘U
-HВ€Y€
-\ЧЪ\™Щ^ЫYYЫXXКЬЧЫXXКH	‰€\ЧЫЭ]›Э[™
-HЫЫќ[ќYNВ‚€Y€
-\ЧЬ›Э]\—ЫXXКЬЧЫXXКJHВ€[ќ[ЭЧЬXЪЩ]HВ€Y€
-\ЧЪ\ЬXЪЩ]	‰€\Ь›ЭШЫЫOHT“ХЧХQ	‰€[€ЏHЫЩ™њЩ]
-И
-HВ€ЭќXЭY€YЪЋИY[XЬJ	ќYЪ‹ќY™™\€
-ИЫЩ™њЩ]Ъ^™[ЩЉYЪЉJNВ€Y€
-ќЪКYЪ‹њЫЭ\ЩJHOHLКH[ЭЧЬXЪЩ]HNВ€B€К€H›ЬќШ\™Y[ќ\›™]ЦSђPТИ\X\њИЫ€њ‹[[€Ъ]B€
-€›Э]\€\И]И]\›™]ЫЭ\ЩK€]]™XXЪЫ›HHФ€
-€ЫЬњ™[][Ы€]ЫИQHШ[€ЫЫ\]HЫY[ќ•ИB€
-€YШXЮHЦSђPТИ[Z]\€™[ЭИ™[XZ[њИЭ\™\ЬЩY€
-‹В€Y€
-Z\ЧЫЭ]›Э[™	‰€\ЧЪ\ЬXЪЩ]	‰€\Ь›ЭШЫЫOHT“ХЧХФ	‰‚€ЫЩ™њЩ]
-ИЊHЧЬXЪЩ]Щ[™
-HВ€ЭќXЭЬ€›ЬќШ\™YЭЬВ€Y[XЬJ	™›ЬќШ\™YЭЬќY™™\€
-ИЫЩ™њЩ]Ъ^™[ЩЉ›ЬќШ\™YЭЬ
-JNВ€Y€
-›ЬќШ\™YЭЬњЮ[€	‰€›ЬќШ\™YЭЬXЪКH[ЭЧЬXЪЩ]HNВ€B€Y€
-X[ЭЧЬXЪЩ]
-HЫЫќ[ќYNВ€B€B‚€К€]ЛRT[љЬИ]™H›И\™Ш\™HPPЬЛ€Ь™X]HЭX›HЛY\љ]™Y€
-€Э\њ›ЩШ]HY[ќ]Y\И™Y›Ь™H[ћHPPЛZЩ^YYљ[\‹ЬЭ]KЩY\]‚€
-€Щ[њЫЬ‹Ъ[ќ\™XЩH›Э™[[ЩH™[XZ[њИЩ\\]H[€HР”И[ќ™[ЬK€
-‹В€Y€
-ЭЭ\HOHS’ЧФђUЧТT	‰€\ЧЪ\ЬXЪЩ]
-HВ€Y€
-\ЧЪ\Ќ—ЬXЪЩ]
-HВ€\™ЫЬЧЬ]ЧЪY[ќ]WЭЌЉЬЧЪ\—ШY‹њН—ШY‹ЬЧЫXXКNВ€\™ЫЬЧЬ]ЧЪY[ќ]WЭЌЉЭЪ\—ШY‹њН—ШY‹ЭЫXXКNВ€H[ЩHВ€\™ЫЬЧЬ]ЧЪY[ќ]WЭЌ
-XЪЩ]ЭљY]ЛњЬЧШY‹ЬЧЫXXКNВ€\™ЫЬЧЬ]ЧЪY[ќ]WЭЌ
-XЪЩ]ЭљY]Л™ЭШY‹ЭЫXXКNВ€B€B‚€Y€
-љ[\—Ы[ЩL‹љ\ЧШXЭ]™JHВ€Y€
-Y][X]WЩљ[\Љ	™љ[\—Ы[ЩL‹ЬЧЫXXЛЭЫXXЛЬЧЪ\Ыќ[KЭЪ\Ыќ[Kљ[ЬЬЧЪ\‹љ[ЩЭЪ\ЉJHЫЫќ[ќYNВ€B‚€[ќ›Э]YЩ]љY[ЩHHЫЭ\ЩWЫЩ™›[љЧЬ›Э]YВ‚€[њЪYЫ™YЪ\€]љXЩWЫXXЦН—NВ€К€€\ШЫЭ™\ћKШЫЫќ›Ыњ[Y\ИY[ќYћHZ\€Щ[™\€ћHЫЭ\ЩHPPЛ‚€
-€\Ъ[™ИH\Э[][Ы€PPИЫЭ[\›€][XШ\ЭY™\ЬЩ\ИЭXЪ\В€
-€	ЬИNЋМЋЊЊЊH[ќИZЩH]љXЩHY[ќ]Y\Л€
-‹В€Y€
-ЧЬ›ЭИOHШИЧЬ›ЭИOH€€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€
-ЧЬ›ЭИHMLHЧЬ›ЭИOHUHЧЬ›ЭИOHUHЧЬ›ЭИOHL•H€ЧЬ›ЭИOHЊHЧЬ›ЭИOH™UH€ЧЬ›ЭИOH•HЧЬ›ЭИOHЊЊJJJHВ€Y[XЬJ]љXЩWЫXXЛЬЧЫXXЛЉNВ€H[ЩHY€
-\ЧЫЭ]›Э[™
-HВ€Y[XЬJ]љXЩWЫXXЛЬЧЫXXЛЉNВ€H[ЩHВ€Y[XЬJ]љXЩWЫXXЛЭЫXXЛЉNВ€B€Y€
-Y[XЫ\
-]љXЩWЫXXЛ™\›ЧЫXXЛЉHOHY[XЫ\
-]љXЩWЫXXЛШ\ЭЫXXЛЉHOH
-HЫЫќ[ќYNВ‚€Ъ\€XXЧЬЭ–МNNВ€ЫЫњЭЪ\€
-њ›Э]YЬЭ€H›Э]YЩ]љY[ЩHИџ›Э]Y€€€ЋВ€›Ь›X]ЫXXК]љXЩWЫXXЛXXЧЬЭЉNВ‚€К€€™XЭЬњИ]\Эќ[€]™[€Ъ[€\™H\И›ИTXY\‹€
-‹В€Y€
-ЧЬ›ЭИOHШКHВ€Y€
-ЬЫЉB€\њЩWЫ
-ќY™™\€
-ИЧЫЩ™њЩ]
-[ќ
-[[€HЧЫЩ™њЩ]XXЧЬЭ‹›Э]YЬЭ‹ЬЫ—Ь›
-NВ€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y
-HВ€\™ЫЬЧЫЫYYЬ™\Э[ЭYYВ€Y€
-\™ЫЬЧЫЫYYЬ\њЩJќY™™\€
-ИЧЫЩ™њЩ]
-Ъ^™WЭ
-J
-[ќ
-[[€HЧЫЩ™њЩ]
-K	›YY
-JHВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘S•‹YY™]Z[ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я__SQQ	\Ч€‹XXЧЬЭ‹YY™]Z[
-NВ€B€B€ЫЫќ[ќYNВ€B€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€ЧЬ›ЭИHMLJHВ€\™ЫЬЧЬЭЬ™\Э[ЭЭВ€Y€
-\™ЫЬЧЬЭЬ\њЩJќY™™\€
-ИЧЫЩ™њЩ]
-Ъ^™WЭ
-J
-[ќ
-[[€HЧЫЩ™њЩ]
-K	њЭ
-JHВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘S•‹Э™]Z[ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я__Х	\Ч€‹XXЧЬЭ‹Э™]Z[
-NВ€ЫЫќ[ќYNВ€B€Y€
-\™ЫЬЧЬњЭЬ\њЩJќY™™\€
-ИЧЫЩ™њЩ]
-Ъ^™WЭ
-J
-[ќ
-[[€HЧЫЩ™њЩ]
-K	њЭ
-JHВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘S•‹Э™]Z[ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я__”Х	\Ч€‹XXЧЬЭ‹Э™]Z[
-NВ€ЫЫќ[ќYNВ€B€\™ЫЬЧЫ\ЭЬ™\Э[Э\ЭВ€Y€
-\™ЫЬЧЫ\ЭЬ\њЩJќY™™\€
-ИЧЫЩ™њЩ]
-Ъ^™WЭ
-J
-[ќ
-[[€HЧЫЩ™њЩ]
-K	›\Э
-JHВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘S•‹\Э™]Z[ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я__TХ	\Ч€‹XXЧЬЭ‹\Э™]Z[
-NВ€ЫЫќ[ќYNВ€B€B€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€ЧЬ›ЭИOHUJHВ€\™ЫЬЧЫXЬЬ™\Э[ЭXЬВ€Y€
-\™ЫЬЧЫXЬЬ\њЩJќY™™\€
-ИЧЫЩ™њЩ]
-Ъ^™WЭ
-J
-[ќ
-[[€HЧЫЩ™њЩ]
-K	›XЬ
-JHВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘S•‹XЬ™]Z[ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я__PФ	\Ч€‹XXЧЬЭ‹XЬ™]Z[
-NВ€B€ЫЫќ[ќYNВ€B€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€
-ЧЬ›ЭИOHUHЧЬ›ЭИOHL•H€ЧЬ›ЭИOHЊHЧЬ›ЭИOH™UH€ЧЬ›ЭИOH•HЧЬ›ЭИOHЊЊJJHВ€\™ЫЬЧЩ[ќ\њљ\ЩWЬ™\Э[Э[ќВ€Y€
-\™ЫЬЧЩ[ќ\њљ\ЩWЬ\њЩWЫЉЧЬ›ЭЛќY™™\€
-ИЧЫЩ™њЩ]
-[ќ
-[[€HЧЫЩ™њЩ]	™[ќ
-H	‰€[ќ™[Z]
-HВ€Ъ\€[ќЬЪYЦНЌNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\Я	\И‹[ќњ›ЭЛ[ќ™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я__	\Я	\Ч€‹XXЧЬЭ‹[ќњ›ЭЛ[ќ™]Z[
-NВ€B€ЫЫќ[ќYNВ€B€Y€
-ЧЬ›ЭИOHЉHВ€Y€
-ЬЫЉH\њЩWШ\њЭ™XЭЬЉќY™™\€
-ИЧЫЩ™њЩ]
-[ќ
-[[€HЧЫЩ™њЩ]XЪЩ]ЪYљ[™^ЬЫ—Ь›
-NВ€ЫЫќ[ќYNВ€B€Y€
-Z\ЧЪ\ЬXЪЩ]
-HЫЫќ[ќYNВ€Y€
-\ЌЪ\ЧЩњYКHЫЫќ[ќYNВ‚€Ъ\€ЬЧЪ\ЬЭ–ТS‘U—РQ”Х“S—HHМKЭЪ\ЬЭ–ТS‘U—РQ”Х“S—HHМNВ€Z[ќЭ›ЭШЫЫH\Ь›ЭШЫЫH\ЭВ‚€Y€
-ЧЬ›ЭИOH
-HВ€ЭќXЭ[—ШY€ЧШY‹ШYЋИЧШY‹њЧШY€HЬЧЪ\Ыќ[NИШY‹њЧШY€HЭЪ\Ыќ[NВ€[™]ЫќЬ
-Q—ТS‘U	њЧШY‹ЬЧЪ\ЬЭ‹Ъ^™[ЩЉЬЧЪ\ЬЭЉJNВ€[™]ЫќЬ
-Q—ТS‘U	™ШY‹ЭЪ\ЬЭ‹Ъ^™[ЩЉЭЪ\ЬЭЉJNВ€H[ЩHY€
-ЬЭЌ€	‰€ЧЬ›ЭИOH™
-HВ€[™]ЫќЬ
-Q—ТS‘U‹	њЬЧЪ\—ШY‹ЬЧЪ\ЬЭ‹Ъ^™[ЩЉЬЧЪ\ЬЭЉJNВ€[™]ЫќЬ
-Q—ТS‘U‹	™ЭЪ\—ШY‹ЭЪ\ЬЭ‹Ъ^™[ЩЉЭЪ\ЬЭЉJNВ€H[ЩHИЫЫќ[ќYNИB‚€Z[ќЭ›ЭЧЪ\Э™\њЪ[Ы€H\ЧЪ\Ќ—ЬXЪЩ]И•H€NВ€ЫЫњЭZ[ќЭ
-™›ЭЧЬЬЧШY€H\ЧЪ\Ќ—ЬXЪЩ]ИЬЧЪ\—ШY‹њН—ШY€€
-ЫЫњЭZ[ќЭ
-ЉIњЬЧЪ\Ыќ[NВ€ЫЫњЭZ[ќЭ
-™›ЭЧЩЭШY€H\ЧЪ\Ќ—ЬXЪЩ]ИЭЪ\—ШY‹њН—ШY€€
-ЫЫњЭZ[ќЭ
-ЉI™ЭЪ\Ыќ[NВ‚€Y€
-›ЭШЫЫOHT“ХЧТPУTЌ€	‰€\ЧЪ\Ќ—ЬXЪЩ]
-HВ€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€OHUH	‰€ЫЩ™њЩ]ЏH	‰€ЫЩ™њЩ]ЧЬXЪЩ]Щ[™
-HВ€\™ЫЬЧЫY[X™\њЪ\Ь™\Э[ЭY[X™\њЪ\В€Y€
-\™ЫЬЧЫ[Ь\њЩJќY™™\€
-ИЫЩ™њЩ]
-Ъ^™WЭ
-JЧЬXЪЩ]Щ[™HЫЩ™њЩ]
-K	›Y[X™\њЪ\
-H	‰€Y[X™\њЪ\™[Z]
-HВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦМОNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\ЯS	\И‹ЬЧЪ\ЬЭ‹Y[X™\њЪ\™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\ЯS	\Й\Ч€‹[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹Y[X™\њЪ\™]Z[›Э]YЬЭЉNВ€B€B€Y€
-ЬЫ€	‰€ЫЩ™њЩ]ЏH	‰€ЫЩ™њЩ]ЧЬXЪЩ]Щ[™
-HВ€\њЩWЫ™Э™XЭЬЉќY™™\€
-ИЫЩ™њЩ]ЧЬXЪЩ]Щ[™HЫЩ™њЩ]ЬЧЫXXЛ€	њЬЧЪ\—ШY‹ЬЧЪ\ЬЭ‹XЪЩ]ЪYљ[™^ЬЫ—Ь›
-NВ€B€ЫЫќ[ќYNВ€B‚€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€›ЭШЫЫOH•H	‰€OHUH	‰‚€ЫЩ™њЩ]ЏH	‰€ЫЩ™њЩ]ЧЬXЪЩ]Щ[™
-HВ€\™ЫЬЧЫY[X™\њЪ\Ь™\Э[ЭY[X™\њЪ\В€Y€
-\™ЫЬЧЪYЫ\Ь\њЩJќY™™\€
-ИЫЩ™њЩ]
-Ъ^™WЭ
-JЧЬXЪЩ]Щ[™HЫЩ™њЩ]
-K	›Y[X™\њЪ\
-H	‰€Y[X™\њЪ\™[Z]
-HВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦМОNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\ЯQУT	\И‹ЬЧЪ\ЬЭ‹Y[X™\њЪ\™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\ЯQУT	\Й\Ч€‹[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹Y[X™\њЪ\™]Z[›Э]YЬЭЉNВ€B€ЫЫќ[ќYNВ€B‚€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€›ЭШЫЫOHLL•H	‰€OHЌMUH	‰‚€ЫЩ™њЩ]ЏH	‰€ЫЩ™њЩ]ЧЬXЪЩ]Щ[™
-HВ€\™ЫЬЧЭњњњЬ™\Э[ЭњњњВ€Y€
-\™ЫЬЧЭњњњЬ\њЩJќY™™\€
-ИЫЩ™њЩ]
-Ъ^™WЭ
-JЧЬXЪЩ]Щ[™HЫЩ™њЩ]
-K€›ЭЧЪ\Э™\њЪ[Ы‹	ќњњњ
-JHВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦМОNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\Я”””	\И‹ЬЧЪ\ЬЭ‹њњњ™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\Я”””	\Й\Ч€‹€[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹њњњ™]Z[›Э]YЬЭЉNВ€B€ЫЫќ[ќYNВ€B‚€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€›ЭШЫЫOHUH	‰€ЫЩ™њЩ]ЏH	‰€ЫЩ™њЩ]ЧЬXЪЩ]Щ[™
-HВ€\™ЫЬЧЩ[ќ\њљ\ЩWЬ™\Э[Э[ќВ€Y€
-\™ЫЬЧЩ[ќ\њљ\ЩWЬ\њЩWЪ\›ЭК›ЭШЫЫќY™™\€
-ИЫЩ™њЩ]ЧЬXЪЩ]Щ[™HЫЩ™њЩ]	™[ќ
-H	‰€[ќ™[Z]
-HВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦНЌNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\Я	\Я	\И‹ЬЧЪ\ЬЭ‹[ќњ›ЭЛ[ќ™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\Я	\Я	\Й\Ч€‹[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹[ќњ›ЭЛ[ќ™]Z[›Э]YЬЭЉNВ€B€ЫЫќ[ќYNВ€B‚€Y€
-›ЭШЫЫOHT“ХЧХФ
-HВ€Y€
-ЫЩ™њЩ]
-ИЊ€ЧЬXЪЩ]Щ[™
-HЫЫќ[ќYNВ€ЭќXЭЬ€ЬЪЋИY[XЬJ	ќЬЪ‹ќY™™\€
-ИЫЩ™њЩ]Ъ^™[ЩЉЬЪЉJNВ€ЭќXЭЬ€
-ќЬH	ќЬЪЋВ€Z[ќM—ЭЬќHќЪКЬO™\Э
-KЬЬќHќЪКЬOњЫЭ\ЩJNВ€[ќЬЪHЬO™Щ™€
-€В€Y€
-ЬЪЊЫЩ™њЩ]
-ИЬЪ€ЧЬXЪЩ]Щ[™
-HЫЫќ[ќYNВ€[ќ^[ШYЫЩ™њЩ]HЫЩ™њЩ]
-ИЬЪ^[ШYЫ[€HЧЬXЪЩ]Щ[™H^[ШYЫЩ™њЩ]В€[ќЬЬ™[][ќH
-ЬЬЮ[€	‰€
-ЬOњЮ[€ЬOњњЭЬO™љ[ЉJH€
-ЬЪ	‰€
-ЬќOHHЬќOHJJH€
-ЬЭИ	‰€
-\™ЫЬЧЭЧЭЬЬЬќ
-Ьќ
-H\™ЫЬЧЭЧЭЬЬЬќ
-ЬЬќ
-JJH€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€\™ЫЬЧЩ[ќ\њљ\ЩWЭЬЬЬќ
-ЬЬќЬќ
-JNВ€Y€
-]ЬЬ™[][ќ
-HЫЫќ[ќYNВ€Y€
-\›Э]YЩ]љY[ЩH	‰€\ЧЫЭ]›Э[™	‰€
-ЭЭ\HOHS’ЧСUT“‘UЭЭ\HOHS’ЧРУУТСQ
-JHВ€Y€
-\ЧЪ\Ќ—ЬXЪЩ]ИЭЫ™\Ќ—ЫZ\ЫX]Ъ
-	њЬЧЪ\—ШY‹ЬЧЫXXКH€ЭЫ™\ЌЫZ\ЫX]Ъ
-ЬЧЪ\Ыќ[KЬЧЫXXКJHВ€›Э]YЩ]љY[ЩHHNИ›Э]YЬЭ€Hџ›Э]YЋВ€B€B‚€Y€
-ЬЬЮ[ЉHВ€Z[ќЌЭ›ЭЧЭ\ЩXИHЭЭ\ЩXОВ‚€Y€
-ЬOњЮ[€	‰€]ЬOXЪКHВ€Y€
-ЬЩ^ЫY]љXЬКHВ€Ю[—ЭXЪЧЭ
-ќXЪЩYHЮ[—ЭXЪЧЩљ[™
-ЬЧЫXXЛЬЬќЬќ›ЭЧЪ\Э™\њЪ[Ы‹€›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹›ЭЧЭ\ЩXЛJNВ€Y€
-XЪЩY	‰€XЪЩYOќЧЭ\ЩXИOH
-HВ€XЪЩYOќЧЭ\ЩXИH›ЭЧЭ\ЩXОВ€XЪЩYOњ›Э]YH
-Z[ќЭ
-J›Э]YЩ]љY[ЩHИH€
-NВ€B€B€B€[ЩHY€
-ЬOњЮ[€	‰€ЬOXЪКHВ€Y€
-ЬЩ^ЫY]љXЬКHВ€Ю[—ЭXЪЧЭ
-ќXЪЩYHЮ[—ЭXЪЧЩљ[™
-ЭЫXXЛЬќЬЬќ›ЭЧЪ\Э™\њЪ[Ы‹€›ЭЧЩЭШY‹›ЭЧЬЬЧШY‹›ЭЧЭ\ЩXЛ
-NВ€Y€
-XЪЩY
-HВ€Y€
-XЪЩYOќЧЭ\ЩXИ€	‰€›ЭЧЭ\ЩXИ€XЪЩYOќЧЭ\ЩXКHВ€Z[ќЌЭќЭ\ИH›ЭЧЭ\ЩXИHXЪЩYOќЧЭ\ЩXОВ€Ъ\€ЫY[ќЫXXЧЬЭ–МNNВ€Ъ\€Ю[—Ь^[ШYММ—KЮ[—ЬЪYЦМLЋNВ€›Ь›X]ЫXXКXЪЩYO›XXЛЫY[ќЫXXЧЬЭЉNВ€Ыњљ[ќЉЮ[—Ь^[ШYЪ^™[ЩЉЮ[—Ь^[ШY
-K”•‰]H‹ЬЬќ
-NВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЮ[—ЬЪYЛЪ^™[ЩЉЮ[—ЬЪYКKЭЪ\ЬЭ‹Ю[—Ь^[ШY€XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКЫY[ќЫXXЧЬЭ‹•Ф“‹Ю[—ЬЪYЛЬЬЮ[—Ь›
-JHВ€[Z]Э[[Y]ћJ•Ф“	\Я	\Я	\Я	]_	[_ЦSђPТЙ\Ч€‹€ЫY[ќЫXXЧЬЭ‹ЭЪ\ЬЭ‹ЬЧЪ\ЬЭ‹ЬЬќ€
-[њЪYЫ™YЫ™ИЫ™К\ќЭ\Л€XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€B€B€XЪЩYOќ[YHВ€B€B€H[ЩHY€
-ЬOњњЭЬO™љ[ЉHВ€Y€
-ЬЩ^ЫY]љXЬКHВ€Ю[—ЭXЪЧЭ
-ќXЪЩYH•SВ€ЫЫњЭЪ\€
-ЫY[ќЪ\H•SВ€ЫЫњЭЪ\€
-њЩ\ќ™\—Ъ\H•SВ€Z[ќM—ЭЩ\ќ™\—ЬЬќHВ‚€XЪЩYHЮ[—ЭXЪЧЩљ[™
-ЬЧЫXXЛЬЬќЬќ›ЭЧЪ\Э™\њЪ[Ы‹€›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹›ЭЧЭ\ЩXЛ
-NВ€Y€
-XЪЩY
-HВ€ЫY[ќЪ\HЬЧЪ\ЬЭЋВ€Щ\ќ™\—Ъ\HЭЪ\ЬЭЋВ€Щ\ќ™\—ЬЬќHЬќВ€H[ЩHВ€XЪЩYHЮ[—ЭXЪЧЩљ[™
-ЭЫXXЛЬќЬЬќ›ЭЧЪ\Э™\њЪ[Ы‹€›ЭЧЩЭШY‹›ЭЧЬЬЧШY‹›ЭЧЭ\ЩXЛ
-NВ€Y€
-XЪЩY
-HВ€ЫY[ќЪ\HЭЪ\ЬЭЋВ€Щ\ќ™\—Ъ\HЬЧЪ\ЬЭЋВ€Щ\ќ™\—ЬЬќHЬЬќВ€B€B‚€К€Ф“Э]H™XЫЬ™И\™H[ќ[ќ[Ы[H[Z]YИ›ЭЬИ›Ь‚€
-€ЪXЪHЦS€Ш\ИШњЩ\ќ™Y€\ИЩY\ИY[ќ]HЩ[X[ќXЬВ€
-€ЭX›H[™]›ЪYИ›ЫЩ[™ИHШ]]Ш^HЪ][њ™[]Y’S‹Ф”Х€
-‹В€Y€
-XЪЩY
-HВ€Ъ\€ЫY[ќЫXXЧЬЭ–МNNВ€Ъ\€Ю[—Ь^[ШYММ—KЮ[—ЬЪYЦМLЋNВ€›Ь›X]ЫXXКXЪЩYO›XXЛЫY[ќЫXXЧЬЭЉNВ€Ыњљ[ќЉЮ[—Ь^[ШYЪ^™[ЩЉЮ[—Ь^[ШY
-K”ХUN‰]N‰\И‹Щ\ќ™\—ЬЬќЬOњњЭИ”€€€‘€ЉNВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЮ[—ЬЪYЛЪ^™[ЩЉЮ[—ЬЪYКKЫY[ќЪ\Ю[—Ь^[ШY€XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКЫY[ќЫXXЧЬЭ‹•Ф“‹Ю[—ЬЪYЛЬЬЮ[—Ь›
-JHВ€[Z]Э[[Y]ћJ•Ф“	\Я	\Я	\Я	]_	\Й\Ч€‹€ЫY[ќЫXXЧЬЭ‹ЫY[ќЪ\Щ\ќ™\—Ъ\Щ\ќ™\—ЬЬќ€ЬOњњЭИ””Х€€‘’S€‹XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€B€B€B€B‚€Y€
-ЬOњЮ[ЉHВ€[ќ\ЬИHLKЬШШ[HHLNИЪ\€ЬЧЬЭ–НЌHHМNИ[ќЬЬЬИHВ€Y€
-ЬЪ€Њ
-HВ€ЫЫњЭ[њЪYЫ™YЪ\€
-›ЬИHќY™™\€
-ИЫЩ™њЩ]
-ИЊВ€[ќЬЭЭ[HЬЪHЊЬHВ€Ъ[H
-ЬЬЭЭ[	‰€ЬЬЬИ
-[ќ
-\Ъ^™[ЩЉЬЧЬЭЉHH
-HВ€Z[ќЭЪ[™HЬЦЫЬNВ€Y€
-Ъ[™OH
-HИY€
-ЬЬЬИ€	‰€ЬЧЬЭ–ЫЬЬЬЛLWHOH	Л	КHЬЧЬЭ–ЫЬЬЬККЧHH	Л	ОИЬЧЬЭ–ЫЬЬЬККЧHH	СIОИњ™XZОИB€Y€
-Ъ[™OHJHИY€
-ЬЬЬИ€	‰€ЬЧЬЭ–ЫЬЬЬЛLWHOH	Л	КHЬЧЬЭ–ЫЬЬЬККЧHH	Л	ОИЬЧЬЭ–ЫЬЬЬККЧHH	У‰ОИЬ
-КОИЫЫќ[ќYNИB€Y€
-Ь
-ИHЏHЬЭЭ[
-Hњ™XZОВ€Z[ќЭЫ[€HЬЦЫЬ
-ИWNВ€Y€
-Ы[€€Ь
-ИЫ[€€ЬЭЭ[
-Hњ™XZОВ€Y€
-ЬЬЬИ€	‰€ЬЧЬЭ–ЫЬЬЬЛLWHOH	Л	КHЬЧЬЭ–ЫЬЬЬККЧHH	Л	ОВ€Y€
-Ъ[™OH€	‰€Ы[€OH
-HИ\ЬИH™XYШ™LMЉЬИ
-ИЬ
-ИЉNИЬЧЬЭ–ЫЬЬЬККЧHH	УIОИЬЧЬЭ–ЫЬЬЬККЧHH	К‰ОИB€[ЩHY€
-Ъ[™OHИ	‰€Ы[€OHКHИЬШШ[HHЬЦЫЬ
-И—NИЬЧЬЭ–ЫЬЬЬККЧHH	ХЙОИЬЧЬЭ–ЫЬЬЬККЧHH	К‰ОИB€[ЩHY€
-Ъ[™OH	‰€Ы[€OHЉHИЬЧЬЭ–ЫЬЬЬККЧHH	ФЙОИB€[ЩHY€
-Ъ[™OH	‰€Ы[€OHL
-HИЬЧЬЭ–ЫЬЬЬККЧHH	Х	ОИB€[ЩHИЬЧЬЭ–ЫЬЬЬККЧHH	ПЙОИB€Ь
-ПHЫ[ЋВ€B€B€ЬЧЬЭ–ЫЬЬЬЧHH	Ч	ОИY€
-ЬЧЬЭ–МHOH	Ч	КHЭЬJЬЧЬЭ‹››Ы™HЉNВ‚€Y€
-ЬOXЪИ	‰€ЬOњЮ[ЉHВ€К€›ЬќШ\™YРS€™\Y\И\ЩHH›Э]\‰ЬИ€ЫЭ\ЩHPPЛ‚€
-€^H\™HЫЫњЭ[YYX›Э™H›Ь€Ф“•Ы›H[™]\Э€
-€›ЭЭ\™XЩH\ИYШXЮH^\›[ЦSђPТИ[[Y]ћK€
-‹В€Y€
-\ЧЫЭ]›Э[™	‰€Z\ЧЬ›Э]\—ЫXXКЬЧЫXXКJHВ€Ъ\€Ю[—Ь^[ШYММ—KЮ[—ЬЪYЦМLЋNВ€Ыњљ[ќЉЮ[—Ь^[ШYЪ^™[ЩЉЮ[—Ь^[ШY
-K‰]H‹ЬЬќ
-NВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЮ[—ЬЪYЛЪ^™[ЩЉЮ[—ЬЪYКKЬЧЪ\ЬЭ‹Ю[—Ь^[ШY›Э]YЬЭЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹”ЦSђPТИ‹Ю[—ЬЪYЛЬЬЮ[—Ь›
-JB€[Z]Э[[Y]ћJ”ЦSђPТЯ	\Я	\Я	]_	]_	Y	Y	\Я	]I\Ч€‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹ќЪКЬOќЪ[™ЭКKЬШШ[K\ЬЛЬЧЬЭ‹ЬЬќ›Э]YЬЭЉNВ€B€H[ЩHY€
-ЬOњЮ[ЉHВ€Ъ\€Ю[—Ь^[ШYММ—KЮ[—ЬЪYЦМLЋNВ€Ыњљ[ќЉЮ[—Ь^[ШYЪ^™[ЩЉЮ[—Ь^[ШY
-K‰]H‹Ьќ
-NВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЮ[—ЬЪYЛЪ^™[ЩЉЮ[—ЬЪYКKЬЧЪ\ЬЭ‹Ю[—Ь^[ШY›Э]YЬЭЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹”ЦS€‹Ю[—ЬЪYЛЬЬЮ[—Ь›
-JB€[Z]Э[[Y]ћJ”ЦSџ	\Я	\Я	]_	]_	Y	Y	\Я	]I\Ч€‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹ќЪКЬOќЪ[™ЭКKЬШШ[K\ЬЛЬЧЬЭ‹Ьќ›Э]YЬЭЉNВ€B€B€B‚€К€ЦS€\ИHЫЫ›™XЭ[Ы‹YЩ[™\][Ы€›Э[™\ћH›Ь€[њЬXЭ[ЫЩHЭ]K‚€
-€™\Щ]™Y›Ь™HЫЫњЭ[[™ИУ‘HЫИ\YK]\H™]\ЩH\И™KZ[њЬXЭY€
-‹В€Y€
-ЬOњЮ[€	‰€]ЬOXЪКB€\™ЫЬЧЩ›ЭЧЬ™\Щ]ЬZ\Љ	\Щ›ЭЧЬЭ]K›ЭЧЪ\Э™\њЪ[Ы‹›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹ЬЬќЬќ
-NВ‚€[ќ[ќ\њљ\ЩWЭЬHќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€\™ЫЬЧЩ[ќ\њљ\ЩWЭЬЬЬќ
-ЬЬќЬќ
-NВ€[ќ\ЭXЪИH^[ШYЫ[€€	‰‚€
+    if (optind < argc) {
+        iface = argv[optind++];
+        opt_syn = opt_multi = opt_dhcp = opt_netbios = opt_dns = opt_http = opt_tls = opt_l2 = 1;
+        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 1;
+        opt_v6 = 1;
+    }
 
-ЬЪ	‰€
-ЬќOHHЬќOHJJH€
-ЬЭИ	‰€
-\™ЫЬЧЭЧЭЬЬЬќ
-Ьќ
-H\™ЫЬЧЭЧЭЬЬЬќ
-ЬЬќ
-JJH[ќ\њљ\ЩWЭЬ
-NВ€Y€
-\ЭXЪИ	‰€\™ЫЬЧЩ›ЭЧЬЪЭ[ЬЪЪ\
-	\Щ›ЭЧЬЭ]K›ЭЧЪ\Э™\њЪ[Ы‹›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹€ЬЬќЬќ
-JHВ€ЫЫќ[ќYNВ€B‚€Y€
-ЬЪ	‰€
-ЬќOHЬќOH
-H	‰€^[ШYЫ[€€MЉHВ€ЫЫњЭ[њЪYЫ™YЪ\€
-њHќY™™\€
-И^[ШYЫЩ™њЩ]В€Y€
+    if (optind < argc) { fprintf(stderr, "Error: Unrecognized extra argument.\n"); return 1; }
 
-^[ШYЫ[€ЏH	‰€Y[XЫ\
-‘СU‹
-HOH
-H
-^[ШYЫ[€ЏHH	‰€Y[XЫ\
-”ФХ‹JHOH
-JHВ€ЫЫњЭ[њЪYЫ™YЪ\€
-ќXWЪ€Hљ[™Шћ]\ЧШЪJ
-Ъ^™WЭ
-\^[ШYЫ[‹——•\Щ\‹PYЩ[ќ€‹M
-NВ€Y€
-XWЪЉHВ€ЫЫњЭ[њЪYЫ™YЪ\€
-ќXHHXWЪ€
-ИMИЪ^™WЭXWШ]Z[H
-Ъ^™WЭ
-J
-
-И^[ШYЫ[ЉHHXJNВ€ЫЫњЭ[њЪYЫ™YЪ\€
-™[™Hљ[™Шћ]\КXKXWШ]Z[
-ЫЫњЭ[њЪYЫ™YЪ\€
-ЉH——€‹ЉNВ€Y€
-[™
-HВ€[ќX[[€H
-[ќ
-J[™HXJNИY€
-X[[€€ЌMJHX[[€HЌMNВ€Ъ\€XWЬЭ–МЌM—NИШ[љ]^™WЩљY[
-XKX[[‹XWЬЭ‹Ъ^™[ЩЉXWЬЭЉK
-NВ€Ъ\€ЬЪYЦМОNВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЬЪYЛЪ^™[ЩЉЬЪYКKЬЧЪ\ЬЭ‹XWЬЭ‹›Э]YЬЭЉNВ€Y€
-XWЬЭ–МH	‰€YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹’‹ЬЪYЛЬЪЬ›
-JH[Z]Э[[Y]ћJ’	\Я	\Я	\Й\Ч€‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹XWЬЭ‹›Э]YЬЭЉNВ€B€B€B€B€[ЩHY€
-ЬЭИ	‰€\™ЫЬЧЭЧЭЬЬЬќ
-Ьќ
-H	‰€^[ШYЫ[€€
-HВ€\њЩWЭЧЬЫљJќY™™\€
-И^[ШYЫЩ™њЩ]^[ШYЫ[‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹Ьќ›Э]YЬЭ‹ЬЭЧЬ›
-NВ€B€[ЩHY€
-ЬЭИ	‰€\™ЫЬЧЭЧЭЬЬЬќ
-ЬЬќ
-H	‰€^[ШYЫ[€€
-HВ€\™ЫЬЧЭЧЬЩ\ќ™\—Ь™\Э[ЭЩ\ќ™\ЋВ€Y€
-\™ЫЬЧЭЧЬЩ\ќ™\—Ь\њЩJќY™™\€
-И^[ШYЫЩ™њЩ]
-Ъ^™WЭ
-\^[ШYЫ[‹	њЩ\ќ™\ЉJHВ€Ъ\€Ьќ—ЬЪYЦМЌM—NВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЬќ—ЬЪYЛЪ^™[ЩЉЬќ—ЬЪYКKЬЧЪ\ЬЭ‹Щ\ќ™\‹™љ[™Щ\њљ[ќ›Э]YЬЭЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹•ФФ•€‹Ьќ—ЬЪYЛЬЭЧЬ›
-JB€[Z]Э[[Y]ћJ•ФФ•џ	\Я	\Я	\Я	]_	\Я	\Й\Ч€‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹ЬЬќЩ\ќ™\‹™љ[™Щ\њљ[ќЩ\ќ™\‹[‹›Э]YЬЭЉNВ€B€B‚€\™ЫЬЧЩ[ќ\њљ\ЩWЬ™\Э[Э[ќЭЬВ€[ќ[ќЭЬЬЩY[€HВ€Y€
-[ќ\њљ\ЩWЭЬ	‰€^[ШYЫ[€€
-HВ€[ќЭЬЬЩY[€H\™ЫЬЧЩ[ќ\њљ\ЩWЬ\њЩWЭЬ
-ЬЬќЬќќY™™\€
-И^[ШYЫЩ™њЩ]^[ШYЫ[‹	™[ќЭЬ
-NВ€Y€
-[ќЭЬЬЩY[€	‰€[ќЭЬ™[Z]
-HВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦННЋNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\Я	\Я	\И‹ЬЧЪ\ЬЭ‹[ќЭЬњ›ЭЛ[ќЭЬ™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\Я	\Я	\Й\Ч€‹[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹[ќЭЬњ›ЭЛ[ќЭЬ™]Z[›Э]YЬЭЉNВ€B€B‚€К€Y[ќ]H\ИHЩ\\]H^XЪ]™XЭЬ‹€‘^XЭ[Ы€\В€
-€][\YЫ›HЫ€ЫY[ќOњЩ\ќ™\€МОH[™ЪZЩH^[ШYИ]€
-€[ќ\њљ\ЩH[ЩH[™XYHYZ]YИY][S•™[XZ[њИ™YXЭY€
-‹В€Y€
-\™ЫЬЧЪY[ќ]WЩ[X›Y
-ќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJH	‰€ЬќOHМОUH	‰€^[ШYЫ[€€
-HВ€\™ЫЬЧЪY[ќ]WЬ™\Э[ЭY[ќВ€Y€
-\™ЫЬЧЪY[ќ]WЬ™Ы\ЭЪ\Ъ
-ќY™™\€
-И^[ШYЫЩ™њЩ]
-Ъ^™WЭ
-\^[ШYЫ[‹€\™ЫЬЧЪY[ќ]WЬ]Кќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJK	љY[ќ
-JHВ€[Z]ЪY[ќ]WЫШњЩ\ќ][ЫЉЬЧЫXXЛЬЧЪ\ЬЭ‹	љY[ќ›Э]YЬЭ‹€ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-NВ€B€B‚€К€•H\HИ\ИHЫY[ќ]][ќXШ][Ы€[™ЪZЩHШ\њћZ[™В€
-€ШњЩ\ќ™YЫXZ[‹Э\Щ\‹ЭЫЬљЬЭ][Ы€Y[ќ]HY]Y]K€Ы›HЬЩB€
-€™YH›Э[™YЩXЭ\љ]HќY™™\њИ\™H\њЩYИ]]™\ЬЫњЩ\И\™H›Э€
-‹В€Y€
-\™ЫЬЧЪY[ќ]WЩ[X›Y
-ќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJH	‰€ЬќOHUH	‰€^[ШYЫ[€€
-HВ€\™ЫЬЧЪY[ќ]WЬ™\Э[ЭYЦМЧNВ€Ъ^™WЭYШЫЭ[ќH\™ЫЬЧЪY[ќ]WЫќWЭ\LК€ќY™™\€
-И^[ШYЫЩ™њЩ]
-Ъ^™WЭ
-\^[ШYЫ[‹€\™ЫЬЧЪY[ќ]WЬ]Кќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJKYКNВ€›Ь€
-Ъ^™WЭZHHИZHYШЫЭ[ќИ
-КЪZJHВ€[Z]ЪY[ќ]WЫШњЩ\ќ][ЫЉЬЧЫXXЛЬЧЪ\ЬЭ‹	љYЦЪZWK›Э]YЬЭ‹€ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-NВ€B€B‚€К€Щ\™\›ЬИШњЩ\ќ™YY[ќ]N€Ы›HЫY[ќO’СИTЛT‘THЫ[YKЬ™X[K€
-‹В€Y€
-\™ЫЬЧЪY[ќ]WЩ[X›Y
-ќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJH	‰€ЬќOHH	‰€^[ШYЫ[€€
-HВ€\™ЫЬЧЪY[ќ]WЬ™\Э[ЭY[ќВ€Y€
-\™ЫЬЧЪY[ќ]WЪЩ\™\›ЬЧШ\Ь™\JќY™™\€
-И^[ШYЫЩ™њЩ]€
-Ъ^™WЭ
-\^[ШYЫ[‹K€\™ЫЬЧЪY[ќ]WЬ]Кќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJK	љY[ќ
-JHВ€[Z]ЪY[ќ]WЫШњЩ\ќ][ЫЉЬЧЫXXЛЬЧЪ\ЬЭ‹	љY[ќ›Э]YЬЭ‹€ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-NВ€B€B‚€Y€
-\ЭXЪКHВ€[ќљ[™Щ\њљ[ќШЫЫ\]HH\Щ›ЭЧЬ^[ШYШЫЫ\]J€ЬЬќЬќќY™™\€
-И^[ШYЫЩ™њЩ]^[ШYЫ[ЉNВ€Y€
-[ќЭЬЬЩY[€	‰€[ќЭЬЫЫ\]JHљ[™Щ\њљ[ќШЫЫ\]HHNВ€\™ЫЬЧЩ›ЭЧЫ›ЭWЬ^[ШY
-	\Щ›ЭЧЬЭ]K›ЭЧЪ\Э™\њЪ[Ы‹›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹€ЬЬќЬќљ[™Щ\њљ[ќШЫЫ\]JNВ€B€B€[ЩHY€
-›ЭШЫЫOHT“ХЧХQ
-HВ€Y€
-ЫЩ™њЩ]
-И€ЧЬXЪЩ]Щ[™
-HЫЫќ[ќYNВ€ЭќXЭY€YЪЋИY[XЬJ	ќYЪ‹ќY™™\€
-ИЫЩ™њЩ]Ъ^™[ЩЉYЪЉJNВ€ЭќXЭY€
-ќYH	ќYЪЋВ€Z[ќM—ЭЬќHќЪКYO™\Э
-KЬЬќHќЪКYOњЫЭ\ЩJNВ€[ќYЬ™[][ќH
-ЬЩЬ	‰€
+    if (!opt_sensor_mode && (sensor_name[0] || configured_inside_count > 0)) {
+        fprintf(stderr, "Error: --sensor-name/--inside require --sensor.\n");
+        return 1;
+    }
+    if (opt_sensor_mode) {
+        if (!sensor_name[0]) {
+            fprintf(stderr, "Error: --sensor requires --sensor-name.\n");
+            return 1;
+        }
+        if (strcasecmp(iface, "any") == 0) {
+            fprintf(stderr, "Error: --sensor requires an explicit SPAN/TAP interface via -i (not 'any').\n");
+            return 1;
+        }
+    }
 
-\ЧЪ\Ќ—ЬXЪЩ]	‰€ЬЬќOHM•H	‰€ЬќOHMХJH€
-Z\ЧЪ\Ќ—ЬXЪЩ]	‰€
-ЬќOHЌХHЬЬќOHЌХJJJJH€
-ЬЫ™]љ[ЬИ	‰€
-ЬќOHLНХHЬЬќOHLНХJJH€
-ЬЫ][H	‰€
-ЬќOHNLHЬЬќOHNLHЬќOHНМ•HЬЬќOHНМ•H€ЬќOHLНLХHЬЬќOHLНLХJJH€
-ЬЩњИ	‰€
-ЬќOHLХHЬЬќOHLХJJH€
-ЬЭИ	‰€ЬќOHХJH€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€
-\™ЫЬЧЩ[ќ\њљ\ЩWЭYЬЬќ
-ЬЬќЬќ
-H€ЬЬќOHќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќЬќOHќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќ
-JNВ€Y€
-]YЬ™[][ќ
-HЫЫќ[ќYNВ€Y€
-\›Э]YЩ]љY[ЩH	‰€\ЧЫЭ]›Э[™	‰€
-ЭЭ\HOHS’ЧСUT“‘UЭЭ\HOHS’ЧРУУТСQ
-JHВ€Y€
-\ЧЪ\Ќ—ЬXЪЩ]ИЭЫ™\Ќ—ЫZ\ЫX]Ъ
-	њЬЧЪ\—ШY‹ЬЧЫXXКH€ЭЫ™\ЌЫZ\ЫX]Ъ
-ЬЧЪ\Ыќ[KЬЧЫXXКJHВ€›Э]YЩ]љY[ЩHHNИ›Э]YЬЭ€Hџ›Э]YЋВ€B€B€Z[ќM—ЭYЫ[€HќЪКYO›[ЉNВ€Y€
-YЫ[€H
-[ќ
-]YЫ[€€ЧЬXЪЩ]Щ[™HЫЩ™њЩ]
-HЫЫќ[ќYNВ€[ќ^[ШYЫЩ™њЩ]HЫЩ™њЩ]
-ИВ€[ќ^[ШYЫ[€H
-[ќ
-]YЫ[€HВ€Y€
-^[ШYЫ[€H
-HЫЫќ[ќYNВ‚€ЫЫњЭ[њЪYЫ™YЪ\€
-њ^[ШYHќY™™\€
-И^[ШYЫЩ™њЩ]В‚€Y€
-ЬЩЬ	‰€\ЧЪ\Ќ—ЬXЪЩ]	‰€ЬЬќOHM•H	‰€ЬќOHMХJHВ€\њЩWЩЬЉ^[ШY^[ШYЫ[‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹›Э]YЬЭ‹ЬЩЬЬ›
-NВ€B€[ЩHY€
-ЬЩЬ	‰€Z\ЧЪ\Ќ—ЬXЪЩ]	‰€
-ЬќOHЌХHЬЬќOHЌХJJHВ€\њЩWЩЬ
-^[ШY^[ШYЫ[‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹›Э]YЬЭ‹ЬЩЬЬ›
-NВ€B€[ЩHY€
-ЬЫ™]љ[ЬИ	‰€
-ЬќOHLНИЬЬќOHLНКJHВ€\њЩWЫ™]љ[ЬК^[ШY^[ШYЫ[‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹›Э]YЬЭ‹ЬЫ™]љ[ЬЧЬ›
-NВ€B€[ЩHY€
-ЬЫ][H	‰€
-ЬќOHNLЬЬќOHNLЬќOHНМ€ЬЬќOHНМЉJHВ€Ъ\€ЫX[—Ь^[ШYНLLЧNИ[ќ[€H
-^[ШYЫ[€€LLЉHИLL€€^[ШYЫ[ЋВ€Ш[љ]^™WЩљY[
-^[ШY[‹ЫX[—Ь^[ШYЪ^™[ЩЉЫX[—Ь^[ШY
-KJNВ€Ъ\€ЧЬЪYЦНЌNВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JЧЬЪYЛЪ^™[ЩЉЧЬЪYКKЬЧЪ\ЬЭ‹ЫX[—Ь^[ШY›Э]YЬЭЉNВ€Y€
-ЫX[—Ь^[ШYМH	‰€YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹“И‹ЧЬЪYЛЬЫ][WЬ›
-JHВ€[Z]Э[[Y]ћJ“Я	\Я	\Я	Y	\Й\Ч€‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹
-ЬќOHNLЬќOHНМЉHИЬќ€ЬЬќЫX[—Ь^[ШY›Э]YЬЭЉNВ€B€B€[ЩHY€
-ЬЫ][H	‰€
-ЬќOHLНLИЬЬќOHLНLКJHВ€\њЩWЫYњК^[ШY^[ШYЫ[‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹
-ЬќOHLНLКHИЬќ€ЬЬќ›Э]YЬЭ‹ЬЫ][WЬ›
-NВ€B€[ЩHY€
-ЬЩњИ	‰€
-ЬќOHLИЬЬќOHLКJHВ€Y€
-^[ШYЫ[€€LЉHВ€Z[ќM—Э›YЬИH™XYШ™LMЉ^[ШY
-ИЉNВ€[ќ\ЧЬ™\ЬЫњЩHH
-›YЬИ	€
-HOHВ€Z[ќM—ЭYH™XYШ™LMЉ^[ШY
-NВ‚€Y€
-Z\ЧЬ™\ЬЫњЩH	‰€ЬќOHLКHВ€Ъ\€[[YVМЌM—NВ€Z[ќM—Э]\HHВ€Y€
-XЫЩWЩњЧЫ[YJ^[ШY^[ШYЫ[‹L‹[[YKЪ^™[ЩЉ[[YJJH€	‰€[[YVМJHВ€
-›ЪY
-YњЧЬ]Y\Э[Ы—Ь]\J^[ШY^[ШYЫ[‹L‹	њ]\JNВ€Y€
-ЬЩ^ЫY]љXЬИ	‰€]\HOHJHВ€
-›ЪY
-X\™ЫЬЧЩњЧЭXЪЧЬ]
-њЧЭX›KђPТЧФУХЛ€›ЭЧЪ\Э™\њЪ[Ы‹›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹€ЬЬќЬќY]\K[[YKЭЭ\ЩXЛ€ЬЧЫXXЛ
-Z[ќЭ
-J›Э]YЩ]љY[ЩHИH€
-JNВ€B€Ъ\€њЧЬЪYЦМОNВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JњЧЬЪYЛЪ^™[ЩЉњЧЬЪYКKЬЧЪ\ЬЭ‹[[YK›Э]YЬЭЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКXXЧЬЭ‹‘”И‹њЧЬЪYЛЬЩњЧЬ›
-JHВ€[Z]Э[[Y]ћJ‘”Я	\Я	\Я	\Й\Ч€‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹[[YK›Э]YЬЭЉNВ€B€B€B€[ЩHY€
-\ЧЬ™\ЬЫњЩH	‰€ЬЬќOHLКHВ€Y€
-ЬЩ^ЫY]љXЬИ	‰€™XYШ™LMЉ^[ШY
-И
-H€JHВ€Ъ\€™\ЬЫњЩWЬ[[YVМЌM—NВ€Z[ќM—Э™\ЬЫњЩWЬ]\HHNВ€Y€
-XЫЩWЩњЧЫ[YJ^[ШY^[ШYЫ[‹L‹™\ЬЫњЩWЬ[[YKЪ^™[ЩЉ™\ЬЫњЩWЬ[[YJJH€	‰‚€™\ЬЫњЩWЬ[[YVМH	‰€њЧЬ]Y\Э[Ы—Ь]\J^[ШY^[ШYЫ[‹L‹	њ™\ЬЫњЩWЬ]\JJHВ€\™ЫЬЧЩњЧЭXЪЧЭ
-ќXЪЩYH\™ЫЬЧЩњЧЭXЪЧЩљ[™Ь™\ЬЫњЩJ€њЧЭX›KђPТЧФУХЛ›ЭЧЪ\Э™\њЪ[Ы‹›ЭЧЩЭШY‹›ЭЧЬЬЧШY‹€ЬќЬЬќY™\ЬЫњЩWЬ]\K™\ЬЫњЩWЬ[[YKЭЭ\ЩXКNВ€Y€
-XЪЩY
-HВ€Z[ќЭЫЩHH›YЬИ	€ЋВ€Z[ќЌЭ][ЮWЭ\ИHЭЭ\ЩXИHXЪЩYOќЧЭ\ЩXОВ€›Ш][ќHШ[Э[]WЩ[ќ›ЬJXЪЩYO™ЫXZ[ЉNВ‚€Ъ\€ЫY[ќЫXXЧЬЭ–МNNВ€›Ь›X]ЫXXКXЪЩYO›XXЛЫY[ќЫXXЧЬЭЉNВ‚€Ъ\€њЩ^ЬЪYЦМОNВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™JњЩ^ЬЪYЛЪ^™[ЩЉњЩ^ЬЪYКKЭЪ\ЬЭ‹€XЪЩYO™ЫXZ[‹XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬКЫY[ќЫXXЧЬЭ‹‘”СV‹њЩ^ЬЪYЛЬЩњЧЬ›
-JHВ€[Z]Э[[Y]ћJ‘”СV	\Я	\Я	\Я	\Я	]_	]_	KЊ™џ	KЊ™‰\Ч€‹€ЫY[ќЫXXЧЬЭ‹ЭЪ\ЬЭ‹ЬЧЪ\ЬЭ‹XЪЩYO™ЫXZ[‹€
-[њЪYЫ™Y
-]XЪЩYOњ]\K
-[њЪYЫ™Y
-\ЫЩK€
-›Ш]
-[][ЮWЭ\ИИLЊ‹[ќXЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€B€Ъ\€[\ќЬЪYЦМNL—NВ€ЫЭ\ЩWЩY\ЬЪYЫ]\™J[\ќЬЪYЛЪ^™[ЩЉ[\ќЬЪYКKЭЪ\ЬЭ‹€’QТС”ЧСS•“ФH‹XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€Y€
-[ќЏHЊ™€	‰‚€YY\ЬЪЭ[ЬЭ\™\ЬКЫY[ќЫXXЧЬЭ‹ђST•‹[\ќЬЪYЛЬЩњЧЬ›
-JHВ€[Z]Э[[Y]ћJђST•	\Я	\ЯQТС”ЧСS•“Ф_	\Я	KЊ™‰\Ч€‹€ЫY[ќЫXXЧЬЭ‹ЭЪ\ЬЭ‹XЪЩYO™ЫXZ[‹[ќ€XЪЩYOњ›Э]YИџ›Э]Y€€€ЉNВ€B€XЪЩYOќ[YHВ€B€B€B€B€B€B€[ЩHY€
-ЬЭИ	‰€ЬќOHКHВ€\њЩWЬ]ZXК^[ШY^[ШYЫ[‹XXЧЬЭ‹ЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹Ьќ›Э]YЬЭ‹ЬЭЧЬ›
-NВ€B€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€OHUH	‰€
-ЬЬќOHNNUHЬќOHNNUJJHВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦНLL—NВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ‚€\™ЫЬЧЪЬњ—Ь™\Э[ЭЬњЋВ€Y€
-\™ЫЬЧЪЬњ—Ь\њЩJ^[ШY
-Ъ^™WЭ
-\^[ШYЫ[‹	љЬњЉJHВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\ЯФ”џ	\И‹ЬЧЪ\ЬЭ‹Ьњ‹™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\ЯФ”џ	\Й\Ч€‹€[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹Ьњ‹™]Z[›Э]YЬЭЉNВ€H[ЩHВ€\™ЫЬЧЪЬњWЬ™\Э[ЭЬњNВ€Y€
-\™ЫЬЧЪЬњWЬ\њЩJ^[ШY
-Ъ^™WЭ
-\^[ШYЫ[‹	љЬњJJHВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\ЯФ”	\И‹ЬЧЪ\ЬЭ‹ЬњK™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\ЯФ”	\Й\Ч€‹€[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹ЬњK™]Z[›Э]YЬЭЉNВ€B€B€B€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€
-ЬЬќOHќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќЬќOHќ[ќ[YWШЩ™ЛќЪ\™YЭX\™ЬЬќ
-JHВ€К€\KM[њЬЬќXЪЩ]ИШ[€™H[€[\[ќQ›ЭЛ€[Y]HB€
-€^XЭЪ\™QЭX\™њ[Z[™ИЪX\K[€ћ\\ЬИHќ[\њЩ\€›Ь‚€
-€™\X]Y[њЬЬќY]H[€HЪЬќ\ШЪ€[™ЪZЩKШЫЫЪЪYH\\В€
-€[™ЩY\[]™\И\™H[Ш^\И\њЩY€”ЛСФФURPЛФХS‹РЫРTУ•\™B€
-€[X™\][HЭ]ЪYH\ИЭ\™\ЬЪ[Ы€X›K€
-‹В€[ќЩЧЭ[њЬЬќH\™ЫЬЧЭЪ\™YЭX\™Э[њЬЬќЪЪ[™
-^[ШY
-Ъ^™WЭ
-\^[ШYЫ[ЉNВ€[ќЩЧЬЭ\™\ЬЩYHЩЧЭ[њЬЬќOH€	‰‚€\™ЫЬЧЭYЬЭ\™\ЬЧЬ™XЩ[ќ
-YЬЭ\™\ЬЧЭX›K›ЭЧЪ\Э™\њЪ[Ы‹€›ЭЧЬЬЧШY‹›ЭЧЩЭШY‹ЬЬќЬќ€K
-Z[ќЌЭ
-][YJ•S
-JNВ€Y€
-]ЩЧЬЭ\™\ЬЩY
-HВ€\™ЫЬЧЭЪ\™YЭX\™Ь™\Э[ЭЩОВ€Y€
-\™ЫЬЧЭЪ\™YЭX\™Ь\њЩJ^[ШY
-Ъ^™WЭ
-\^[ШYЫ[‹	ќЩКH	‰€ЩЛ™[Z]
-HВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦМОNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\ЯЪ\™QЭX\™	\И‹ЬЧЪ\ЬЭ‹ЩЛ™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\ЯЪ\™QЭX\™	\Й\Ч€‹€[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹ЩЛ™]Z[›Э]YЬЭЉNВ€B€B€B€Y€
-ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЩ[X›Y	‰€\™ЫЬЧЩ[ќ\њљ\ЩWЭYЬЬќ
-ЬЬќЬќ
-JHВ€\™ЫЬЧЩ[ќ\њљ\ЩWЬ™\Э[Э[ќЭYВ€Y€
-\™ЫЬЧЩ[ќ\њљ\ЩWЬ\њЩWЭY
-ЬЬќЬќ^[ШY^[ШYЫ[‹	™[ќЭY
-H	‰€[ќЭY™[Z]
-HВ€Ъ\€[ќЫXXЦМNK[ќЬЪYЦННЋNВ€›Ь›X]ЫXXКЬЧЫXXЛ[ќЫXXКNВ€Ыњљ[ќЉ[ќЬЪYЛЪ^™[ЩЉ[ќЬЪYКK‰\Я	\Я	\И‹ЬЧЪ\ЬЭ‹[ќЭYњ›ЭЛ[ќЭY™]Z[
-NВ€Y€
-YY\ЬЪЭ[ЬЭ\™\ЬК[ќЫXXЛ‘S•‹[ќЬЪYЛќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-JB€[Z]Э[[Y]ћJ‘S•	\Я	\Я	\Я	\Я	\Й\Ч€‹[ќЫXXЛЬЧЪ\ЬЭ‹ЭЪ\ЬЭ‹[ќЭYњ›ЭЛ[ќЭY™]Z[›Э]YЬЭЉNВ€B€B€К€ђQUTИШњЩ\ќ™YY[ќ]N€ЫY[ќXШЩ\ЬЛT™\]Y\Э\Щ\‹S[YHЫ›K€
-‹В€Y€
-\™ЫЬЧЪY[ќ]WЩ[X›Y
-ќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJH	‰€ЬќOHNL•JHВ€\™ЫЬЧЪY[ќ]WЬ™\Э[ЭY[ќВ€Y€
-\™ЫЬЧЪY[ќ]WЬY]\ЧШXШЩ\ЬЧЬ™\]Y\Э
-^[ШY
-Ъ^™WЭ
-\^[ШYЫ[‹€\™ЫЬЧЪY[ќ]WЬ]Кќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJK	љY[ќ
-JHВ€[Z]ЪY[ќ]WЫШњЩ\ќ][ЫЉЬЧЫXXЛЬЧЪ\ЬЭ‹	љY[ќ›Э]YЬЭ‹€ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-NВ€B€B‚€К€QО\Щ\ИHШ[YHЭљXЭH›Э[™YTЛT‘TH\њЩ\€Ъ]Э]€
-€H‘ђИLЊФ™XЫЬ™[[™Э™Yљ^€
-‹В€Y€
-\™ЫЬЧЪY[ќ]WЩ[X›Y
-ќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJH	‰€ЬќOHJHВ€\™ЫЬЧЪY[ќ]WЬ™\Э[ЭY[ќВ€Y€
-\™ЫЬЧЪY[ќ]WЪЩ\™\›ЬЧШ\Ь™\J^[ШY
-Ъ^™WЭ
-\^[ШYЫ[‹€\™ЫЬЧЪY[ќ]WЬ]Кќ[ќ[YWШЩ™ЛљY[ќ]WЫ[ЩJK	љY[ќ
-JHВ€[Z]ЪY[ќ]WЫШњЩ\ќ][ЫЉЬЧЫXXЛЬЧЪ\ЬЭ‹	љY[ќ›Э]YЬЭ‹€ќ[ќ[YWШЩ™Л™[ќ\њљ\ЩWЬ]WЫ[Z]Y
-NВ€B€B€B€B€Y€
-ЬЭЌЉHВ€Z[ќЌЭ›ШЩ\ЬЪ[™ЧЩ[™Э\ИHЩ]ШЭ\њ™[ќЭ\ЩXК
-NВ€Y€
-›ШЩ\ЬЪ[™ЧЩ[™Э\ИЏH›ШЩ\ЬЪ[™ЧЬЭ\ќЭ\И	‰€›ШЩ\ЬЪ[™ЧЩ[™Э\ИH›ШЩ\ЬЪ[™ЧЬЭ\ќЭ\И€X^ЫЫЬЭ\КB€X^ЫЫЬЭ\ИH›ШЩ\ЬЪ[™ЧЩ[™Э\ИH›ШЩ\ЬЪ[™ЧЬЭ\ќЭ\ОВ€B€B‚€К€ЫX[ќ\ЫШЪЩ]И[™™\ЫЭ\Щ\И
-‹В€›Ь€
-[ќHHИHќ[WЪYXЩ\ОИJККHЫЬЩJXЭ]™WЪYXЩ\ЦЪWK™™
-NВ€Y€
-[—Ы™][љЧЩ™ЏH
-HЫЬЩJ[—Ы™][љЧЩ™
-NВ€Y€
-\ЧЬЫШЪИЏH
-HЫЬЩJ\ЧЬЫШЪКNВ€Y€
-™[[ЭWЬЫШЪИЏH
-HЫЬЩJ™[[ЭWЬЫШЪКNВ€њ™YJЮ[—ЭX›JNИњ™YJњЧЭX›JNИ\™ЫЬЧЩY\Щ\Э›ЮJ	™Y\ЬЭ]JNИњ™YJЭЫ™\ЌЭX›JNИњ™YJЭЫ™\Ќ—ЭX›JNВ€ЫЬЩJ\ЫЩ™
-NВ€™]\›€ВџB€Щ[™Y‚
+    const char *runtime_cfg_error = argos_runtime_config_validate(&runtime_cfg);
+    if (runtime_cfg_error) {
+        fprintf(stderr, "Error: %s\n", runtime_cfg_error);
+        return 1;
+    }
+
+    if (filter_mode1.is_active && filter_mode2.is_active) {
+        fprintf(stderr, "warning: -z and -Z both given; -Z ignored in live sniffer mode.\n");
+    }
+
+    if (opt_ext_metrics) {
+        syn_table = (syn_track_t *)calloc(TRACK_SLOTS, sizeof(*syn_table));
+        dns_table = (argos_dns_track_t *)calloc(TRACK_SLOTS, sizeof(*dns_table));
+        if (!syn_table || !dns_table) {
+            fprintf(stderr, "Error: unable to allocate extended-metrics state.\n");
+            free(syn_table); free(dns_table); argos_dedup_destroy(&dedup_state); free(owner4_table); free(owner6_table); return 1;
+        }
+    }
+
+    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !runtime_cfg.enterprise_enabled) {
+        opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;
+        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;
+        opt_v6 = 1;
+    }
+
+    argos_bpf_config_t bpf_cfg = {
+        .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
+        .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
+        .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),
+        .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),
+        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(runtime_cfg.enterprise_enabled != 0),
+        .wireguard_port = (uint16_t)(runtime_cfg.enterprise_enabled ? runtime_cfg.wireguard_port : 0U)
+    };
+
+    install_signal_handlers();
+
+    int epoll_fd = epoll_create1(0);
+    if (epoll_fd < 0) { perror("epoll_create1"); return 1; }
+    int lan_netlink_fd = -1;
+
+    /* -i takes a comma-separated interface list (e.g. "eth0,wlan0"); make a
+     * mutable copy since strtok() writes '\0' separators into it in place. */
+    char *iface_list = strdup(iface);
+    if (!iface_list) { fprintf(stderr, "Error: out of memory duplicating interface list.\n"); return 1; }
+    char *token = strtok(iface_list, ",");
+    
+    /* Open one AF_PACKET raw socket per requested interface (or the special
+     * "any" pseudo-interface, which captures on all interfaces at once using
+     * Linux's "cooked" SLL framing instead of a real link-layer header) and
+     * register each with epoll so the main loop can multiplex between them. */
+    while (token != NULL && num_ifaces < MAX_INTERFACES) {
+        int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+        if (sock < 0) { token = strtok(NULL, ","); continue; }
+
+        active_ifaces[num_ifaces].fd = sock;
+        strncpy(active_ifaces[num_ifaces].name, token, IFNAMSIZ - 1);
+        active_ifaces[num_ifaces].name[IFNAMSIZ - 1] = '\0';
+
+        struct sockaddr_ll sll; memset(&sll, 0, sizeof(sll));
+        sll.sll_family = AF_PACKET;
+        sll.sll_protocol = htons(ETH_P_ALL);
+
+        if (strcasecmp(token, "any") == 0) {
+            /* SOCK_RAW + ifindex 0 delivers native L2 framing. Resolve the
+             * actual link type from sockaddr_ll for each received packet. */
+            if (num_ifaces > 0) {
+                fprintf(stderr, "warning: 'any' should not be combined with explicit interfaces; skipping '%s'\n", token);
+                close(sock); token = strtok(NULL, ","); continue;
+            }
+            active_ifaces[num_ifaces].ifindex = 0;
+            active_ifaces[num_ifaces].type = LINK_PER_PACKET;
+            sll.sll_ifindex = 0;
+        } else {
+            struct ifreq ifr; memset(&ifr, 0, sizeof(ifr));
+            strncpy(ifr.ifr_name, token, IFNAMSIZ - 1);
+            if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) { close(sock); token = strtok(NULL, ","); continue; }
+            active_ifaces[num_ifaces].ifindex = ifr.ifr_ifindex;
+            sll.sll_ifindex = ifr.ifr_ifindex;
+
+            if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+                active_ifaces[num_ifaces].type = hatype_to_link((unsigned short)ifr.ifr_hwaddr.sa_family);
+            } else {
+                active_ifaces[num_ifaces].type = LINK_UNSUPPORTED;
+            }
+            if (active_ifaces[num_ifaces].type == LINK_UNSUPPORTED) {
+                fprintf(stderr, "warning: unsupported link-layer type on %s; skipping\n", token);
+                close(sock); token = strtok(NULL, ","); continue;
+            }
+        }
+        
+        if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); token = strtok(NULL, ","); continue; }
+
+        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
+            if (argos_bpf_attach(sock, &bpf_cfg) < 0) {
+                fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\n",
+                        token, strerror(errno));
+            }
+        }
+
+        if (opt_promisc && active_ifaces[num_ifaces].type == LINK_ETHERNET) {
+            struct packet_mreq mr; memset(&mr, 0, sizeof(mr));
+            mr.mr_ifindex = active_ifaces[num_ifaces].ifindex; mr.mr_type = PACKET_MR_PROMISC;
+            setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
+        }
+
+        int rcvbuf = 2 * 1024 * 1024; setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+        int one = 1;
+        setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &one, sizeof(one)); /* recover HW-stripped VLAN */
+#ifdef SO_TIMESTAMPNS
+        setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &one, sizeof(one));
+#endif
+        struct epoll_event ev; memset(&ev, 0, sizeof(ev)); ev.events = EPOLLIN; ev.data.ptr = &active_ifaces[num_ifaces];
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev) < 0) {
+            perror("epoll_ctl"); close(sock); token = strtok(NULL, ","); continue;
+        }
+
+        num_ifaces++; token = strtok(NULL, ",");
+    }
+    free(iface_list);
+    if (opt_promisc && num_ifaces == 1 && active_ifaces[0].type == LINK_PER_PACKET) {
+        fprintf(stderr, "warning: promiscuous mode with -i any is not enabled globally; use explicit interfaces with -p for full L2 visibility\n");
+    }
+
+    if (num_ifaces == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\n"); return 1; }
+    learn_lan_prefixes();
+
+    lan_netlink_fd = lan_netlink_open();
+    if (lan_netlink_fd >= 0) {
+        struct epoll_event nev;
+        memset(&nev, 0, sizeof(nev));
+        nev.events = EPOLLIN;
+        nev.data.ptr = &lan_netlink_epoll_tag;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lan_netlink_fd, &nev) < 0) {
+            fprintf(stderr, "warning: unable to add route-netlink listener to epoll: %s\n", strerror(errno));
+            close(lan_netlink_fd);
+            lan_netlink_fd = -1;
+        }
+    } else {
+        fprintf(stderr, "warning: route-netlink prefix refresh unavailable: %s\n", strerror(errno));
+    }
+
+    /* Keep stdout line-buffered whenever it is active. With -U it is a
+     * deliberate local fan-out alongside the remote UDP sink. */
+    if (!use_ipc || use_remote) setvbuf(stdout, NULL, _IOLBF, 0);
+
+    struct epoll_event events[MAX_EPOLL_EVENTS];
+    unsigned char buffer[CAPTURE_BUF];
+
+    /* Main packet capture and processing loop */
+    while (running) {
+        static uint64_t last_gc = 0, last_stats = 0, max_loop_us = 0;
+        uint64_t now_us = get_current_usec();
+        if (opt_quic_heavy && (now_us - last_gc > 2000000ULL)) {
+            quic_heavy_gc();
+            last_gc = now_us;
+        }
+        if (now_us - last_stats > 10000000ULL) {
+            for (int si = 0; si < num_ifaces; si++) {
+                struct tpacket_stats st; memset(&st, 0, sizeof(st));
+                socklen_t sl = sizeof(st);
+                if (getsockopt(active_ifaces[si].fd, SOL_PACKET, PACKET_STATISTICS, &st, &sl) == 0) {
+                    active_ifaces[si].total_packets += st.tp_packets;
+                    active_ifaces[si].total_drops += st.tp_drops;
+                    /* Keep reset-on-read accounting continuously, but avoid a
+                     * zero-drop heartbeat in syslog every ten seconds. */
+                    if (st.tp_drops) {
+                        double drop_pct = st.tp_packets ? (100.0 * (double)st.tp_drops / (double)st.tp_packets) : 0.0;
+                        fprintf(stderr, "argos: %s pkts=%u drops=%u drop=%.2f%% total_pkts=%llu total_drops=%llu",
+                                active_ifaces[si].name, st.tp_packets, st.tp_drops, drop_pct,
+                                (unsigned long long)active_ifaces[si].total_packets,
+                                (unsigned long long)active_ifaces[si].total_drops);
+                        if (opt_v6) fprintf(stderr, " max_loop_us=%llu", (unsigned long long)max_loop_us);
+                        fputc('\n', stderr);
+                    }
+                }
+            }
+            if (opt_v6) max_loop_us = 0;
+            last_stats = now_us;
+        }
+        int nfds = epoll_wait(epoll_fd, events, MAX_EPOLL_EVENTS, 1000);
+        if (nfds < 0 && errno != EINTR) break;
+        uint64_t processing_start_us = opt_v6 ? get_current_usec() : 0;
+
+        for (int i = 0; i < nfds; i++) {
+            if (events[i].data.ptr == &lan_netlink_epoll_tag) {
+                if (lan_netlink_fd >= 0 && lan_netlink_drain(lan_netlink_fd))
+                    learn_lan_prefixes();
+                continue;
+            }
+
+            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
+
+            struct sockaddr_ll from_ll;
+            memset(&from_ll, 0, sizeof(from_ll));
+            struct iovec iov;
+            iov.iov_base = buffer;
+            iov.iov_len = sizeof(buffer);
+            char cmsg_buf[CMSG_SPACE(sizeof(struct tpacket_auxdata)) + CMSG_SPACE(sizeof(struct timespec))];
+            struct msghdr msg;
+            memset(&msg, 0, sizeof(msg));
+            msg.msg_name = &from_ll;
+            msg.msg_namelen = sizeof(from_ll);
+            msg.msg_iov = &iov;
+            msg.msg_iovlen = 1;
+            msg.msg_control = cmsg_buf;
+            msg.msg_controllen = sizeof(cmsg_buf);
+
+            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
+            if (len <= 0) continue;
+            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
+
+            uint64_t pkt_usec = 0;
+            uint16_t aux_vlan = 0;
+            int aux_vlan_valid = 0;
+            for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
+#ifdef SO_TIMESTAMPNS
+                if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPNS) {
+                    struct timespec ts;
+                    memcpy(&ts, CMSG_DATA(c), sizeof(ts));
+                    pkt_usec = (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
+                }
+#endif
+                if (c->cmsg_level == SOL_PACKET && c->cmsg_type == PACKET_AUXDATA &&
+                    c->cmsg_len >= CMSG_LEN(sizeof(struct tpacket_auxdata))) {
+                    struct tpacket_auxdata aux;
+                    memcpy(&aux, CMSG_DATA(c), sizeof(aux));
+                    if (aux.tp_status & TP_STATUS_VLAN_VALID) {
+                        aux_vlan = (uint16_t)(aux.tp_vlan_tci & 0x0fffU);
+                        aux_vlan_valid = 1;
+                    }
+                }
+            }
+            if (pkt_usec == 0) pkt_usec = get_current_usec();
+
+            link_type_t pkt_type = current_iface->type;
+            if (pkt_type == LINK_PER_PACKET) pkt_type = hatype_to_link(from_ll.sll_hatype);
+            /* A socket bound to an explicit bridge is classified against that
+             * bridge's connected prefixes. Some kernels report the ingress
+             * bridge-port ifindex in sockaddr_ll; using it made valid off-link
+             * IPv6 sources miss the br-lan prefix context. `any` still uses the
+             * actual per-packet ifindex to avoid cross-interface false positives. */
+            int packet_ifindex = prefix_context_ifindex(current_iface, from_ll.sll_ifindex);
+
+            argos_packet_view_t packet_view;
+            if (!argos_packet_decode(pkt_type, buffer, (int)len, opt_v6, &packet_view)) continue;
+
+            unsigned char *src_mac = packet_view.src_mac;
+            unsigned char *dst_mac = packet_view.dst_mac;
+            uint16_t l3_proto = packet_view.l3_proto;
+            int l3_offset = packet_view.l3_offset;
+
+            if (opt_sensor_mode) {
+                uint16_t outer = packet_view.outer_vlan;
+                uint16_t inner = packet_view.inner_vlan;
+                if (aux_vlan_valid) {
+                    if (outer == 0U) outer = aux_vlan;
+                    else if (aux_vlan != outer) { inner = outer; outer = aux_vlan; }
+                }
+                snprintf(sensor_observation_iface, sizeof(sensor_observation_iface), "%s", current_iface->name);
+                sensor_observation_outer_vlan = outer;
+                sensor_observation_inner_vlan = inner;
+            }
+
+            static const unsigned char zero_mac[6] = {0,0,0,0,0,0};
+            static const unsigned char bcast_mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
+            /* RAW_IP (PPP/TUN/WireGuard) has no MAC, so zero-MAC validation
+             * applies only to Ethernet and cooked link-layer frames. */
+            if (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED) {
+                if (memcmp(src_mac, zero_mac, 6) == 0 || memcmp(src_mac, bcast_mac, 6) == 0) continue;
+            }
+
+            uint32_t src_ip_num = 0, dst_ip_num = 0;
+            int is_outbound = 0;
+            int source_offlink_routed = 0;
+            struct in6_addr src_ip6_addr, dst_ip6_addr;
+            memset(&src_ip6_addr, 0, sizeof(src_ip6_addr));
+            memset(&dst_ip6_addr, 0, sizeof(dst_ip6_addr));
+            int is_ipv6_packet = packet_view.ip_version == 6U;
+            int is_ip_packet = packet_view.is_ip;
+            uint8_t ip_protocol = packet_view.ip_protocol;
+            uint8_t ip_ttl = packet_view.ip_ttl;
+            int l4_offset = packet_view.l4_offset;
+            int ipv4_is_frag = packet_view.nonfirst_fragment;
+
+            if (packet_view.ip_version == 4U) {
+                memcpy(&src_ip_num, packet_view.src_addr, 4U);
+                memcpy(&dst_ip_num, packet_view.dst_addr, 4U);
+                int src_lan = is_lan_ipv4(src_ip_num);
+                int dst_lan = is_lan_ipv4(dst_ip_num);
+                source_offlink_routed = is_routed_source_ipv4(src_ip_num, packet_ifindex);
+                if (!src_lan && !dst_lan && !source_offlink_routed) continue;
+                is_outbound = src_lan || source_offlink_routed;
+            } else if (packet_view.ip_version == 6U) {
+                memcpy(&src_ip6_addr, packet_view.src_addr, 16U);
+                memcpy(&dst_ip6_addr, packet_view.dst_addr, 16U);
+                int src_lan = is_lan_ipv6(&src_ip6_addr);
+                int dst_lan = is_lan_ipv6(&dst_ip6_addr);
+                source_offlink_routed = is_routed_source_ipv6(&src_ip6_addr, packet_ifindex);
+                if (!src_lan && !dst_lan && !source_offlink_routed) continue;
+                is_outbound = src_lan || source_offlink_routed;
+            } else if (l3_proto == 0x88ccU || l3_proto == 0x0806U ||
+                       (runtime_cfg.enterprise_enabled &&
+                        (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU ||
+                         l3_proto == 0x8892U || l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                         l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
+                /* L2 discovery/control frames intentionally have no IP view. */
+            } else {
+                continue;
+            }
+
+            int l3_packet_end = packet_view.packet_end;
+
+            const struct in6_addr *filt_src_ip6 = is_ipv6_packet ? &src_ip6_addr : NULL;
+            const struct in6_addr *filt_dst_ip6 = is_ipv6_packet ? &dst_ip6_addr : NULL;
+
+            if (filter_exclude.is_active && evaluate_filter(&filter_exclude, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) {
+                continue;
+            }
+
+            if (filter_mode1.is_active) {
+                if (!evaluate_filter(&filter_mode1, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
+                dump_target_packet(buffer, (int)len, l3_offset, l3_proto);
+                packet_count++; if (max_packets > 0 && packet_count >= max_packets) running = 0;
+                continue;
+            }
+
+            if (pkt_type == LINK_ETHERNET) {
+                if (is_hard_excluded_mac(src_mac) && is_outbound) continue;
+
+                if (is_router_mac(src_mac)) {
+                    int allow_packet = 0;
+                    if (is_ip_packet && ip_protocol == IPPROTO_UDP && len >= l4_offset + 8) {
+                        struct udphdr udp_hdr; memcpy(&udp_hdr, buffer + l4_offset, sizeof(udp_hdr));
+                        if (ntohs(udp_hdr.source) == 53) allow_packet = 1;
+                    }
+                    /* A forwarded Internet SYNACK appears on br-lan with the
+                     * router as its Ethernet source. Let it reach only the TCP
+                     * correlation path so -E can compute client RTT; the
+                     * legacy SYNACK emitter below remains suppressed. */
+                    if (!is_outbound && is_ip_packet && ip_protocol == IPPROTO_TCP &&
+                        l4_offset + 20 <= l3_packet_end) {
+                        struct tcphdr forwarded_tcp;
+                        memcpy(&forwarded_tcp, buffer + l4_offset, sizeof(forwarded_tcp));
+                        if (forwarded_tcp.syn && forwarded_tcp.ack) allow_packet = 1;
+                    }
+                    if (!allow_packet) continue;
+                }
+            }
+
+            /* Raw-IP links have no hardware MACs. Create stable L3-derived
+             * surrogate identities before any MAC-keyed filter/state/dedup path.
+             * Sensor/interface provenance remains separate in the OBS envelope. */
+            if (pkt_type == LINK_RAW_IP && is_ip_packet) {
+                if (is_ipv6_packet) {
+                    argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac);
+                    argos_raw_identity_v6(dst_ip6_addr.s6_addr, dst_mac);
+                } else {
+                    argos_raw_identity_v4(packet_view.src_addr, src_mac);
+                    argos_raw_identity_v4(packet_view.dst_addr, dst_mac);
+                }
+            }
+
+            if (filter_mode2.is_active) {
+                if (!evaluate_filter(&filter_mode2, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
+            }
+
+            int routed_evidence = source_offlink_routed;
+
+            unsigned char device_mac[6];
+            /* L2 discovery/control frames identify their sender by source MAC.
+             * Using the destination MAC would turn multicast addresses such as
+             * LLDP's 01:80:c2:00:00:0e into fake device identities. */
+            if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
+                (runtime_cfg.enterprise_enabled && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                                    l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                                    l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
+                memcpy(device_mac, src_mac, 6);
+            } else if (is_outbound) {
+                memcpy(device_mac, src_mac, 6);
+            } else {
+                memcpy(device_mac, dst_mac, 6);
+            }
+            if (memcmp(device_mac, zero_mac, 6) == 0 || memcmp(device_mac, bcast_mac, 6) == 0) continue;
+
+            char mac_str[18];
+            const char *routed_str = routed_evidence ? "|routed" : "";
+            format_mac(device_mac, mac_str);
+
+            /* L2 vectors must run even when there is no IP header. */
+            if (l3_proto == 0x88cc) {
+                if (opt_l2)
+                    parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str, opt_l2_rl);
+                if (runtime_cfg.enterprise_enabled) {
+                    argos_lldp_med_result_t med;
+                    if (argos_lldp_med_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &med)) {
+                        if (!dedup_should_suppress(mac_str, "ENT", med.detail, runtime_cfg.enterprise_rate_limited))
+                            emit_telemetry("ENT|%s|-|-|LLDP-MED|%s\n", mac_str, med.detail);
+                    }
+                }
+                continue;
+            }
+            if (runtime_cfg.enterprise_enabled && l3_proto <= 1500U) {
+                argos_stp_result_t stp;
+                if (argos_stp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|-|-|STP|%s\n", mac_str, stp.detail);
+                    continue;
+                }
+                if (argos_rstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|-|-|RSTP|%s\n", mac_str, stp.detail);
+                    continue;
+                }
+                argos_mstp_result_t mstp;
+                if (argos_mstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &mstp)) {
+                    if (!dedup_should_suppress(mac_str, "ENT", mstp.detail, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|-|-|MSTP|%s\n", mac_str, mstp.detail);
+                    continue;
+                }
+            }
+            if (runtime_cfg.enterprise_enabled && l3_proto == 0x8809U) {
+                argos_lacp_result_t lacp;
+                if (argos_lacp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &lacp)) {
+                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|-|-|LACP|%s\n", mac_str, lacp.detail);
+                }
+                continue;
+            }
+            if (runtime_cfg.enterprise_enabled && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                                   l3_proto == 0x2000U || l3_proto == 0x00feU ||
+                                    l3_proto == 0x00bbU || l3_proto == 0xf200U)) {
+                argos_enterprise_result_t ent;
+                if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, (int)len - l3_offset, &ent) && ent.emit) {
+                    char ent_sig[640];
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|%s", ent.proto, ent.detail);
+                    if (!dedup_should_suppress(mac_str, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|-|-|%s|%s\n", mac_str, ent.proto, ent.detail);
+                }
+                continue;
+            }
+            if (l3_proto == 0x0806) {
+                if (opt_l2) parse_arp_vector(buffer + l3_offset, (int)len - l3_offset, packet_ifindex, opt_l2_rl);
+                continue;
+            }
+            if (!is_ip_packet) continue;
+            if (ipv4_is_frag) continue;
+
+            char src_ip_str[INET6_ADDRSTRLEN] = {0}, dst_ip_str[INET6_ADDRSTRLEN] = {0};
+            uint8_t protocol = ip_protocol, ttl = ip_ttl;
+
+            if (l3_proto == 0x0800) {
+                struct in_addr s_addr, d_addr; s_addr.s_addr = src_ip_num; d_addr.s_addr = dst_ip_num;
+                inet_ntop(AF_INET, &s_addr, src_ip_str, sizeof(src_ip_str));
+                inet_ntop(AF_INET, &d_addr, dst_ip_str, sizeof(dst_ip_str));
+            } else if (opt_v6 && l3_proto == 0x86dd) {
+                inet_ntop(AF_INET6, &src_ip6_addr, src_ip_str, sizeof(src_ip_str));
+                inet_ntop(AF_INET6, &dst_ip6_addr, dst_ip_str, sizeof(dst_ip_str));
+            } else { continue; }
+
+            uint8_t flow_ip_version = is_ipv6_packet ? 6U : 4U;
+            const uint8_t *flow_src_addr = is_ipv6_packet ? src_ip6_addr.s6_addr : (const uint8_t *)&src_ip_num;
+            const uint8_t *flow_dst_addr = is_ipv6_packet ? dst_ip6_addr.s6_addr : (const uint8_t *)&dst_ip_num;
+
+            if (protocol == IPPROTO_ICMPV6 && is_ipv6_packet) {
+                if (runtime_cfg.enterprise_enabled && ttl == 1U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                    argos_membership_result_t membership;
+                    if (argos_mld_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
+                        char ent_mac[18], ent_sig[384];
+                        format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|MLD|%s", src_ip_str, membership.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                            emit_telemetry("ENT|%s|%s|%s|MLD|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
+                    }
+                }
+                if (opt_l2 && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                    parse_ndp_vector(buffer + l4_offset, l3_packet_end - l4_offset, src_mac,
+                                     &src_ip6_addr, src_ip_str, packet_ifindex, opt_l2_rl);
+                }
+                continue;
+            }
+
+            if (runtime_cfg.enterprise_enabled && protocol == 2U && ttl == 1U &&
+                l4_offset >= 0 && l4_offset < l3_packet_end) {
+                argos_membership_result_t membership;
+                if (argos_igmp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
+                    char ent_mac[18], ent_sig[384];
+                    format_mac(src_mac, ent_mac);
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|IGMP|%s", src_ip_str, membership.detail);
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|%s|%s|IGMP|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
+                }
+                continue;
+            }
+
+            if (runtime_cfg.enterprise_enabled && protocol == 112U && ttl == 255U &&
+                l4_offset >= 0 && l4_offset < l3_packet_end) {
+                argos_vrrp_result_t vrrp;
+                if (argos_vrrp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset),
+                                     flow_ip_version, &vrrp)) {
+                    char ent_mac[18], ent_sig[384];
+                    format_mac(src_mac, ent_mac);
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|VRRP|%s", src_ip_str, vrrp.detail);
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|%s|%s|VRRP|%s%s\n",
+                                       ent_mac, src_ip_str, dst_ip_str, vrrp.detail, routed_str);
+                }
+                continue;
+            }
+
+            if (runtime_cfg.enterprise_enabled && protocol == 89U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                argos_enterprise_result_t ent;
+                if (argos_enterprise_parse_ipproto(protocol, buffer + l4_offset, l3_packet_end - l4_offset, &ent) && ent.emit) {
+                    char ent_mac[18], ent_sig[640];
+                    format_mac(src_mac, ent_mac);
+                    snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent.proto, ent.detail);
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                        emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent.proto, ent.detail, routed_str);
+                }
+                continue;
+            }
+
+            if (protocol == IPPROTO_TCP) {
+                if (l4_offset + 20 > l3_packet_end) continue;
+                struct tcphdr tcp_hdr; memcpy(&tcp_hdr, buffer + l4_offset, sizeof(tcp_hdr));
+                struct tcphdr *tcp = &tcp_hdr;
+                uint16_t dport = ntohs(tcp->dest), sport = ntohs(tcp->source);
+                int tcp_hl = tcp->doff * 4;
+                if (tcp_hl < 20 || l4_offset + tcp_hl > l3_packet_end) continue;
+                int payload_offset = l4_offset + tcp_hl, payload_len = l3_packet_end - payload_offset;
+                int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
+                                   (opt_http && (dport == 80U || dport == 8080U)) ||
+                                   (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) ||
+                                   (runtime_cfg.enterprise_enabled && argos_enterprise_tcp_port(sport, dport));
+                if (!tcp_relevant) continue;
+                if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
+                    if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
+                        routed_evidence = 1; routed_str = "|routed";
+                    }
+                }
+
+                if (opt_syn) {
+                    uint64_t now_usec = pkt_usec;
+
+                    if (tcp->syn && !tcp->ack) {
+                        if (opt_ext_metrics) {
+                            syn_track_t *tracked = syn_track_find(src_mac, sport, dport, flow_ip_version,
+                                                                  flow_src_addr, flow_dst_addr, now_usec, 1);
+                            if (tracked && tracked->ts_usec == 0) {
+                                tracked->ts_usec = now_usec;
+                                tracked->routed = (uint8_t)(routed_evidence ? 1 : 0);
+                            }
+                        }
+                    }
+                    else if (tcp->syn && tcp->ack) {
+                        if (opt_ext_metrics) {
+                            syn_track_t *tracked = syn_track_find(dst_mac, dport, sport, flow_ip_version,
+                                                                  flow_dst_addr, flow_src_addr, now_usec, 0);
+                            if (tracked) {
+                                if (tracked->ts_usec > 0 && now_usec > tracked->ts_usec) {
+                                    uint64_t rtt_us = now_usec - tracked->ts_usec;
+                                    char client_mac_str[18];
+                                    char syn_payload[32], syn_sig[128];
+                                    format_mac(tracked->mac, client_mac_str);
+                                    snprintf(syn_payload, sizeof(syn_payload), "RTT:%u", sport);
+                                    source_dedup_signature(syn_sig, sizeof(syn_sig), dst_ip_str, syn_payload,
+                                                           tracked->routed ? "|routed" : "");
+                                    if (!dedup_should_suppress(client_mac_str, "TCPLVL", syn_sig, opt_syn_rl)) {
+                                        emit_telemetry("TCPLVL|%s|%s|%s|%u|%llu|0|SYNACK%s\n",
+                                                       client_mac_str, dst_ip_str, src_ip_str, sport,
+                                                       (unsigned long long)rtt_us,
+                                                       tracked->routed ? "|routed" : "");
+                                    }
+                                }
+                                tracked->valid = 0;
+                            }
+                        }
+                    } else if (tcp->rst || tcp->fin) {
+                        if (opt_ext_metrics) {
+                            syn_track_t *tracked = NULL;
+                            const char *client_ip = NULL;
+                            const char *server_ip = NULL;
+                            uint16_t server_port = 0;
+
+                            tracked = syn_track_find(src_mac, sport, dport, flow_ip_version,
+                                                     flow_src_addr, flow_dst_addr, now_usec, 0);
+                            if (tracked) {
+                                client_ip = src_ip_str;
+                                server_ip = dst_ip_str;
+                                server_port = dport;
+                            } else {
+                                tracked = syn_track_find(dst_mac, dport, sport, flow_ip_version,
+                                                         flow_dst_addr, flow_src_addr, now_usec, 0);
+                                if (tracked) {
+                                    client_ip = dst_ip_str;
+                                    server_ip = src_ip_str;
+                                    server_port = sport;
+                                }
+                            }
+
+                            /* TCPLVL state records are intentionally limited to flows for
+                             * which a SYN was observed. This keeps identity semantics
+                             * stable and avoids flooding the gateway with unrelated FIN/RST. */
+                            if (tracked) {
+                                char client_mac_str[18];
+                                char syn_payload[32], syn_sig[128];
+                                format_mac(tracked->mac, client_mac_str);
+                                snprintf(syn_payload, sizeof(syn_payload), "STATE:%u:%s", server_port, tcp->rst ? "R" : "F");
+                                source_dedup_signature(syn_sig, sizeof(syn_sig), client_ip, syn_payload,
+                                                       tracked->routed ? "|routed" : "");
+                                if (!dedup_should_suppress(client_mac_str, "TCPLVL", syn_sig, opt_syn_rl)) {
+                                    emit_telemetry("TCPLVL|%s|%s|%s|%u|0|0|%s%s\n",
+                                                   client_mac_str, client_ip, server_ip, server_port,
+                                                   tcp->rst ? "RST" : "FIN", tracked->routed ? "|routed" : "");
+                                }
+                            }
+                        }
+                    }
+
+                    if (tcp->syn) {
+                    int mss = -1, wscale = -1; char opts_str[64] = {0}; int opt_pos = 0;
+                    if (tcp_hl > 20) {
+                        const unsigned char *opts = buffer + l4_offset + 20;
+                        int opt_total = tcp_hl - 20, op = 0;
+                        while (op < opt_total && opt_pos < (int)sizeof(opts_str) - 4) {
+                            uint8_t kind = opts[op];
+                            if (kind == 0) { if (opt_pos > 0 && opts_str[opt_pos-1] != ',') opts_str[opt_pos++] = ','; opts_str[opt_pos++] = 'E'; break; }
+                            if (kind == 1) { if (opt_pos > 0 && opts_str[opt_pos-1] != ',') opts_str[opt_pos++] = ','; opts_str[opt_pos++] = 'N'; op++; continue; }
+                            if (op + 1 >= opt_total) break;
+                            uint8_t olen = opts[op + 1];
+                            if (olen < 2 || op + olen > opt_total) break;
+                            if (opt_pos > 0 && opts_str[opt_pos-1] != ',') opts_str[opt_pos++] = ',';
+                            if (kind == 2 && olen == 4) { mss = read_be16(opts + op + 2); opts_str[opt_pos++] = 'M'; opts_str[opt_pos++] = '*'; }
+                            else if (kind == 3 && olen == 3) { wscale = opts[op + 2]; opts_str[opt_pos++] = 'W'; opts_str[opt_pos++] = '*'; }
+                            else if (kind == 4 && olen == 2) { opts_str[opt_pos++] = 'S'; }
+                            else if (kind == 8 && olen == 10) { opts_str[opt_pos++] = 'T'; }
+                            else { opts_str[opt_pos++] = '?'; }
+                            op += olen;
+                        }
+                    }
+                    opts_str[opt_pos] = '\0'; if (opts_str[0] == '\0') strcpy(opts_str, "none");
+
+                    if (tcp->ack && tcp->syn) {
+                        /* Forwarded WAN replies use the router's L2 source MAC.
+                         * They are consumed above for TCPLVL RTT only and must
+                         * not surface as legacy external SYNACK telemetry. */
+                        if (is_outbound && !is_router_mac(src_mac)) {
+                            char syn_payload[32], syn_sig[128];
+                            snprintf(syn_payload, sizeof(syn_payload), "%u", sport);
+                            source_dedup_signature(syn_sig, sizeof(syn_sig), src_ip_str, syn_payload, routed_str);
+                            if (!dedup_should_suppress(mac_str, "SYNACK", syn_sig, opt_syn_rl))
+                                emit_telemetry("SYNACK|%s|%s|%u|%u|%d|%d|%s|%u%s\n", mac_str, src_ip_str, ttl, ntohs(tcp->window), wscale, mss, opts_str, sport, routed_str);
+                        }
+                    } else if (tcp->syn) {
+                        char syn_payload[32], syn_sig[128];
+                        snprintf(syn_payload, sizeof(syn_payload), "%u", dport);
+                        source_dedup_signature(syn_sig, sizeof(syn_sig), src_ip_str, syn_payload, routed_str);
+                        if (!dedup_should_suppress(mac_str, "SYN", syn_sig, opt_syn_rl))
+                            emit_telemetry("SYN|%s|%s|%u|%u|%d|%d|%s|%u%s\n", mac_str, src_ip_str, ttl, ntohs(tcp->window), wscale, mss, opts_str, dport, routed_str);
+                    }
+                    }
+                }
+
+                /* SYN is the connection-generation boundary for inspect-once state.
+                 * Reset before consulting DONE so rapid 5-tuple reuse is re-inspected. */
+                if (tcp->syn && !tcp->ack)
+                    argos_flow_reset_pair(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
+
+                int enterprise_tcp = runtime_cfg.enterprise_enabled && argos_enterprise_tcp_port(sport, dport);
+                int app_track = payload_len > 0 &&
+                                ((opt_http && (dport == 80U || dport == 8080U)) ||
+                                 (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) || enterprise_tcp);
+                if (app_track && argos_flow_should_skip(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr,
+                                      sport, dport)) {
+                    continue;
+                }
+
+                if (opt_http && (dport == 80 || dport == 8080) && payload_len > 16) {
+                    const unsigned char *p = buffer + payload_offset;
+                    if ((payload_len >= 4 && memcmp(p, "GET ", 4) == 0) || (payload_len >= 5 && memcmp(p, "POST ", 5) == 0)) {
+                        const unsigned char *ua_hdr = find_bytes_ci(p, (size_t)payload_len, "\r\nUser-Agent: ", 14);
+                        if (ua_hdr) {
+                            const unsigned char *ua = ua_hdr + 14; size_t ua_avail = (size_t)((p + payload_len) - ua);
+                            const unsigned char *end = find_bytes(ua, ua_avail, (const unsigned char *)"\r\n", 2);
+                            if (end) {
+                                int ualen = (int)(end - ua); if (ualen > 255) ualen = 255;
+                                char ua_str[256]; sanitize_field(ua, ualen, ua_str, sizeof(ua_str), 0);
+                                char http_sig[384];
+                                source_dedup_signature(http_sig, sizeof(http_sig), src_ip_str, ua_str, routed_str);
+                                if (ua_str[0] && !dedup_should_suppress(mac_str, "HTTP", http_sig, opt_http_rl)) emit_telemetry("HTTP|%s|%s|%s%s\n", mac_str, src_ip_str, ua_str, routed_str);
+                            }
+                        }
+                    }
+                }
+                else if (opt_tls && argos_tls_tcp_port(dport) && payload_len > 44) {
+                    parse_tls_sni(buffer + payload_offset, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
+                }
+                else if (opt_tls && argos_tls_tcp_port(sport) && payload_len > 44) {
+                    argos_tls_server_result_t server;
+                    if (argos_tls_server_parse(buffer + payload_offset, (size_t)payload_len, &server)) {
+                        char srv_sig[256];
+                        source_dedup_signature(srv_sig, sizeof(srv_sig), src_ip_str, server.fingerprint, routed_str);
+                        if (!dedup_should_suppress(mac_str, "TLSSRV", srv_sig, opt_tls_rl))
+                            emit_telemetry("TLSSRV|%s|%s|%s|%u|%s|%s%s\n", mac_str, src_ip_str, dst_ip_str, sport, server.fingerprint, server.alpn, routed_str);
+                    }
+                }
+
+                argos_enterprise_result_t ent_tcp;
+                int ent_tcp_seen = 0;
+                if (enterprise_tcp && payload_len > 0) {
+                    ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
+                    if (ent_tcp_seen && ent_tcp.emit) {
+                        char ent_mac[18], ent_sig[768];
+                        format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_tcp.proto, ent_tcp.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                            emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
+                    }
+                }
+
+                /* Identity is a separate explicit vector. RDP extraction is
+                 * attempted only on client->server 3389 handshake payloads that
+                 * enterprise mode already admitted; default ENT remains redacted. */
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 3389U && payload_len > 0) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_rdp_mstshash(buffer + payload_offset, (size_t)payload_len,
+                                                    argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  runtime_cfg.enterprise_rate_limited);
+                    }
+                }
+
+                /* NTLM Type 3 is the client authentication handshake carrying
+                 * observed domain/user/workstation identity metadata. Only those
+                 * three bounded security buffers are parsed; auth responses are not. */
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 445U && payload_len > 0) {
+                    argos_identity_result_t ids[3];
+                    size_t id_count = argos_identity_ntlm_type3(
+                        buffer + payload_offset, (size_t)payload_len,
+                        argos_identity_raw(runtime_cfg.identity_mode), ids);
+                    for (size_t ii = 0; ii < id_count; ++ii) {
+                        emit_identity_observation(src_mac, src_ip_str, &ids[ii], routed_str,
+                                                  runtime_cfg.enterprise_rate_limited);
+                    }
+                }
+
+                /* Kerberos observed identity: only client->KDC AS-REQ cname/realm. */
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 88U && payload_len > 0) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_kerberos_asreq(buffer + payload_offset,
+                                                      (size_t)payload_len, 1,
+                                                      argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  runtime_cfg.enterprise_rate_limited);
+                    }
+                }
+
+                if (app_track) {
+                    int fingerprint_complete = app_flow_payload_complete(
+                        sport, dport, buffer + payload_offset, payload_len);
+                    if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
+                    argos_flow_note_payload(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr,
+                                        sport, dport, fingerprint_complete);
+                }
+            }
+            else if (protocol == IPPROTO_UDP) {
+                if (l4_offset + 8 > l3_packet_end) continue;
+                struct udphdr udp_hdr; memcpy(&udp_hdr, buffer + l4_offset, sizeof(udp_hdr));
+                struct udphdr *udp = &udp_hdr;
+                uint16_t dport = ntohs(udp->dest), sport = ntohs(udp->source);
+                int udp_relevant = (opt_dhcp && ((is_ipv6_packet && sport == 546U && dport == 547U) ||
+                                                  (!is_ipv6_packet && (dport == 67U || sport == 67U)))) ||
+                                   (opt_netbios && (dport == 137U || sport == 137U)) ||
+                                   (opt_multi && (dport == 1900U || sport == 1900U || dport == 3702U || sport == 3702U ||
+                                                  dport == 5353U || sport == 5353U)) ||
+                                   (opt_dns && (dport == 53U || sport == 53U)) ||
+                                   (opt_tls && dport == 443U) ||
+                                   (runtime_cfg.enterprise_enabled && (argos_enterprise_udp_port(sport, dport) ||
+                                                       sport == runtime_cfg.wireguard_port || dport == runtime_cfg.wireguard_port));
+                if (!udp_relevant) continue;
+                if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
+                    if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
+                        routed_evidence = 1; routed_str = "|routed";
+                    }
+                }
+                uint16_t udp_len = ntohs(udp->len);
+                if (udp_len < 8U || (int)udp_len > l3_packet_end - l4_offset) continue;
+                int payload_offset = l4_offset + 8;
+                int payload_len = (int)udp_len - 8;
+                if (payload_len <= 0) continue;
+
+                const unsigned char *payload = buffer + payload_offset;
+
+                if (opt_dhcp && is_ipv6_packet && sport == 546U && dport == 547U) {
+                    parse_dhcp6(payload, payload_len, mac_str, src_ip_str, routed_str, opt_dhcp_rl);
+                }
+                else if (opt_dhcp && !is_ipv6_packet && (dport == 67U || sport == 67U)) {
+                    parse_dhcp(payload, payload_len, mac_str, src_ip_str, routed_str, opt_dhcp_rl);
+                }
+                else if (opt_netbios && (dport == 137 || sport == 137)) {
+                    parse_netbios(payload, payload_len, mac_str, src_ip_str, routed_str, opt_netbios_rl);
+                }
+                else if (opt_multi && (dport == 1900 || sport == 1900 || dport == 3702 || sport == 3702)) {
+                    char clean_payload[513]; int plen = (payload_len > 512) ? 512 : payload_len;
+                    sanitize_field(payload, plen, clean_payload, sizeof(clean_payload), 1);
+                    char l7_sig[640];
+                    source_dedup_signature(l7_sig, sizeof(l7_sig), src_ip_str, clean_payload, routed_str);
+                    if (clean_payload[0] && !dedup_should_suppress(mac_str, "L7", l7_sig, opt_multi_rl)) {
+                        emit_telemetry("L7|%s|%s|%d|%s%s\n", mac_str, src_ip_str, (dport == 1900 || dport == 3702) ? dport : sport, clean_payload, routed_str);
+                    }
+                }
+                else if (opt_multi && (dport == 5353 || sport == 5353)) {
+                    parse_mdns(payload, payload_len, mac_str, src_ip_str, (dport == 5353) ? dport : sport, routed_str, opt_multi_rl);
+                }
+                else if (opt_dns && (dport == 53 || sport == 53)) {
+                    if (payload_len > 12) {
+                        uint16_t flags = read_be16(payload + 2);
+                        int is_response = (flags & 0x8000) != 0;
+                        uint16_t txid = read_be16(payload);
+
+                        if (!is_response && dport == 53) {
+                            char qname[256];
+                            uint16_t qtype = 0;
+                            if (decode_dns_name(payload, payload_len, 12, qname, sizeof(qname)) > 0 && qname[0]) {
+                                (void)dns_question_qtype(payload, payload_len, 12, &qtype);
+                                if (opt_ext_metrics && qtype != 0U) {
+                                    (void)argos_dns_track_put(dns_table, TRACK_SLOTS,
+                                                              flow_ip_version, flow_src_addr, flow_dst_addr,
+                                                              sport, dport, txid, qtype, qname, pkt_usec,
+                                                              src_mac, (uint8_t)(routed_evidence ? 1 : 0));
+                                }
+                                char dns_sig[384];
+                                source_dedup_signature(dns_sig, sizeof(dns_sig), src_ip_str, qname, routed_str);
+                                if (!dedup_should_suppress(mac_str, "DNS", dns_sig, opt_dns_rl)) {
+                                    emit_telemetry("DNS|%s|%s|%s%s\n", mac_str, src_ip_str, qname, routed_str);
+                                }
+                            }
+                        }
+                        else if (is_response && sport == 53) {
+                            if (opt_ext_metrics && read_be16(payload + 4) > 0U) {
+                                char response_qname[256];
+                                uint16_t response_qtype = 0U;
+                                if (decode_dns_name(payload, payload_len, 12, response_qname, sizeof(response_qname)) > 0 &&
+                                    response_qname[0] && dns_question_qtype(payload, payload_len, 12, &response_qtype)) {
+                                    argos_dns_track_t *tracked = argos_dns_track_find_response(
+                                        dns_table, TRACK_SLOTS, flow_ip_version, flow_dst_addr, flow_src_addr,
+                                        dport, sport, txid, response_qtype, response_qname, pkt_usec);
+                                    if (tracked) {
+                                        uint8_t rcode = flags & 0x000F;
+                                        uint64_t latency_us = pkt_usec - tracked->ts_usec;
+                                        float ent = calculate_entropy(tracked->domain);
+
+                                        char client_mac_str[18];
+                                        format_mac(tracked->mac, client_mac_str);
+
+                                        char dnsext_sig[384];
+                                        source_dedup_signature(dnsext_sig, sizeof(dnsext_sig), dst_ip_str,
+                                                               tracked->domain, tracked->routed ? "|routed" : "");
+                                        if (!dedup_should_suppress(client_mac_str, "DNSEXT", dnsext_sig, opt_dns_rl)) {
+                                            emit_telemetry("DNSEXT|%s|%s|%s|%s|%u|%u|%.2f|%.2f%s\n",
+                                                client_mac_str, dst_ip_str, src_ip_str, tracked->domain,
+                                                (unsigned)tracked->qtype, (unsigned)rcode,
+                                                (float)latency_us / 1000.0f, ent, tracked->routed ? "|routed" : "");
+                                        }
+                                        char alert_sig[192];
+                                        source_dedup_signature(alert_sig, sizeof(alert_sig), dst_ip_str,
+                                                               "HIGH_DNS_ENTROPY", tracked->routed ? "|routed" : "");
+                                        if (ent >= 4.2f &&
+                                            !dedup_should_suppress(client_mac_str, "ALERT", alert_sig, opt_dns_rl)) {
+                                            emit_telemetry("ALERT|%s|%s|HIGH_DNS_ENTROPY|%s|%.2f%s\n",
+                                                           client_mac_str, dst_ip_str, tracked->domain, ent,
+                                                           tracked->routed ? "|routed" : "");
+                                        }
+                                        tracked->valid = 0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (opt_tls && dport == 443) {
+                    parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
+                }
+                if (runtime_cfg.enterprise_enabled && ttl == 1U && (sport == 1985U || dport == 1985U)) {
+                    char ent_mac[18], ent_sig[512];
+                    format_mac(src_mac, ent_mac);
+
+                    argos_hsrp2_result_t hsrp2;
+                    if (argos_hsrp2_parse(payload, (size_t)payload_len, &hsrp2)) {
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP2|%s", src_ip_str, hsrp2.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                            emit_telemetry("ENT|%s|%s|%s|HSRP2|%s%s\n",
+                                           ent_mac, src_ip_str, dst_ip_str, hsrp2.detail, routed_str);
+                    } else {
+                        argos_hsrp1_result_t hsrp1;
+                        if (argos_hsrp1_parse(payload, (size_t)payload_len, &hsrp1)) {
+                            snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP|%s", src_ip_str, hsrp1.detail);
+                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                                emit_telemetry("ENT|%s|%s|%s|HSRP|%s%s\n",
+                                               ent_mac, src_ip_str, dst_ip_str, hsrp1.detail, routed_str);
+                        }
+                    }
+                }
+                if (runtime_cfg.enterprise_enabled && (sport == runtime_cfg.wireguard_port || dport == runtime_cfg.wireguard_port)) {
+                    /* Type-4 transport packets can be an elephant UDP flow. Validate the
+                     * exact WireGuard framing cheaply, then bypass the full parser for
+                     * repeated transport-data in a short epoch. Handshake/cookie types
+                     * and keepalives are always parsed. DNS/DHCP/QUIC/STUN/CoAP/NTP are
+                     * deliberately outside this suppression table. */
+                    int wg_transport = argos_wireguard_transport_kind(payload, (size_t)payload_len);
+                    int wg_suppressed = wg_transport == 2 &&
+                        argos_udp_suppress_recent(udp_suppress_table, flow_ip_version,
+                                                  flow_src_addr, flow_dst_addr, sport, dport,
+                                                  4U, (uint64_t)time(NULL));
+                    if (!wg_suppressed) {
+                        argos_wireguard_result_t wg;
+                        if (argos_wireguard_parse(payload, (size_t)payload_len, &wg) && wg.emit) {
+                            char ent_mac[18], ent_sig[384];
+                            format_mac(src_mac, ent_mac);
+                            snprintf(ent_sig, sizeof(ent_sig), "%s|WireGuard|%s", src_ip_str, wg.detail);
+                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                                emit_telemetry("ENT|%s|%s|%s|WireGuard|%s%s\n",
+                                               ent_mac, src_ip_str, dst_ip_str, wg.detail, routed_str);
+                        }
+                    }
+                }
+                if (runtime_cfg.enterprise_enabled && argos_enterprise_udp_port(sport, dport)) {
+                    argos_enterprise_result_t ent_udp;
+                    if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
+                        char ent_mac[18], ent_sig[768];
+                        format_mac(src_mac, ent_mac);
+                        snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                            emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
+                    }
+                }
+                /* RADIUS observed identity: client Access-Request User-Name only. */
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 1812U) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_radius_access_request(payload, (size_t)payload_len,
+                                                             argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  runtime_cfg.enterprise_rate_limited);
+                    }
+                }
+
+                /* UDP/88 uses the same strictly bounded AS-REQ parser without
+                 * the RFC 4120 TCP record-length prefix. */
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 88U) {
+                    argos_identity_result_t ident;
+                    if (argos_identity_kerberos_asreq(payload, (size_t)payload_len, 0,
+                                                      argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
+                        emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
+                                                  runtime_cfg.enterprise_rate_limited);
+                    }
+                }
+            }
+        }
+        if (opt_v6) {
+            uint64_t processing_end_us = get_current_usec();
+            if (processing_end_us >= processing_start_us && processing_end_us - processing_start_us > max_loop_us)
+                max_loop_us = processing_end_us - processing_start_us;
+        }
+    }
+
+    /* Cleanup sockets and resources */
+    for (int i = 0; i < num_ifaces; i++) close(active_ifaces[i].fd);
+    if (lan_netlink_fd >= 0) close(lan_netlink_fd);
+    if (ipc_sock >= 0) close(ipc_sock);
+    if (remote_sock >= 0) close(remote_sock);
+    free(syn_table); free(dns_table); argos_dedup_destroy(&dedup_state); free(owner4_table); free(owner6_table);
+    close(epoll_fd);
+    return 0;
+}
+#endif
