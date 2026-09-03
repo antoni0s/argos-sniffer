@@ -1,0 +1,82 @@
+name: V6 step 14a - QUIC engine consolidation gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step14a_merge_quic_engine.py'
+      - '.github/workflows/v6-step14a-quic-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged QUIC engine consolidation
+        run: python3 .github/scripts/v6_step14a_merge_quic_engine.py
+
+      - name: Architecture invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          q=Path('src/argos_quic.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert not Path('src/argos_quic_heavy.h').exists()
+          assert '#include "argos_quic_heavy.h"' not in s
+          assert s.count('#include "argos_quic.h"') == 1
+          assert '#define QUIC_STATE_SLOTS 64' in q
+          assert '#define QUIC_STATE_TTL 5' in q
+          assert 'static quic_session_t *quic_sessions = NULL;' in q
+          assert 'calloc(QUIC_STATE_SLOTS, sizeof(*quic_sessions))' in q
+          assert 'static void quic_heavy_gc(void)' in q
+          assert 'decrypt_quic_sni_stateful' in q
+          assert 'Optional runtime layer used by -W' in q
+          print('QUIC engine consolidation invariants: PASS')
+          PY
+
+      - name: QUIC v2 RFC 9369 vectors
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_v2.c -o /tmp/test-quic-v2
+          /tmp/test-quic-v2
+
+      - name: QUIC sanitizer fixture
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_quic_v2.c -o /tmp/test-quic-v2-san
+          /tmp/test-quic-v2-san
+
+      - name: Existing flow and network fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_app_flow.c -lm -o /tmp/test-app-flow
+          /tmp/test-app-flow
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise
+          /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_framework.c -o /tmp/test-identity-framework
+          /tmp/test-identity-framework
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Commit production consolidation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_quic.h src/argos-sniffer.c
+          git rm src/argos_quic_heavy.h
+          git diff --cached --check
+          git commit -m 'refactor(v6): consolidate QUIC engine'
+          git push origin HEAD:version-6
