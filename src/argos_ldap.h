@@ -63,16 +63,18 @@ static inline int argos_ldap_parse(const unsigned char *p, size_t n,
     size_t u=0U,l=0U;
     if (!ald_len(p+1,n-1,&u,&l)) return 0;
     size_t pos=1U+u;
-    if (l > n-pos || pos>=n || p[pos] != 0x02U) return 0;
+    if (l > n-pos) return 0;
+    size_t end=pos+l;
+    if (pos>=end || p[pos] != 0x02U) return 0;
     ++pos;
     size_t iu=0U,il=0U;
-    if (!ald_len(p+pos,n-pos,&iu,&il) || il==0U || il>4U) return 0;
+    if (!ald_len(p+pos,end-pos,&iu,&il) || il==0U || il>4U) return 0;
     pos += iu;
-    if (pos+il > n) return 0;
+    if (il > end-pos) return 0;
     uint32_t id=0U;
     for (size_t i=0;i<il;++i) id=(id<<8)|p[pos+i];
     pos += il;
-    if (pos>=n) return 0;
+    if (pos>=end) return 0;
 
     r->message_id=id;
     r->protocol_op=p[pos];
