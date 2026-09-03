@@ -33,6 +33,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_coap.c -o /tmp/test-coap
           /tmp/test-coap
 
+      - name: IGMP MLD membership fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_igmp_mld.c -o /tmp/test-igmp-mld
+          /tmp/test-igmp-mld
+
       - name: Dynamic BPF network matrix
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
@@ -57,6 +62,10 @@ jobs:
           /tmp/test-coap-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_igmp_mld.c -o /tmp/test-igmp-mld-san
+          /tmp/test-igmp-mld-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
           /tmp/test-bpf-san
 
@@ -65,6 +74,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           h=Path('src/argos_enterprise.h').read_text()
+          m=Path('src/argos_multicast_membership.h').read_text()
           b=Path('src/argos_bpf.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
           t=Path('src/argos_tls_ports.h').read_text()
@@ -96,5 +106,12 @@ jobs:
           assert 'uri_path_segments=%u' in h and 'uri_query_parts=%u' in h
           assert 'proxy_uri=%u' in h and 'payload=%u' in h
           assert 'sensors' not in h and 'SECRET' not in h
+
+          assert 'argos_igmp_parse' in m and 'argos_mld_parse' in m
+          assert 'records > 64U' in m and 'nsrc > 1024U' in m
+          assert 'protocol == 2U && ttl == 1U' in s
+          assert 'IPPROTO_ICMPV6' in s and 'argos_mld_parse' in s
+          assert 'BPF_JEQ | BPF_K, 2' in b
+          assert '239.1.2.3' not in m and 'ff02' not in m.lower()
           print('Network visibility permanent privacy/suppression invariants: PASS')
           PY
