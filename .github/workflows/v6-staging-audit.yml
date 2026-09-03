@@ -42,6 +42,7 @@ on:
       - 'src/argos_vnc.h'
       - 'src/argos_winrm.h'
       - 'tests/test_staging_headers.c'
+      - 'tests/test_staging_semantics.c'
       - '.github/workflows/v6-staging-audit.yml'
   workflow_dispatch:
 
@@ -50,7 +51,7 @@ permissions:
 
 jobs:
   validate:
-    name: Strict compile and boundary validation
+    name: Strict compile and semantic validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -62,6 +63,12 @@ jobs:
             tests/test_staging_headers.c -o /tmp/test-staging-headers
           /tmp/test-staging-headers
 
+      - name: Protocol semantic fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_staging_semantics.c -o /tmp/test-staging-semantics
+          /tmp/test-staging-semantics
+
       - name: ASan + UBSan boundary validation
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -71,6 +78,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_staging_headers.c -o /tmp/test-staging-headers-san
           /tmp/test-staging-headers-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_staging_semantics.c -o /tmp/test-staging-semantics-san
+          /tmp/test-staging-semantics-san
 
       - name: Staging architecture invariants
         run: |
