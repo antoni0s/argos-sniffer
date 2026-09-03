@@ -1146,6 +1146,18 @@ static int app_flow_should_skip(uint8_t ip_version, const uint8_t *src, const ui
     return e && e->done;
 }
 
+/* A fresh TCP SYN starts a new connection even when the kernel reuses the same
+ * 5-tuple inside APP_FLOW_TTL_SECS. Clear both directional cache entries so a
+ * completed previous connection can never suppress the new handshake or its
+ * first application fingerprint. No allocation occurs on this reset path. */
+static void app_flow_reset_pair(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
+                                uint16_t sport, uint16_t dport) {
+    app_flow_entry_t *forward = app_flow_find(ip_version, src, dst, sport, dport, 0);
+    if (forward) forward->valid = 0;
+    app_flow_entry_t *reverse = app_flow_find(ip_version, dst, src, dport, sport, 0);
+    if (reverse) reverse->valid = 0;
+}
+
 /* A complete TLS ClientHello is enough to finish TLS fingerprinting. HTTP is
  * complete once the request header terminator is present in the captured
  * payload. The packet that completes the fingerprint is still parsed; DONE is
@@ -3586,6 +3598,11 @@ int main(int argc, char *argv[]) {
                     }
                     }
                 }
+
+                /* SYN is the connection-generation boundary for inspect-once state.
+                 * Reset before consulting DONE so rapid 5-tuple reuse is re-inspected. */
+                if (tcp->syn && !tcp->ack)
+                    app_flow_reset_pair(flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
 
                 int enterprise_tcp = opt_enterprise && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
