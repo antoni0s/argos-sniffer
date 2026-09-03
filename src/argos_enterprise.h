@@ -3,6 +3,11 @@
 
 #include "argos_enterprise_ports.h"
 
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+
 /* Argos Sniffer v6 enterprise fingerprint engine.
  *
  * Design rules:
@@ -633,6 +638,69 @@ static inline int ae_bacnet(const unsigned char *p, int len, argos_enterprise_re
     return 0;
 }
 
+static inline const char *ae_radius_code(uint8_t code) {
+    switch (code) {
+        case 1U: return "Access-Request"; case 2U: return "Access-Accept";
+        case 3U: return "Access-Reject"; case 4U: return "Accounting-Request";
+        case 5U: return "Accounting-Response"; case 11U: return "Access-Challenge";
+        case 12U: return "Status-Server"; case 13U: return "Status-Client";
+        default: return "Other";
+    }
+}
+
+/* Privacy-minimized RADIUS fingerprinting. Attribute values that can identify
+ * a user, station or NAS (User-Name, Calling/Called-Station-Id,
+ * NAS-Identifier), password material and the 16-byte Authenticator are never
+ * emitted. Only protocol/state/capability metadata is retained. */
+static inline int ae_radius(const unsigned char *p, int len, uint16_t port,
+                            argos_enterprise_result_t *r) {
+    if (!p || !r || len < 20) return 0;
+    uint16_t plen = ae_be16(p + 2);
+    if (plen < 20U || plen > 4096U || plen > (uint16_t)len) return 0;
+    uint8_t code = p[0];
+    if (!(code == 1U || code == 2U || code == 3U || code == 4U || code == 5U ||
+          code == 11U || code == 12U || code == 13U)) return 0;
+
+    unsigned user = 0, password = 0, nas_ip = 0, nas_port_seen = 0;
+    unsigned called = 0, calling = 0, nas_id = 0, eap = 0, msg_auth = 0;
+    uint32_t nas_port = 0, service_type = 0, nas_port_type = 0, acct_status = 0;
+    uint32_t vendor = 0;
+    int pos = 20;
+    while (pos < (int)plen) {
+        if (pos + 2 > (int)plen) return 0;
+        uint8_t type = p[pos], alen = p[pos + 1];
+        if (alen < 2U || pos + (int)alen > (int)plen) return 0;
+        const unsigned char *v = p + pos + 2;
+        int vl = (int)alen - 2;
+        switch (type) {
+            case 1U: user = 1; break;
+            case 2U: case 3U: password = 1; break;
+            case 4U: if (vl == 4) nas_ip = 1; break;
+            case 5U: if (vl == 4) { nas_port_seen = 1; nas_port = ae_be32(v); } break;
+            case 6U: if (vl == 4) service_type = ae_be32(v); break;
+            case 26U: if (vl >= 4 && vendor == 0U) vendor = ae_be32(v); break;
+            case 30U: called = 1; break;
+            case 31U: calling = 1; break;
+            case 32U: nas_id = 1; break;
+            case 40U: if (vl == 4) acct_status = ae_be32(v); break;
+            case 61U: if (vl == 4) nas_port_type = ae_be32(v); break;
+            case 79U: eap = 1; break;
+            case 80U: if (vl == 16) msg_auth = 1; break;
+            default: break;
+        }
+        pos += (int)alen;
+    }
+
+    const char *plane = port == 1813U ? "accounting" : "auth";
+    ae_set(r, "radius", 0,
+           "plane=%s code=%u(%s) user_present=%u password_attr=%u nas_ip_present=%u nas_port_present=%u nas_port=%u service_type=%u nas_port_type=%u acct_status=%u called_station_present=%u calling_station_present=%u nas_identifier_present=%u eap=%u message_auth=%u vendor_id=%u",
+           plane, (unsigned)code, ae_radius_code(code), user, password, nas_ip,
+           nas_port_seen, (unsigned)nas_port, (unsigned)service_type,
+           (unsigned)nas_port_type, (unsigned)acct_status, called, calling, nas_id,
+           eap, msg_auth, (unsigned)vendor);
+    return 1;
+}
+
 static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
                                              const unsigned char *p, int len,
                                              argos_enterprise_result_t *r) {
@@ -647,6 +715,7 @@ static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
         case 389: return ae_cldap(p, len, r);
         case 427: return ae_slp(p, len, r);
         case 623: return ae_ipmi(p, len, r);
+        case 1812: case 1813: return ae_radius(p, len, port, r);
         case 5060: return ae_sip(p, len, r);
         case 5678: return ae_mndp(p, len, r);
         case 47808: return ae_bacnet(p, len, r);
