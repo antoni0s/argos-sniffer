@@ -17,12 +17,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Strict framework fixture
+      - name: Strict framework fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_framework.c -o /tmp/test-identity-framework
           /tmp/test-identity-framework
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_rdp.c -o /tmp/test-identity-rdp
+          /tmp/test-identity-rdp
 
-      - name: Sanitized framework fixture
+      - name: Sanitized framework fixtures
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
@@ -31,6 +33,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_identity_framework.c -o /tmp/test-identity-framework-san
           /tmp/test-identity-framework-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_identity_rdp.c -o /tmp/test-identity-rdp-san
+          /tmp/test-identity-rdp-san
 
       - name: CLI and privacy contract
         run: |
@@ -47,6 +53,7 @@ jobs:
           from pathlib import Path
           h=Path('src/argos_identity.h').read_text()
           s=Path('src/argos-sniffer.c').read_text()
+          e=Path('src/argos_enterprise.h').read_text()
           assert 'Observed identity' in h and 'never device ownership' in h
           assert 'if (len > 160U) len = 160U' in h
           assert '2166136261U' in h and '16777619U' in h
@@ -54,5 +61,10 @@ jobs:
           assert 'if (opt_identity_raw && !opt_identity)' in s
           assert 'no generic payload scanning' in s
           assert 'never passwords, tickets, tokens or auth blobs' in s
+          assert 'argos_identity_rdp_mstshash' in h
+          assert 'if (opt_identity && dport == 3389U' in s
+          assert 'emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"' in s
+          assert 'cookie_present=%u cookie_len=%u cookie_hash=%08x' in e
+          assert 'opt_identity_raw' not in e
           print('identity framework CLI/privacy contract: PASS')
           PY
