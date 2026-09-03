@@ -1,0 +1,72 @@
+name: V6 step 12e0 - NTLM flow completion gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step12e0_ntlm_flow.py'
+      - '.github/workflows/v6-step12e0-ntlm-flow.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ntlm-flow-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged NTLM flow fix
+        run: python3 .github/scripts/v6_step12e0_ntlm_flow.py
+
+      - name: NTLM multi-message completion fixture
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntlm_flow_completion.c -o /tmp/test-ntlm-flow
+          /tmp/test-ntlm-flow
+
+      - name: NTLM completion sanitizer
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_ntlm_flow_completion.c -o /tmp/test-ntlm-flow-san
+          /tmp/test-ntlm-flow-san
+
+      - name: Completion and budget invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          e=Path('src/argos_enterprise.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert 'ae_set(r, "smb2", 0, "command=session-setup auth=spnego")' in e
+          assert 'ae_set(r, "smb2-ntlm", mt == 3U,' in e
+          assert 'APP_FLOW_PACKET_BUDGET 8' in s
+          assert 'if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;' in s
+          print('NTLM completion/budget invariants: PASS')
+          PY
+
+      - name: Existing privacy and identity regressions
+        run: |
+          for f in tests/test_ntlm_privacy.c tests/test_identity_framework.c tests/test_identity_rdp.c tests/test_enterprise.c; do
+            out="/tmp/$(basename "$f" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$f" -o "$out"
+            "$out"
+          done
+
+      - name: Strict full and stub builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub
+
+      - name: Commit production fix only after green gate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/argos_enterprise.h tests/test_ntlm_flow_completion.c
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(v6): keep NTLM auth flow inspectable through type 3"
+          git push origin HEAD:version-6
