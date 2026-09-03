@@ -57,18 +57,26 @@ jobs:
           s=Path('src/argos-sniffer.c').read_text()
           f=Path('src/argos_flow_state.h').read_text()
           e=Path('src/argos_enterprise.h').read_text()
-          u=Path('src/argos_udp_suppress.h').read_text()
           w=Path('src/argos_wireguard.h').read_text()
 
-          # Generic TCP generation/DONE state is isolated from parser policy.
+          # Generic TCP generation/DONE state and UDP class suppression share
+          # one allocation-free state module but keep independent semantics.
           assert 'ARGOS_FLOW_SLOTS 1024U' in f
           assert 'ARGOS_FLOW_PROBES 4U' in f
           assert 'ARGOS_FLOW_TTL_SECS 60' in f
           assert 'ARGOS_FLOW_PACKET_BUDGET 8U' in f
+          assert 'ARGOS_UDP_SUPPRESS_SLOTS 256U' in f
+          assert 'ARGOS_UDP_SUPPRESS_PROBES 2U' in f
+          assert 'ARGOS_UDP_SUPPRESS_TTL_SECS 5U' in f
+          assert 'Suppressed hits deliberately do NOT refresh' in f
+          assert f.count('1099511628211ULL') == 1
+          assert 'argos_udp_suppress_hash_update' not in f
           assert 'malloc(' not in f and 'calloc(' not in f and 'realloc(' not in f
           assert 'argos_flow_reset_pair' in f
           assert 'rapid 5-tuple reuse' in f
           assert '#include "argos_flow_state.h"' in s
+          assert '#include "argos_udp_suppress.h"' not in s
+          assert not Path('src/argos_udp_suppress.h').exists()
           assert 'static argos_flow_state_t app_flow_state = {0};' in s
           assert 'if (tcp->syn && !tcp->ack)' in s
           assert 'argos_flow_reset_pair(&app_flow_state' in s
@@ -83,16 +91,12 @@ jobs:
           assert 'ae_set(r, "smb2-ntlm", mt == 3U,' in e
           assert 'Type 1/2 must not mark the TCP' in e
 
-          # UDP class suppression remains a separate, narrower mechanism.
-          assert 'ARGOS_UDP_SUPPRESS_SLOTS 256U' in u
-          assert 'ARGOS_UDP_SUPPRESS_PROBES 2U' in u
-          assert 'ARGOS_UDP_SUPPRESS_TTL_SECS 5U' in u
-          assert 'Suppressed hits deliberately do NOT refresh' in u
+          # UDP class suppression remains narrower despite sharing the module.
           assert 'argos_wireguard_transport_kind' in w
           assert 'wg_transport == 2' in s
           assert 'argos_udp_suppress_recent(udp_suppress_table' in s
           assert 'Handshake/cookie types' in s and 'keepalives are always parsed' in s
           assert 'DNS/DHCP/QUIC/STUN/CoAP/NTP' in s
           assert 'if (runtime_cfg.enterprise_enabled && argos_enterprise_udp_port(sport, dport))' in s
-          print('Flow suppression permanent invariants: PASS')
+          print('Unified flow-state permanent invariants: PASS')
           PY
