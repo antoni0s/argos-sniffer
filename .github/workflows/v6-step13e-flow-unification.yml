@@ -71,8 +71,8 @@ jobs:
           /tmp/test-enterprise
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dns_track.c -o /tmp/test-dns-track
           /tmp/test-dns-track
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_runtime.c -o /tmp/test-identity-runtime
-          /tmp/test-identity-runtime
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_framework.c -o /tmp/test-identity-framework
+          /tmp/test-identity-framework
 
       - name: Strict native builds
         run: |
