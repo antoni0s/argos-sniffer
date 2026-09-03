@@ -6,6 +6,9 @@
 #include <string.h>
 #include <time.h>
 
+#include "argos_dedup.h"
+#include "argos_dns_track.h"
+
 /* Fixed, allocation-free TCP application inspection state. This module knows
  * only flow generations and bounded packet budgets; protocol completion policy
  * remains with the caller. */
@@ -31,6 +34,54 @@ typedef struct {
     argos_flow_entry_t table[ARGOS_FLOW_SLOTS];
 } argos_flow_state_t;
 
+/* SYN/SYN-ACK correlation has a different identity key, probe budget and
+ * microsecond lifetime from application DONE state. It shares lifecycle
+ * ownership only; entries are never reused across the two tables. */
+#define ARGOS_SYN_TRACK_SLOTS 1024U
+#define ARGOS_SYN_TRACK_PROBES 8U
+#define ARGOS_SYN_TRACK_TTL_USEC 120000000ULL
+#define ARGOS_RUNTIME_DNS_SLOTS 1024U
+
+typedef struct {
+    uint8_t mac[6];
+    uint16_t sport;
+    uint16_t dport;
+    uint8_t ip_version;
+    uint8_t src_addr[16];
+    uint8_t dst_addr[16];
+    uint64_t ts_usec;
+    uint8_t routed;
+    uint8_t valid;
+} argos_syn_track_t;
+
+#define ARGOS_UDP_SUPPRESS_SLOTS 256U
+#define ARGOS_UDP_SUPPRESS_PROBES 2U
+#define ARGOS_UDP_SUPPRESS_TTL_SECS 5U
+
+typedef struct {
+    uint64_t key;
+    uint64_t last_seen_sec;
+    uint8_t src[16];
+    uint8_t dst[16];
+    uint16_t sport;
+    uint16_t dport;
+    uint8_t ip_version;
+    uint8_t msg_class;
+    uint8_t valid;
+} argos_udp_suppress_entry_t;
+
+/* One lifecycle facade, five independent state machines. */
+typedef struct {
+    argos_flow_state_t application;
+    argos_udp_suppress_entry_t udp_suppress[ARGOS_UDP_SUPPRESS_SLOTS];
+    argos_dns_track_t *dns_track;
+    argos_dedup_state_t dedup;
+} argos_runtime_state_t;
+
+/* Kept module-private so SYN lookup retains its original calling convention;
+ * allocation and destruction still belong exclusively to this subsystem. */
+static argos_syn_track_t *argos_syn_track_table;
+
 static inline uint64_t argos_flow_hash_update(uint64_t h, const void *data, size_t len) {
     const uint8_t *p = (const uint8_t *)data;
     for (size_t i = 0; i < len; ++i) {
@@ -38,6 +89,75 @@ static inline uint64_t argos_flow_hash_update(uint64_t h, const void *data, size
         h *= 1099511628211ULL;
     }
     return h;
+}
+
+static inline uint64_t argos_flow_hash_bytes(const void *data, size_t len) {
+    return argos_flow_hash_update(1469598103934665603ULL, data, len);
+}
+
+static inline uint32_t argos_syn_track_key(const uint8_t mac[6],
+                                            uint16_t sport, uint16_t dport,
+                                            uint8_t ip_version,
+                                            const uint8_t *src_addr,
+                                            const uint8_t *dst_addr) {
+    const size_t addr_len = ip_version == 6U ? 16U : 4U;
+    uint64_t h = argos_flow_hash_bytes(mac, 6);
+    h ^= argos_flow_hash_bytes(&sport, sizeof(sport));
+    h ^= argos_flow_hash_bytes(&dport, sizeof(dport)) * 0x9e3779b97f4a7c15ULL;
+    h ^= argos_flow_hash_bytes(&ip_version, sizeof(ip_version));
+    h ^= argos_flow_hash_bytes(src_addr, addr_len);
+    h ^= argos_flow_hash_bytes(dst_addr, addr_len) * 0x517cc1b727220a95ULL;
+    return (uint32_t)(h ^ (h >> 32));
+}
+
+static inline int argos_syn_track_matches(const argos_syn_track_t *e,
+                                           const uint8_t mac[6],
+                                           uint16_t sport, uint16_t dport,
+                                           uint8_t ip_version,
+                                           const uint8_t *src_addr,
+                                           const uint8_t *dst_addr) {
+    const size_t addr_len = ip_version == 6U ? 16U : 4U;
+    return e->valid && e->ip_version == ip_version &&
+           e->sport == sport && e->dport == dport &&
+           memcmp(e->mac, mac, 6) == 0 &&
+           memcmp(e->src_addr, src_addr, addr_len) == 0 &&
+           memcmp(e->dst_addr, dst_addr, addr_len) == 0;
+}
+
+static inline argos_syn_track_t *argos_syn_track_find(
+        const uint8_t mac[6], uint16_t sport, uint16_t dport, uint8_t ip_version,
+        const uint8_t *src_addr, const uint8_t *dst_addr,
+        uint64_t now_usec, int create) {
+    argos_syn_track_t *table = argos_syn_track_table;
+    const uint32_t base = argos_syn_track_key(mac, sport, dport, ip_version,
+                                               src_addr, dst_addr) &
+                          (ARGOS_SYN_TRACK_SLOTS - 1U);
+    argos_syn_track_t *empty = NULL, *oldest_entry = NULL;
+    uint64_t oldest = UINT64_MAX;
+    for (uint32_t p = 0; p < ARGOS_SYN_TRACK_PROBES; ++p) {
+        argos_syn_track_t *e = &table[(base + p) & (ARGOS_SYN_TRACK_SLOTS - 1U)];
+        if (e->valid && now_usec >= e->ts_usec &&
+            now_usec - e->ts_usec > ARGOS_SYN_TRACK_TTL_USEC) e->valid = 0;
+        if (argos_syn_track_matches(e, mac, sport, dport, ip_version,
+                                    src_addr, dst_addr)) return e;
+        if (!e->valid) {
+            if (!empty) empty = e;
+        } else if (e->ts_usec < oldest) {
+            oldest = e->ts_usec;
+            oldest_entry = e;
+        }
+    }
+    argos_syn_track_t *replacement = empty ? empty : oldest_entry;
+    if (!create || !replacement) return NULL;
+    memset(replacement, 0, sizeof(*replacement));
+    memcpy(replacement->mac, mac, 6);
+    replacement->sport = sport;
+    replacement->dport = dport;
+    replacement->ip_version = ip_version;
+    memcpy(replacement->src_addr, src_addr, ip_version == 6U ? 16U : 4U);
+    memcpy(replacement->dst_addr, dst_addr, ip_version == 6U ? 16U : 4U);
+    replacement->valid = 1U;
+    return replacement;
 }
 
 static inline uint64_t argos_flow_key(uint8_t ip_version,
@@ -147,22 +267,6 @@ static inline void argos_flow_note_payload(argos_flow_state_t *state,
 /* Fixed, allocation-free UDP class suppression state. This shares only the
  * generic tuple hashing primitive with TCP state; TTL and refresh semantics
  * remain intentionally independent. */
-#define ARGOS_UDP_SUPPRESS_SLOTS 256U
-#define ARGOS_UDP_SUPPRESS_PROBES 2U
-#define ARGOS_UDP_SUPPRESS_TTL_SECS 5U
-
-typedef struct {
-    uint64_t key;
-    uint64_t last_seen_sec;
-    uint8_t src[16];
-    uint8_t dst[16];
-    uint16_t sport;
-    uint16_t dport;
-    uint8_t ip_version;
-    uint8_t msg_class;
-    uint8_t valid;
-} argos_udp_suppress_entry_t;
-
 static inline uint64_t argos_udp_suppress_key(uint8_t ip_version,
                                                const uint8_t *src, const uint8_t *dst,
                                                uint16_t sport, uint16_t dport,
@@ -222,6 +326,20 @@ static inline int argos_udp_suppress_recent(argos_udp_suppress_entry_t table[ARG
     e->msg_class = msg_class;
     e->valid = 1U;
     return 0;
+}
+
+static inline int argos_runtime_state_enable_extended_metrics(argos_runtime_state_t *state) {
+    argos_syn_track_table = (argos_syn_track_t *)calloc(ARGOS_SYN_TRACK_SLOTS,
+                                                         sizeof(*argos_syn_track_table));
+    state->dns_track = (argos_dns_track_t *)calloc(ARGOS_RUNTIME_DNS_SLOTS,
+                                                    sizeof(*state->dns_track));
+    return argos_syn_track_table != NULL && state->dns_track != NULL;
+}
+
+static inline void argos_runtime_state_destroy(argos_runtime_state_t *state) {
+    free(argos_syn_track_table);
+    free(state->dns_track);
+    argos_dedup_destroy(&state->dedup);
 }
 
 

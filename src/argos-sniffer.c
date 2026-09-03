@@ -122,10 +122,8 @@
 #include "argos_discovery.h"
 #include "argos_filter.h"
 #include "argos_network.h"
-#include "argos_dedup.h"
 #include "argos_flow_state.h"
 #include "argos_identity.h"
-#include "argos_dns_track.h"
 #include "argos_enterprise.h"
 #include "argos_raw_identity.h"
 #ifndef ARGOS_PORTABLE_TEST
@@ -183,27 +181,8 @@ static uint64_t hash_bytes(const void *data, size_t len) {
 }
 
 static argos_network_state_t network_state;
+static argos_runtime_state_t runtime_state;
 
-/* ============================================================================
- * SECTION: TCP & DNS Trackers
- * Maintains lookup structures for active TCP connections and DNS transaction 
- * correlation for latency and entropy measurements.
- * ============================================================================ */
-#define TRACK_SLOTS 1024
-#define SYN_TRACK_PROBES 8U
-#define SYN_TRACK_TTL_USEC 120000000ULL
-typedef struct {
-    uint8_t mac[6];
-    uint16_t sport; uint16_t dport;
-    uint8_t ip_version;
-    uint8_t src_addr[16], dst_addr[16];
-    uint64_t ts_usec;
-    uint8_t routed;
-    uint8_t valid;
-} syn_track_t;
-static syn_track_t *syn_table = NULL;
-
-static argos_dns_track_t *dns_table = NULL;
 
 /**
  * Retrieves the current system timestamp in microseconds.
@@ -217,59 +196,6 @@ static uint64_t get_current_usec(void) {
 #endif
 }
 
-/**
- * Generates a hash over the complete client identity and endpoint tuple.
- * Equality is always checked against the stored full IPv4/IPv6 addresses;
- * the hash is only an index hint and can never establish a match by itself.
- */
-static uint32_t hash_flow(const uint8_t *mac, uint16_t p1, uint16_t p2,
-                          uint8_t ip_version, const uint8_t *ip_a, const uint8_t *ip_b) {
-    size_t addr_len = ip_version == 6U ? 16U : 4U;
-    uint64_t h = hash_bytes(mac, 6);
-    h ^= hash_bytes(&p1, sizeof(p1));
-    h ^= hash_bytes(&p2, sizeof(p2)) * 0x9e3779b97f4a7c15ULL;
-    h ^= hash_bytes(&ip_version, sizeof(ip_version));
-    h ^= hash_bytes(ip_a, addr_len);
-    h ^= hash_bytes(ip_b, addr_len) * 0x517cc1b727220a95ULL;
-    return (uint32_t)(h ^ (h >> 32));
-}
-
-static int syn_track_matches(const syn_track_t *e, const uint8_t mac[6],
-                             uint16_t sport, uint16_t dport, uint8_t ip_version,
-                             const uint8_t *src_addr, const uint8_t *dst_addr) {
-    size_t addr_len = ip_version == 6U ? 16U : 4U;
-    return e->valid && e->ip_version == ip_version && e->sport == sport && e->dport == dport &&
-           memcmp(e->mac, mac, 6) == 0 && memcmp(e->src_addr, src_addr, addr_len) == 0 &&
-           memcmp(e->dst_addr, dst_addr, addr_len) == 0;
-}
-
-static syn_track_t *syn_track_find(const uint8_t mac[6], uint16_t sport, uint16_t dport,
-                                   uint8_t ip_version, const uint8_t *src_addr,
-                                   const uint8_t *dst_addr, uint64_t now_usec, int create) {
-    uint32_t base = hash_flow(mac, sport, dport, ip_version, src_addr, dst_addr) & (TRACK_SLOTS - 1U);
-    syn_track_t *empty = NULL, *oldest_entry = NULL;
-    uint64_t oldest = UINT64_MAX;
-    for (uint32_t p = 0; p < SYN_TRACK_PROBES; ++p) {
-        syn_track_t *e = &syn_table[(base + p) & (TRACK_SLOTS - 1U)];
-        if (e->valid && now_usec >= e->ts_usec && now_usec - e->ts_usec > SYN_TRACK_TTL_USEC)
-            e->valid = 0;
-        if (syn_track_matches(e, mac, sport, dport, ip_version, src_addr, dst_addr)) return e;
-        if (!e->valid) {
-            if (!empty) empty = e;
-        } else if (e->ts_usec < oldest) {
-            oldest = e->ts_usec; oldest_entry = e;
-        }
-    }
-    syn_track_t *replacement = empty ? empty : oldest_entry;
-    if (!create || !replacement) return NULL;
-    memset(replacement, 0, sizeof(*replacement));
-    memcpy(replacement->mac, mac, 6);
-    replacement->sport = sport; replacement->dport = dport; replacement->ip_version = ip_version;
-    memcpy(replacement->src_addr, src_addr, ip_version == 6U ? 16U : 4U);
-    memcpy(replacement->dst_addr, dst_addr, ip_version == 6U ? 16U : 4U);
-    replacement->valid = 1;
-    return replacement;
-}
 
 /**
  * Calculates Shannon entropy for a given string to detect DGA or tunneling activity.
@@ -349,11 +275,9 @@ static void install_signal_handlers(void) {
 #define NDP_DEDUP_TTL_SECS 900
 #define RA_DEDUP_TTL_SECS 1800
 static int rate_limit_ttl = 35;
-static argos_dedup_state_t dedup_state = {0};
-
 static int dedup_should_suppress_for(const char *mac, const char *evtype, const char *payload,
                                      int rl_enabled, int ttl, int sliding) {
-    return argos_dedup_should_suppress(&dedup_state, mac, evtype, payload,
+    return argos_dedup_should_suppress(&runtime_state.dedup, mac, evtype, payload,
                                        rl_enabled, ttl, sliding);
 }
 
@@ -410,11 +334,8 @@ static void source_dedup_signature(char *out, size_t out_cap, const char *src_ip
  * Generic fixed-size TCP generation/DONE state lives in argos_flow_state.h.
  * Protocol-specific completion policy remains here beside the parsers.
  * ============================================================================ */
-static argos_flow_state_t app_flow_state = {0};
-
 /* UDP suppression is intentionally separate from TCP DONE state. It is used
  * only for protocol/message classes proven safe to skip briefly. */
-static argos_udp_suppress_entry_t udp_suppress_table[ARGOS_UDP_SUPPRESS_SLOTS];
 
 /* A complete TLS ClientHello is enough to finish TLS fingerprinting. HTTP is
  * complete once the request header terminator is present in the captured
@@ -1261,11 +1182,11 @@ int main(int argc, char *argv[]) {
     }
 
     if (opt_ext_metrics) {
-        syn_table = (syn_track_t *)calloc(TRACK_SLOTS, sizeof(*syn_table));
-        dns_table = (argos_dns_track_t *)calloc(TRACK_SLOTS, sizeof(*dns_table));
-        if (!syn_table || !dns_table) {
+        if (!argos_runtime_state_enable_extended_metrics(&runtime_state)) {
             fprintf(stderr, "Error: unable to allocate extended-metrics state.\n");
-            free(syn_table); free(dns_table); argos_dedup_destroy(&dedup_state); argos_network_destroy(&network_state); return 1;
+            argos_runtime_state_destroy(&runtime_state);
+            argos_network_destroy(&network_state);
+            return 1;
         }
     }
 
@@ -1798,7 +1719,7 @@ int main(int argc, char *argv[]) {
 
                     if (tcp->syn && !tcp->ack) {
                         if (opt_ext_metrics) {
-                            syn_track_t *tracked = syn_track_find(src_mac, sport, dport, flow_ip_version,
+                            argos_syn_track_t *tracked = argos_syn_track_find(src_mac, sport, dport, flow_ip_version,
                                                                   flow_src_addr, flow_dst_addr, now_usec, 1);
                             if (tracked && tracked->ts_usec == 0) {
                                 tracked->ts_usec = now_usec;
@@ -1808,7 +1729,7 @@ int main(int argc, char *argv[]) {
                     }
                     else if (tcp->syn && tcp->ack) {
                         if (opt_ext_metrics) {
-                            syn_track_t *tracked = syn_track_find(dst_mac, dport, sport, flow_ip_version,
+                            argos_syn_track_t *tracked = argos_syn_track_find(dst_mac, dport, sport, flow_ip_version,
                                                                   flow_dst_addr, flow_src_addr, now_usec, 0);
                             if (tracked) {
                                 if (tracked->ts_usec > 0 && now_usec > tracked->ts_usec) {
@@ -1831,19 +1752,19 @@ int main(int argc, char *argv[]) {
                         }
                     } else if (tcp->rst || tcp->fin) {
                         if (opt_ext_metrics) {
-                            syn_track_t *tracked = NULL;
+                            argos_syn_track_t *tracked = NULL;
                             const char *client_ip = NULL;
                             const char *server_ip = NULL;
                             uint16_t server_port = 0;
 
-                            tracked = syn_track_find(src_mac, sport, dport, flow_ip_version,
+                            tracked = argos_syn_track_find(src_mac, sport, dport, flow_ip_version,
                                                      flow_src_addr, flow_dst_addr, now_usec, 0);
                             if (tracked) {
                                 client_ip = src_ip_str;
                                 server_ip = dst_ip_str;
                                 server_port = dport;
                             } else {
-                                tracked = syn_track_find(dst_mac, dport, sport, flow_ip_version,
+                                tracked = argos_syn_track_find(dst_mac, dport, sport, flow_ip_version,
                                                          flow_dst_addr, flow_src_addr, now_usec, 0);
                                 if (tracked) {
                                     client_ip = dst_ip_str;
@@ -1918,13 +1839,13 @@ int main(int argc, char *argv[]) {
                 /* SYN is the connection-generation boundary for inspect-once state.
                  * Reset before consulting DONE so rapid 5-tuple reuse is re-inspected. */
                 if (tcp->syn && !tcp->ack)
-                    argos_flow_reset_pair(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
+                    argos_flow_reset_pair(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
 
                 int enterprise_tcp = runtime_cfg.enterprise_enabled && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
                                 ((opt_http && (dport == 80U || dport == 8080U)) ||
                                  (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) || enterprise_tcp);
-                if (app_track && argos_flow_should_skip(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr,
+                if (app_track && argos_flow_should_skip(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr,
                                       sport, dport)) {
                     continue;
                 }
@@ -2013,7 +1934,7 @@ int main(int argc, char *argv[]) {
                     int fingerprint_complete = app_flow_payload_complete(
                         sport, dport, buffer + payload_offset, payload_len);
                     if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
-                    argos_flow_note_payload(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr,
+                    argos_flow_note_payload(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr,
                                         sport, dport, fingerprint_complete);
                 }
             }
@@ -2078,7 +1999,7 @@ int main(int argc, char *argv[]) {
                             if (decode_dns_name(payload, payload_len, 12, qname, sizeof(qname)) > 0 && qname[0]) {
                                 (void)dns_question_qtype(payload, payload_len, 12, &qtype);
                                 if (opt_ext_metrics && qtype != 0U) {
-                                    (void)argos_dns_track_put(dns_table, TRACK_SLOTS,
+                                    (void)argos_dns_track_put(runtime_state.dns_track, ARGOS_RUNTIME_DNS_SLOTS,
                                                               flow_ip_version, flow_src_addr, flow_dst_addr,
                                                               sport, dport, txid, qtype, qname, pkt_usec,
                                                               src_mac, (uint8_t)(routed_evidence ? 1 : 0));
@@ -2097,7 +2018,7 @@ int main(int argc, char *argv[]) {
                                 if (decode_dns_name(payload, payload_len, 12, response_qname, sizeof(response_qname)) > 0 &&
                                     response_qname[0] && dns_question_qtype(payload, payload_len, 12, &response_qtype)) {
                                     argos_dns_track_t *tracked = argos_dns_track_find_response(
-                                        dns_table, TRACK_SLOTS, flow_ip_version, flow_dst_addr, flow_src_addr,
+                                        runtime_state.dns_track, ARGOS_RUNTIME_DNS_SLOTS, flow_ip_version, flow_dst_addr, flow_src_addr,
                                         dport, sport, txid, response_qtype, response_qname, pkt_usec);
                                     if (tracked) {
                                         uint8_t rcode = flags & 0x000F;
@@ -2163,7 +2084,7 @@ int main(int argc, char *argv[]) {
                      * deliberately outside this suppression table. */
                     int wg_transport = argos_wireguard_transport_kind(payload, (size_t)payload_len);
                     int wg_suppressed = wg_transport == 2 &&
-                        argos_udp_suppress_recent(udp_suppress_table, flow_ip_version,
+                        argos_udp_suppress_recent(runtime_state.udp_suppress, flow_ip_version,
                                                   flow_src_addr, flow_dst_addr, sport, dport,
                                                   4U, (uint64_t)time(NULL));
                     if (!wg_suppressed) {
@@ -2222,7 +2143,8 @@ int main(int argc, char *argv[]) {
     if (lan_netlink_fd >= 0) close(lan_netlink_fd);
     if (ipc_sock >= 0) close(ipc_sock);
     if (remote_sock >= 0) close(remote_sock);
-    free(syn_table); free(dns_table); argos_dedup_destroy(&dedup_state); argos_network_destroy(&network_state);
+    argos_runtime_state_destroy(&runtime_state);
+    argos_network_destroy(&network_state);
     close(epoll_fd);
     return 0;
 }
