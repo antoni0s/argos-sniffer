@@ -28,6 +28,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_mqtt.c -o /tmp/test-mqtt
           /tmp/test-mqtt
 
+      - name: CoAP control fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_coap.c -o /tmp/test-coap
+          /tmp/test-coap
+
       - name: Dynamic BPF network matrix
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
@@ -46,6 +51,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_mqtt.c -o /tmp/test-mqtt-san
           /tmp/test-mqtt-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_coap.c -o /tmp/test-coap-san
+          /tmp/test-coap-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
@@ -80,5 +89,12 @@ jobs:
           assert 'Username, password and Will topic/payload' in h
           assert 'app_flow_note_payload' in s and 'ent_tcp.complete' in s
           assert 'device-secret-123' not in h and 'alice@example.org' not in h
+
+          assert '5683' in p and '5684' not in p
+          assert 'case 5683: return ae_coap' in h
+          assert 'Token, Message ID, Uri-Host' in h
+          assert 'uri_path_segments=%u' in h and 'uri_query_parts=%u' in h
+          assert 'proxy_uri=%u' in h and 'payload=%u' in h
+          assert 'sensors' not in h and 'SECRET' not in h
           print('Network visibility permanent privacy/suppression invariants: PASS')
           PY
