@@ -32,6 +32,8 @@ cryptographic keys.
   identity, telemetry, packet-normalization and bounded flow-state modules.
 - The discovery engine and permanent regression gate are complete.
 - The compile-once bounded filter engine and permanent regression gate are complete.
+- The bounded network-context engine and permanent regression gate are complete; prefix refresh
+  remains event-driven and ownership evidence remains lazily allocated.
 - Thirty-seven standalone protocol headers are present as **runtime-isolated staging parsers**.
   They are test inputs, not permission to add 37 permanent public engine boundaries.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
@@ -42,7 +44,7 @@ cryptographic keys.
 ### Phase 1 — Finish the engine architecture
 
 - [x] Extract the compile-once userspace filter engine; retain fixed-stack inline matching.
-- [ ] Build `argos_network.h`: LAN prefixes, netlink refresh, routed-source classification,
+- [x] Build `argos_network.h`: LAN prefixes, netlink refresh, routed-source classification,
   bounded IPv4/IPv6 ownership and network visibility helpers.
 - [ ] Consolidate bounded flow tracking, UDP suppression and dedup ownership behind a state
   subsystem without merging unrelated lifetimes or keys.
