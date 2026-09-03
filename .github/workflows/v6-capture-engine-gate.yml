@@ -1,0 +1,46 @@
+name: V6 capture plane engine gate
+on:
+  push:
+    branches: [version-6]
+    paths: [ci/staging/capture-engine.patch, .github/workflows/v6-capture-engine-gate.yml]
+  pull_request:
+    branches: [version-6]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  capture-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare staged or candidate
+        run: |
+          if grep -q '#include "argos_capture.h"' src/argos-sniffer.c; then echo candidate; else git apply --check ci/staging/capture-engine.patch && git apply ci/staging/capture-engine.patch; fi
+      - name: Architecture and fixtures
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('src/argos-sniffer.c').read_text(); c=Path('src/argos_capture.h').read_text()
+          assert s.count('#include "argos_capture.h"') == 1
+          for x in ('argos_capture_open','argos_capture_receive','argos_capture_report_stats','argos_capture_close'): assert x in c and x in s
+          for x in ('active_ifaces','capture_iface_t','hatype_to_link'): assert x not in s
+          assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c and 'recvmmsg(' not in c
+          assert 'argos_packet_decode' not in c and 'argos_filter_match' not in c
+          assert len(c) < 10000
+          PY
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_capture.c -o /tmp/capture && /tmp/capture
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_capture.c -o /tmp/capture-san && /tmp/capture-san
+      - name: Full native matrix and size
+        run: |
+          set -eu
+          for source in tests/test_*.c; do binary="/tmp/$(basename "$source" .c)"; cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -lm -o "$binary"; "$binary"; done
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/stub
+          read text data bss dec hex < <(size /tmp/full | awk 'NR==2')
+          test "$text" -le 155573
+          test "$bss" -le 80720
+      - name: ARM64 full and stub
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/arm-full
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/arm-stub

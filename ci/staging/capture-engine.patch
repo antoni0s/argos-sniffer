@@ -1,0 +1,648 @@
+diff --git a/.github/workflows/v6-capture-benchmark.yml b/.github/workflows/v6-capture-benchmark.yml
+index eb93eba..c087c3e 100644
+--- a/.github/workflows/v6-capture-benchmark.yml
++++ b/.github/workflows/v6-capture-benchmark.yml
+@@ -52,12 +52,15 @@ jobs:
+           from pathlib import Path
+           b=Path('bench/capture_batch_bench.c').read_text()
+           s=Path('src/argos-sniffer.c').read_text()
+-          assert 'recvmsg(current_iface->fd, &msg, MSG_TRUNC)' in s
+-          assert 'epoll_wait(epoll_fd' in s
++          c=Path('src/argos_capture.h').read_text()
++          assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c
++          assert 'epoll_wait(capture.epoll_fd' in s
++          assert 'argos_capture_receive(current_iface, buffer' in s
+           assert 'BENCH_MAX_BATCH 32U' in b
+           assert '{4U, 8U, 16U, 32U}' in b
+           assert 'recvmmsg(' in b and 'recvmsg(' in b
+           assert 'SO_TIMESTAMPNS' in b
+           assert 'MSG_TRUNC' in b
++          assert 'MSG_TRUNC' in c and 'recvmmsg(' not in c
+           print('Capture benchmark contract invariants: PASS')
+           PY
+diff --git a/.github/workflows/v6-ci.yml b/.github/workflows/v6-ci.yml
+index 4ac6a1b..e862420 100644
+--- a/.github/workflows/v6-ci.yml
++++ b/.github/workflows/v6-ci.yml
+@@ -87,6 +87,29 @@ jobs:
+             tests/test_packet.c -o /tmp/test-packet-san
+           /tmp/test-packet-san
+ 
++      - name: Capture plane regression and sanitizers
++        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
++        run: |
++          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_capture.c -o /tmp/test-capture
++          /tmp/test-capture
++          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
++            -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_capture.c -o /tmp/test-capture-san
++          /tmp/test-capture-san
++          python3 - <<'PY'
++          from pathlib import Path
++          s=Path('src/argos-sniffer.c').read_text(); c=Path('src/argos_capture.h').read_text()
++          assert s.count('#include "argos_capture.h"') == 1
++          for symbol in ('argos_capture_open', 'argos_capture_receive',
++                         'argos_capture_report_stats', 'argos_capture_close'):
++              assert symbol in c and symbol in s
++          for old in ('active_ifaces', 'capture_iface_t', 'hatype_to_link'):
++              assert old not in s
++          assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c
++          assert 'argos_packet_decode' not in c and 'argos_filter_match' not in c
++          assert len(c) < 10000
++          print('Capture plane ownership invariants: PASS')
++          PY
++
+       - name: Stateless discovery engine regression
+         run: |
+           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_discovery.c -o /tmp/test-discovery
+@@ -229,7 +252,7 @@ jobs:
+         run: |
+           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+           /tmp/test-dynamic-bpf
+-          grep -F 'argos_bpf_attach(sock, &bpf_cfg)' src/argos-sniffer.c
++          grep -F 'argos_bpf_attach(sock, bpf)' src/argos_capture.h
+           grep -F 'ARGOS_ENTERPRISE_TCP_PORTS' src/argos_bpf.h
+           grep -F '44818' src/argos_enterprise_ports.h
+           grep -F 'case 44818: return ae_cip' src/argos_enterprise.h
+diff --git a/src/argos-sniffer.c b/src/argos-sniffer.c
+index 6713453..f012beb 100644
+--- a/src/argos-sniffer.c
++++ b/src/argos-sniffer.c
+@@ -127,7 +127,7 @@
+ #include "argos_enterprise.h"
+ #include "argos_raw_identity.h"
+ #ifndef ARGOS_PORTABLE_TEST
+-#include "argos_bpf.h"
++#include "argos_capture.h"
+ #endif
+ 
+ /* ============================================================================
+@@ -211,51 +211,7 @@ static float calculate_entropy(const char *str) {
+     return entropy;
+ }
+ 
+-/* ============================================================================
+- * SECTION: Multi-Interface & Graceful Shutdown
+- * Manages multiple socket descriptors via epoll and handles termination signals.
+- * ============================================================================ */
+-#define MAX_INTERFACES 8
+-#define MAX_EPOLL_EVENTS 16
+-#define CAPTURE_BUF 65535  /* one full IPv4/IPv6 datagram; PQ ClientHellos need this */
+-#ifdef ARGOS_PORTABLE_TEST
+-typedef struct { int fd; int ifindex; link_type_t type; char name[16]; uint64_t total_packets, total_drops; } capture_iface_t;
+-#else
+-typedef struct { int fd; int ifindex; link_type_t type; char name[IFNAMSIZ]; uint64_t total_packets, total_drops; } capture_iface_t;
+-#endif
+-static capture_iface_t active_ifaces[MAX_INTERFACES];
+-static int num_ifaces = 0;
+-
+ #ifndef ARGOS_PORTABLE_TEST
+-static link_type_t hatype_to_link(unsigned short hatype) {
+-    switch (hatype) {
+-        case ARPHRD_ETHER:
+-#ifdef ARPHRD_IEEE802
+-        case ARPHRD_IEEE802:
+-#endif
+-            return LINK_ETHERNET;
+-        case ARPHRD_NONE:
+-        case ARPHRD_PPP:
+-#ifdef ARPHRD_TUNNEL
+-        case ARPHRD_TUNNEL:
+-#endif
+-#ifdef ARPHRD_TUNNEL6
+-        case ARPHRD_TUNNEL6:
+-#endif
+-#ifdef ARPHRD_SIT
+-        case ARPHRD_SIT:
+-#endif
+-#ifdef ARPHRD_IPGRE
+-        case ARPHRD_IPGRE:
+-#endif
+-            return LINK_RAW_IP;
+-        default:
+-            /* Unknown link-layer formats are rejected instead of guessing a
+-             * header layout and risking mis-parsing arbitrary bytes. */
+-            return LINK_UNSUPPORTED;
+-    }
+-}
+-
+ static volatile sig_atomic_t running = 1;
+ static void handle_signal(int sig) { (void)sig; running = 0; }
+ static void install_signal_handlers(void) {
+@@ -1207,120 +1163,33 @@ int main(int argc, char *argv[]) {
+ 
+     install_signal_handlers();
+ 
+-    int epoll_fd = epoll_create1(0);
+-    if (epoll_fd < 0) { perror("epoll_create1"); return 1; }
+-    int lan_netlink_fd = -1;
+-    static unsigned char lan_netlink_epoll_tag;
+-
+-    /* -i takes a comma-separated interface list (e.g. "eth0,wlan0"); make a
+-     * mutable copy since strtok() writes '\0' separators into it in place. */
+-    char *iface_list = strdup(iface);
+-    if (!iface_list) { fprintf(stderr, "Error: out of memory duplicating interface list.\n"); return 1; }
+-    char *token = strtok(iface_list, ",");
+-    
+-    /* Open one AF_PACKET raw socket per requested interface (or the special
+-     * "any" pseudo-interface, which captures on all interfaces at once using
+-     * Linux's "cooked" SLL framing instead of a real link-layer header) and
+-     * register each with epoll so the main loop can multiplex between them. */
+-    while (token != NULL && num_ifaces < MAX_INTERFACES) {
+-        int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+-        if (sock < 0) { token = strtok(NULL, ","); continue; }
+-
+-        active_ifaces[num_ifaces].fd = sock;
+-        strncpy(active_ifaces[num_ifaces].name, token, IFNAMSIZ - 1);
+-        active_ifaces[num_ifaces].name[IFNAMSIZ - 1] = '\0';
+-
+-        struct sockaddr_ll sll; memset(&sll, 0, sizeof(sll));
+-        sll.sll_family = AF_PACKET;
+-        sll.sll_protocol = htons(ETH_P_ALL);
+-
+-        if (strcasecmp(token, "any") == 0) {
+-            /* SOCK_RAW + ifindex 0 delivers native L2 framing. Resolve the
+-             * actual link type from sockaddr_ll for each received packet. */
+-            if (num_ifaces > 0) {
+-                fprintf(stderr, "warning: 'any' should not be combined with explicit interfaces; skipping '%s'\n", token);
+-                close(sock); token = strtok(NULL, ","); continue;
+-            }
+-            active_ifaces[num_ifaces].ifindex = 0;
+-            active_ifaces[num_ifaces].type = LINK_PER_PACKET;
+-            sll.sll_ifindex = 0;
+-        } else {
+-            struct ifreq ifr; memset(&ifr, 0, sizeof(ifr));
+-            strncpy(ifr.ifr_name, token, IFNAMSIZ - 1);
+-            if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) { close(sock); token = strtok(NULL, ","); continue; }
+-            active_ifaces[num_ifaces].ifindex = ifr.ifr_ifindex;
+-            sll.sll_ifindex = ifr.ifr_ifindex;
+-
+-            if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+-                active_ifaces[num_ifaces].type = hatype_to_link((unsigned short)ifr.ifr_hwaddr.sa_family);
+-            } else {
+-                active_ifaces[num_ifaces].type = LINK_UNSUPPORTED;
+-            }
+-            if (active_ifaces[num_ifaces].type == LINK_UNSUPPORTED) {
+-                fprintf(stderr, "warning: unsupported link-layer type on %s; skipping\n", token);
+-                close(sock); token = strtok(NULL, ","); continue;
+-            }
+-        }
+-        
+-        if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); token = strtok(NULL, ","); continue; }
+-
+-        if (active_ifaces[num_ifaces].type == LINK_ETHERNET && !filter_mode1.is_active) {
+-            if (argos_bpf_attach(sock, &bpf_cfg) < 0) {
+-                fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\n",
+-                        token, strerror(errno));
+-            }
+-        }
+-
+-        if (opt_promisc && active_ifaces[num_ifaces].type == LINK_ETHERNET) {
+-            struct packet_mreq mr; memset(&mr, 0, sizeof(mr));
+-            mr.mr_ifindex = active_ifaces[num_ifaces].ifindex; mr.mr_type = PACKET_MR_PROMISC;
+-            setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
+-        }
+-
+-        int rcvbuf = 2 * 1024 * 1024; setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+-        int one = 1;
+-        setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &one, sizeof(one)); /* recover HW-stripped VLAN */
+-#ifdef SO_TIMESTAMPNS
+-        setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &one, sizeof(one));
+-#endif
+-        struct epoll_event ev; memset(&ev, 0, sizeof(ev)); ev.events = EPOLLIN; ev.data.ptr = &active_ifaces[num_ifaces];
+-        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev) < 0) {
+-            perror("epoll_ctl"); close(sock); token = strtok(NULL, ","); continue;
+-        }
+-
+-        argos_network_add_iface(&network_state, active_ifaces[num_ifaces].name,
+-                                active_ifaces[num_ifaces].ifindex);
+-        num_ifaces++; token = strtok(NULL, ",");
+-    }
+-    free(iface_list);
+-    if (opt_promisc && num_ifaces == 1 && active_ifaces[0].type == LINK_PER_PACKET) {
++    argos_capture_state_t capture;
++    int capture_count = argos_capture_open(&capture, iface, opt_promisc,
++                                           filter_mode1.is_active, &bpf_cfg);
++    if (capture_count < 0) { perror("capture initialization"); return 1; }
++    if (opt_promisc && capture_count == 1 && capture.ifaces[0].type == LINK_PER_PACKET)
+         fprintf(stderr, "warning: promiscuous mode with -i any is not enabled globally; use explicit interfaces with -p for full L2 visibility\n");
+-    }
+-
+-    if (num_ifaces == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\n"); return 1; }
++    if (capture_count == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\n"); argos_capture_close(&capture); return 1; }
++    for (int i = 0; i < capture_count; ++i)
++        argos_network_add_iface(&network_state, capture.ifaces[i].name,
++                                capture.ifaces[i].ifindex);
+     argos_network_learn_prefixes(&network_state);
+ 
+-    lan_netlink_fd = argos_network_netlink_open();
++    int lan_netlink_fd = argos_network_netlink_open();
++    static unsigned char lan_netlink_epoll_tag;
+     if (lan_netlink_fd >= 0) {
+-        struct epoll_event nev;
+-        memset(&nev, 0, sizeof(nev));
+-        nev.events = EPOLLIN;
+-        nev.data.ptr = &lan_netlink_epoll_tag;
+-        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lan_netlink_fd, &nev) < 0) {
++        if (argos_capture_add_external(&capture, lan_netlink_fd, &lan_netlink_epoll_tag) < 0) {
+             fprintf(stderr, "warning: unable to add route-netlink listener to epoll: %s\n", strerror(errno));
+-            close(lan_netlink_fd);
+-            lan_netlink_fd = -1;
++            close(lan_netlink_fd); lan_netlink_fd = -1;
+         }
+-    } else {
+-        fprintf(stderr, "warning: route-netlink prefix refresh unavailable: %s\n", strerror(errno));
+-    }
++    } else fprintf(stderr, "warning: route-netlink prefix refresh unavailable: %s\n", strerror(errno));
+ 
+     /* Keep stdout line-buffered whenever it is active. With -U it is a
+      * deliberate local fan-out alongside the remote UDP sink. */
+     if (!use_ipc || use_remote) setvbuf(stdout, NULL, _IOLBF, 0);
+ 
+-    struct epoll_event events[MAX_EPOLL_EVENTS];
+-    unsigned char buffer[CAPTURE_BUF];
++    struct epoll_event events[ARGOS_CAPTURE_MAX_EVENTS];
++    unsigned char buffer[ARGOS_CAPTURE_BUFFER_SIZE];
+ 
+     /* Main packet capture and processing loop */
+     while (running) {
+@@ -1331,29 +1200,11 @@ int main(int argc, char *argv[]) {
+             last_gc = now_us;
+         }
+         if (now_us - last_stats > 10000000ULL) {
+-            for (int si = 0; si < num_ifaces; si++) {
+-                struct tpacket_stats st; memset(&st, 0, sizeof(st));
+-                socklen_t sl = sizeof(st);
+-                if (getsockopt(active_ifaces[si].fd, SOL_PACKET, PACKET_STATISTICS, &st, &sl) == 0) {
+-                    active_ifaces[si].total_packets += st.tp_packets;
+-                    active_ifaces[si].total_drops += st.tp_drops;
+-                    /* Keep reset-on-read accounting continuously, but avoid a
+-                     * zero-drop heartbeat in syslog every ten seconds. */
+-                    if (st.tp_drops) {
+-                        double drop_pct = st.tp_packets ? (100.0 * (double)st.tp_drops / (double)st.tp_packets) : 0.0;
+-                        fprintf(stderr, "argos: %s pkts=%u drops=%u drop=%.2f%% total_pkts=%llu total_drops=%llu",
+-                                active_ifaces[si].name, st.tp_packets, st.tp_drops, drop_pct,
+-                                (unsigned long long)active_ifaces[si].total_packets,
+-                                (unsigned long long)active_ifaces[si].total_drops);
+-                        if (opt_v6) fprintf(stderr, " max_loop_us=%llu", (unsigned long long)max_loop_us);
+-                        fputc('\n', stderr);
+-                    }
+-                }
+-            }
++            argos_capture_report_stats(&capture, opt_v6, max_loop_us);
+             if (opt_v6) max_loop_us = 0;
+             last_stats = now_us;
+         }
+-        int nfds = epoll_wait(epoll_fd, events, MAX_EPOLL_EVENTS, 1000);
++        int nfds = epoll_wait(capture.epoll_fd, events, ARGOS_CAPTURE_MAX_EVENTS, 1000);
+         if (nfds < 0 && errno != EINTR) break;
+         uint64_t processing_start_us = opt_v6 ? get_current_usec() : 0;
+ 
+@@ -1364,58 +1215,15 @@ int main(int argc, char *argv[]) {
+                 continue;
+             }
+ 
+-            capture_iface_t *current_iface = (capture_iface_t *)events[i].data.ptr;
+-
+-            struct sockaddr_ll from_ll;
+-            memset(&from_ll, 0, sizeof(from_ll));
+-            struct iovec iov;
+-            iov.iov_base = buffer;
+-            iov.iov_len = sizeof(buffer);
+-            char cmsg_buf[CMSG_SPACE(sizeof(struct tpacket_auxdata)) + CMSG_SPACE(sizeof(struct timespec))];
+-            struct msghdr msg;
+-            memset(&msg, 0, sizeof(msg));
+-            msg.msg_name = &from_ll;
+-            msg.msg_namelen = sizeof(from_ll);
+-            msg.msg_iov = &iov;
+-            msg.msg_iovlen = 1;
+-            msg.msg_control = cmsg_buf;
+-            msg.msg_controllen = sizeof(cmsg_buf);
+-
+-            ssize_t len = recvmsg(current_iface->fd, &msg, MSG_TRUNC);
+-            if (len <= 0) continue;
+-            if ((size_t)len > sizeof(buffer)) len = sizeof(buffer);
+-
+-            uint64_t pkt_usec = 0;
+-            uint16_t aux_vlan = 0;
+-            int aux_vlan_valid = 0;
+-            for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
+-#ifdef SO_TIMESTAMPNS
+-                if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPNS) {
+-                    struct timespec ts;
+-                    memcpy(&ts, CMSG_DATA(c), sizeof(ts));
+-                    pkt_usec = (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
+-                }
+-#endif
+-                if (c->cmsg_level == SOL_PACKET && c->cmsg_type == PACKET_AUXDATA &&
+-                    c->cmsg_len >= CMSG_LEN(sizeof(struct tpacket_auxdata))) {
+-                    struct tpacket_auxdata aux;
+-                    memcpy(&aux, CMSG_DATA(c), sizeof(aux));
+-                    if (aux.tp_status & TP_STATUS_VLAN_VALID) {
+-                        aux_vlan = (uint16_t)(aux.tp_vlan_tci & 0x0fffU);
+-                        aux_vlan_valid = 1;
+-                    }
+-                }
+-            }
+-            if (pkt_usec == 0) pkt_usec = get_current_usec();
+-
+-            link_type_t pkt_type = current_iface->type;
+-            if (pkt_type == LINK_PER_PACKET) pkt_type = hatype_to_link(from_ll.sll_hatype);
+-            /* A socket bound to an explicit bridge is classified against that
+-             * bridge's connected prefixes. Some kernels report the ingress
+-             * bridge-port ifindex in sockaddr_ll; using it made valid off-link
+-             * IPv6 sources miss the br-lan prefix context. `any` still uses the
+-             * actual per-packet ifindex to avoid cross-interface false positives. */
+-            int packet_ifindex = argos_network_prefix_context(current_iface->ifindex, from_ll.sll_ifindex);
++            argos_capture_iface_t *current_iface = (argos_capture_iface_t *)events[i].data.ptr;
++            argos_capture_packet_t captured;
++            if (!argos_capture_receive(current_iface, buffer, sizeof(buffer), &captured)) continue;
++            ssize_t len = captured.len;
++            uint64_t pkt_usec = captured.timestamp_usec ? captured.timestamp_usec : get_current_usec();
++            uint16_t aux_vlan = captured.aux_vlan;
++            int aux_vlan_valid = captured.aux_vlan_valid;
++            link_type_t pkt_type = captured.type;
++            int packet_ifindex = captured.packet_ifindex;
+ 
+             argos_packet_view_t packet_view;
+             if (!argos_packet_decode(pkt_type, buffer, (int)len, opt_v6, &packet_view)) continue;
+@@ -2139,13 +1947,12 @@ int main(int argc, char *argv[]) {
+     }
+ 
+     /* Cleanup sockets and resources */
+-    for (int i = 0; i < num_ifaces; i++) close(active_ifaces[i].fd);
+     if (lan_netlink_fd >= 0) close(lan_netlink_fd);
+     if (ipc_sock >= 0) close(ipc_sock);
+     if (remote_sock >= 0) close(remote_sock);
+     argos_runtime_state_destroy(&runtime_state);
+     argos_network_destroy(&network_state);
+-    close(epoll_fd);
++    argos_capture_close(&capture);
+     return 0;
+ }
+ #endif
+diff --git a/src/argos_capture.h b/src/argos_capture.h
+new file mode 100644
+index 0000000..a1e498e
+--- /dev/null
++++ b/src/argos_capture.h
+@@ -0,0 +1,219 @@
++#ifndef ARGOS_CAPTURE_H
++#define ARGOS_CAPTURE_H
++
++#ifndef ARGOS_PORTABLE_TEST
++
++#include <errno.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <strings.h>
++#include <sys/epoll.h>
++#include <sys/ioctl.h>
++#include <sys/socket.h>
++#include <time.h>
++#include <unistd.h>
++#include <arpa/inet.h>
++#include <linux/if_packet.h>
++#include <net/ethernet.h>
++#include <net/if.h>
++#include <net/if_arp.h>
++
++#include "argos_packet.h"
++#include "argos_bpf.h"
++
++#define ARGOS_CAPTURE_MAX_INTERFACES 8
++#define ARGOS_CAPTURE_MAX_EVENTS 16
++#define ARGOS_CAPTURE_BUFFER_SIZE 65535
++
++typedef struct {
++    int fd;
++    int ifindex;
++    link_type_t type;
++    char name[IFNAMSIZ];
++    uint64_t total_packets;
++    uint64_t total_drops;
++} argos_capture_iface_t;
++
++typedef struct {
++    int epoll_fd;
++    argos_capture_iface_t ifaces[ARGOS_CAPTURE_MAX_INTERFACES];
++    int count;
++} argos_capture_state_t;
++
++typedef struct {
++    ssize_t len;
++    uint64_t timestamp_usec;
++    uint16_t aux_vlan;
++    int aux_vlan_valid;
++    int packet_ifindex;
++    link_type_t type;
++} argos_capture_packet_t;
++
++static inline link_type_t argos_capture_hatype(unsigned short hatype) {
++    switch (hatype) {
++        case ARPHRD_ETHER:
++#ifdef ARPHRD_IEEE802
++        case ARPHRD_IEEE802:
++#endif
++            return LINK_ETHERNET;
++        case ARPHRD_NONE:
++        case ARPHRD_PPP:
++#ifdef ARPHRD_TUNNEL
++        case ARPHRD_TUNNEL:
++#endif
++#ifdef ARPHRD_TUNNEL6
++        case ARPHRD_TUNNEL6:
++#endif
++#ifdef ARPHRD_SIT
++        case ARPHRD_SIT:
++#endif
++#ifdef ARPHRD_IPGRE
++        case ARPHRD_IPGRE:
++#endif
++            return LINK_RAW_IP;
++        default:
++            return LINK_UNSUPPORTED;
++    }
++}
++
++static inline int argos_capture_open(argos_capture_state_t *state,
++                                     const char *interface_list,
++                                     int promiscuous, int userspace_live_filter,
++                                     const argos_bpf_config_t *bpf) {
++    memset(state, 0, sizeof(*state));
++    state->epoll_fd = epoll_create1(0);
++    if (state->epoll_fd < 0) return -1;
++    char *list = strdup(interface_list);
++    if (!list) { errno = ENOMEM; return -1; }
++
++    for (char *token = strtok(list, ","); token && state->count < ARGOS_CAPTURE_MAX_INTERFACES;
++         token = strtok(NULL, ",")) {
++        int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
++        if (sock < 0) continue;
++        argos_capture_iface_t *iface = &state->ifaces[state->count];
++        iface->fd = sock;
++        strncpy(iface->name, token, IFNAMSIZ - 1);
++        iface->name[IFNAMSIZ - 1] = '\0';
++
++        struct sockaddr_ll sll; memset(&sll, 0, sizeof(sll));
++        sll.sll_family = AF_PACKET; sll.sll_protocol = htons(ETH_P_ALL);
++        if (strcasecmp(token, "any") == 0) {
++            if (state->count > 0) {
++                fprintf(stderr, "warning: 'any' should not be combined with explicit interfaces; skipping '%s'\n", token);
++                close(sock); continue;
++            }
++            iface->ifindex = 0; iface->type = LINK_PER_PACKET; sll.sll_ifindex = 0;
++        } else {
++            struct ifreq ifr; memset(&ifr, 0, sizeof(ifr));
++            strncpy(ifr.ifr_name, token, IFNAMSIZ - 1);
++            if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) { close(sock); continue; }
++            iface->ifindex = ifr.ifr_ifindex; sll.sll_ifindex = ifr.ifr_ifindex;
++            iface->type = ioctl(sock, SIOCGIFHWADDR, &ifr) == 0 ?
++                          argos_capture_hatype((unsigned short)ifr.ifr_hwaddr.sa_family) :
++                          LINK_UNSUPPORTED;
++            if (iface->type == LINK_UNSUPPORTED) {
++                fprintf(stderr, "warning: unsupported link-layer type on %s; skipping\n", token);
++                close(sock); continue;
++            }
++        }
++        if (bind(sock, (struct sockaddr *)&sll, sizeof(sll)) < 0) { close(sock); continue; }
++        if (iface->type == LINK_ETHERNET && !userspace_live_filter && argos_bpf_attach(sock, bpf) < 0)
++            fprintf(stderr, "warning: unable to attach vector-aware AF_PACKET prefilter on %s: %s\n",
++                    token, strerror(errno));
++        if (promiscuous && iface->type == LINK_ETHERNET) {
++            struct packet_mreq mr; memset(&mr, 0, sizeof(mr));
++            mr.mr_ifindex = iface->ifindex; mr.mr_type = PACKET_MR_PROMISC;
++            setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
++        }
++        int rcvbuf = 2 * 1024 * 1024, one = 1;
++        setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
++        setsockopt(sock, SOL_PACKET, PACKET_AUXDATA, &one, sizeof(one));
++#ifdef SO_TIMESTAMPNS
++        setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &one, sizeof(one));
++#endif
++        struct epoll_event ev; memset(&ev, 0, sizeof(ev));
++        ev.events = EPOLLIN; ev.data.ptr = iface;
++        if (epoll_ctl(state->epoll_fd, EPOLL_CTL_ADD, sock, &ev) < 0) {
++            perror("epoll_ctl"); close(sock); continue;
++        }
++        state->count++;
++    }
++    free(list);
++    return state->count;
++}
++
++static inline int argos_capture_add_external(argos_capture_state_t *state,
++                                              int fd, void *tag) {
++    struct epoll_event ev; memset(&ev, 0, sizeof(ev));
++    ev.events = EPOLLIN; ev.data.ptr = tag;
++    return epoll_ctl(state->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
++}
++
++static inline int argos_capture_receive(argos_capture_iface_t *iface,
++                                        unsigned char *buffer, size_t capacity,
++                                        argos_capture_packet_t *packet) {
++    struct sockaddr_ll from; memset(&from, 0, sizeof(from));
++    struct iovec iov = {.iov_base = buffer, .iov_len = capacity};
++    char control[CMSG_SPACE(sizeof(struct tpacket_auxdata)) + CMSG_SPACE(sizeof(struct timespec))];
++    struct msghdr msg; memset(&msg, 0, sizeof(msg));
++    msg.msg_name = &from; msg.msg_namelen = sizeof(from);
++    msg.msg_iov = &iov; msg.msg_iovlen = 1;
++    msg.msg_control = control; msg.msg_controllen = sizeof(control);
++    ssize_t len = recvmsg(iface->fd, &msg, MSG_TRUNC);
++    if (len <= 0) return 0;
++    if ((size_t)len > capacity) len = (ssize_t)capacity;
++    memset(packet, 0, sizeof(*packet)); packet->len = len;
++    for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
++#ifdef SO_TIMESTAMPNS
++        if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPNS) {
++            struct timespec ts; memcpy(&ts, CMSG_DATA(c), sizeof(ts));
++            packet->timestamp_usec = (uint64_t)ts.tv_sec * 1000000ULL +
++                                     (uint64_t)ts.tv_nsec / 1000ULL;
++        }
++#endif
++        if (c->cmsg_level == SOL_PACKET && c->cmsg_type == PACKET_AUXDATA &&
++            c->cmsg_len >= CMSG_LEN(sizeof(struct tpacket_auxdata))) {
++            struct tpacket_auxdata aux; memcpy(&aux, CMSG_DATA(c), sizeof(aux));
++            if (aux.tp_status & TP_STATUS_VLAN_VALID) {
++                packet->aux_vlan = (uint16_t)(aux.tp_vlan_tci & 0x0fffU);
++                packet->aux_vlan_valid = 1;
++            }
++        }
++    }
++    packet->type = iface->type == LINK_PER_PACKET ?
++                   argos_capture_hatype(from.sll_hatype) : iface->type;
++    packet->packet_ifindex = iface->ifindex > 0 ? iface->ifindex : from.sll_ifindex;
++    return 1;
++}
++
++static inline void argos_capture_report_stats(argos_capture_state_t *state,
++                                               int include_loop, uint64_t max_loop_usec) {
++    for (int i = 0; i < state->count; ++i) {
++        struct tpacket_stats st; memset(&st, 0, sizeof(st));
++        socklen_t sl = sizeof(st);
++        if (getsockopt(state->ifaces[i].fd, SOL_PACKET, PACKET_STATISTICS, &st, &sl) == 0) {
++            state->ifaces[i].total_packets += st.tp_packets;
++            state->ifaces[i].total_drops += st.tp_drops;
++            if (st.tp_drops) {
++                double pct = st.tp_packets ? 100.0 * (double)st.tp_drops / (double)st.tp_packets : 0.0;
++                fprintf(stderr, "argos: %s pkts=%u drops=%u drop=%.2f%% total_pkts=%llu total_drops=%llu",
++                        state->ifaces[i].name, st.tp_packets, st.tp_drops, pct,
++                        (unsigned long long)state->ifaces[i].total_packets,
++                        (unsigned long long)state->ifaces[i].total_drops);
++                if (include_loop) fprintf(stderr, " max_loop_us=%llu", (unsigned long long)max_loop_usec);
++                fputc('\n', stderr);
++            }
++        }
++    }
++}
++
++static inline void argos_capture_close(argos_capture_state_t *state) {
++    for (int i = 0; i < state->count; ++i) close(state->ifaces[i].fd);
++    if (state->epoll_fd >= 0) close(state->epoll_fd);
++    state->epoll_fd = -1;
++}
++
++#endif /* !ARGOS_PORTABLE_TEST */
++#endif /* ARGOS_CAPTURE_H */
+diff --git a/tests/test_capture.c b/tests/test_capture.c
+new file mode 100644
+index 0000000..7053cfd
+--- /dev/null
++++ b/tests/test_capture.c
+@@ -0,0 +1,34 @@
++#define _GNU_SOURCE
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++#include <sys/socket.h>
++#include <unistd.h>
++
++#include "../src/argos_capture.h"
++
++int main(void) {
++    assert(argos_capture_hatype(ARPHRD_ETHER) == LINK_ETHERNET);
++    assert(argos_capture_hatype(ARPHRD_PPP) == LINK_RAW_IP);
++    assert(argos_capture_hatype(0xffffU) == LINK_UNSUPPORTED);
++
++    int fd[2];
++    assert(socketpair(AF_UNIX, SOCK_DGRAM, 0, fd) == 0);
++    unsigned char sent[64], received[16];
++    memset(sent, 0xa5, sizeof(sent));
++    assert(send(fd[0], sent, sizeof(sent), 0) == (ssize_t)sizeof(sent));
++
++    argos_capture_iface_t iface;
++    memset(&iface, 0, sizeof(iface));
++    iface.fd = fd[1]; iface.ifindex = 7; iface.type = LINK_RAW_IP;
++    argos_capture_packet_t packet;
++    assert(argos_capture_receive(&iface, received, sizeof(received), &packet));
++    assert(packet.len == (ssize_t)sizeof(received));
++    assert(packet.type == LINK_RAW_IP);
++    assert(packet.packet_ifindex == 7);
++    for (size_t i = 0; i < sizeof(received); ++i) assert(received[i] == 0xa5U);
++
++    close(fd[0]); close(fd[1]);
++    puts("capture plane fixtures: PASS");
++    return 0;
++}
+
