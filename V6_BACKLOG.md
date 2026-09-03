@@ -1,0 +1,279 @@
+# Argos Sniffer v6 — Architecture and Integration Backlog
+
+This is the ordered implementation backlog for the v6 engine architecture, CLI hierarchy,
+telemetry schema migration and isolated protocol engines. It is intentionally ordered by
+dependency and rollout safety rather than by protocol count.
+
+## Non-negotiable acceptance rules
+
+Every step must preserve the following unless a separately gated schema migration explicitly
+states otherwise:
+
+- bounded work and bounded memory per packet;
+- no heap allocation in the packet hot path;
+- no regex processing in the sniffer;
+- handshake, control-plane and header metadata only;
+- explicit fast-complete/fast-drop for elephant flows;
+- unchanged privacy guarantees: never emit passwords, authentication blobs, tickets or keys;
+- strict native full/stub and ARM64 full/stub builds;
+- fixtures, malformed/truncation corpus and ASan/UBSan coverage;
+- optimized text-size and capture-path performance guards;
+- staged implementation before production promotion.
+
+Observable identity may include username, principal, realm/domain, machine account,
+workstation, identity class and application identity. It must never include FTP `PASS`, LDAP
+bind passwords, Redis AUTH secrets, NTLM response/challenge material, Kerberos tickets/session
+keys, RADIUS shared secrets, SNMP community strings, TACACS decrypted credential material or
+cryptographic keys.
+
+## Verified starting point
+
+- The production packet path already uses cohesive TLS, QUIC, L2, enterprise, discovery,
+  identity, telemetry, packet-normalization and bounded flow-state modules.
+- The discovery engine and permanent regression gate are complete.
+- The compile-once bounded filter engine and permanent regression gate are complete.
+- Thirty-seven standalone protocol headers are present as **runtime-isolated staging parsers**.
+  They are test inputs, not permission to add 37 permanent public engine boundaries.
+- RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
+  fixtures.
+
+## Ordered delivery plan
+
+### Phase 1 — Finish the engine architecture
+
+- [x] Extract the compile-once userspace filter engine; retain fixed-stack inline matching.
+- [ ] Build `argos_network.h`: LAN prefixes, netlink refresh, routed-source classification,
+  bounded IPv4/IPv6 ownership and network visibility helpers.
+- [ ] Consolidate bounded flow tracking, UDP suppression and dedup ownership behind a state
+  subsystem without merging unrelated lifetimes or keys.
+- [ ] Consolidate the capture plane only where ownership is real: packet normalization,
+  userspace filters and kernel BPF construction remain distinct internal sections.
+- [ ] Merge compatibility-only helpers into their owning engines:
+  `tls_ports -> tls`, `enterprise_ports -> enterprise`, `raw_identity -> identity`.
+- [ ] Reduce `argos-sniffer.c` to capture, normalize, cheap gate, dispatch, emit and lifecycle.
+- [ ] Run final packet-loop, allocation, state-size, cache locality and capture-drop audits.
+
+### Phase 2 — Freeze the public contracts
+
+- [ ] Publish the canonical telemetry grammar and escaping/truncation rules.
+- [ ] Freeze protocol/vector names. Vector names must not encode protocol variants:
+  `SMB2 -> SMB`, `SMB2-NTLM -> NTLM`, `ORACLE-TNS -> ORACLE`, `SNMPV3-USM -> SNMP`.
+- [ ] Freeze the observable-identity/privacy field policy per vector.
+- [ ] Freeze PROFILE -> SUPER GROUP -> GROUP -> PROTOCOL membership.
+- [ ] Define conflict and precedence rules for profile, group and individual protocol flags.
+- [ ] Decide and document the legacy short-flag compatibility window.
+
+### Phase 3 — Configuration and help system
+
+- [ ] Add an engine-enable bitmap with one bit per protocol and derived masks for groups,
+  super-groups and profiles.
+- [ ] Compile CLI selections once at startup; packet processing must never walk CLI strings.
+- [ ] Add profiles: `core`, `standard`, `full`, `home`, `enterprise`, `sensor`.
+- [ ] Add super-groups: `network`, `application`, `enterprise`, `industrial`, `iot`, `vpn`.
+- [ ] Preserve lowercase = normal/deduplicated and uppercase = unrated behavior.
+- [ ] Add `--no-rate-limit=<all|super-group|group>` without per-packet string lookups.
+- [ ] Keep `--help` to one screen and add thematic help screens:
+  `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
+  `--help-industrial`, `--help-iot`, `--help-vpn`, `--help-capture`, `--help-output`,
+  `--help-rate`, `--help-identity`, `--help-performance`.
+- [ ] Generate help membership from the same canonical tables used by the enable bitmap so help
+  and runtime behavior cannot drift.
+
+### Phase 4 — Cheap dispatcher and BPF gating
+
+- [ ] Derive a compact L2/L3/L4 dispatch plan from the enable bitmap at startup.
+- [ ] Skip disabled engines before payload parsing or state lookup.
+- [ ] Generate the classic-BPF whitelist from enabled protocol families while preserving safe
+  fallbacks for VLAN, QinQ, PPPoE and IPv6 extension headers.
+- [ ] Keep heavy QUIC reassembly runtime opt-in and lazily allocated.
+- [ ] Add dispatcher equivalence fixtures proving legacy flag selections reach the same parsers.
+- [ ] Benchmark packets/sec, loop latency, binary text size and AF_PACKET drop counters.
+
+### Phase 5 — Connect existing production engines to the bitmap
+
+- [ ] Network/addressing and discovery.
+- [ ] TLS, DoT, QUIC and HTTP.
+- [ ] L2 discovery, routing and redundancy.
+- [ ] Enterprise/storage/database/identity/management.
+- [ ] Industrial, IoT and VPN engines already present in production.
+- [ ] Prove wire output remains unchanged while only enable/gating ownership changes.
+
+### Phase 6 — Collector-first telemetry migration
+
+- [ ] Teach the collector to accept both legacy `ENT|...|PROTO|DETAIL` and canonical
+  protocol-specific vectors.
+- [ ] Add normalized internal collector records so both inputs produce identical inventory
+  evidence.
+- [ ] Add collector fixtures for every new vector and unknown-field forward compatibility.
+- [ ] Add a sniffer compatibility mode for legacy `ENT|`; do not emit duplicate evidence.
+- [ ] Switch the sniffer to protocol-specific vectors only after the deployed collector accepts
+  both formats.
+- [ ] Observe one release compatibility window, then remove the legacy parser only in a major
+  schema transition.
+
+### Phase 7 — Reconcile overlapping staging engines
+
+The following already overlap production implementations and must be compared fixture-by-fixture,
+not connected as duplicate parsers:
+
+- [ ] `argos_lldp_med.h` -> canonical L2 engine.
+- [ ] `argos_lacp.h` -> canonical L2 engine.
+- [ ] `argos_stp.h` -> canonical L2 engine.
+
+Keep the strongest bounded parser, preserve existing wire output until Phase 6, then remove the
+redundant staging header.
+
+### Phase 8 — Integrate isolated engines by risk/value group
+
+Each group gets its own staged gate, port/BPF matrix, flow-complete policy, privacy assertions and
+native/ARM64 validation. The standalone files should be folded into the appropriate cohesive
+engine facade during integration rather than becoming permanent one-protocol public modules.
+
+1. **Low-rate network control plane**
+   - [ ] RIP, PTP.
+2. **Management exporters**
+   - [ ] Syslog, NetFlow, IPFIX, sFlow.
+3. **Application control protocols**
+   - [ ] HTTP proxy, Telnet, VNC, WinRM, LPD.
+4. **Realtime and media negotiation**
+   - [ ] RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
+5. **Enterprise storage, database and directory**
+   - [ ] FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
+6. **Industrial/OT control plane**
+   - [ ] KNXnet/IP, S7comm, OPC UA, DNP3.
+7. **IoT/smart-home framing**
+   - [ ] Matter, Thread/6LoWPAN.
+8. **VPN/IPsec metadata**
+   - [ ] OpenVPN, IKE, ESP, AH.
+
+### Phase 9 — Release hardening
+
+- [ ] Golden wire-format corpus for legacy and canonical schema modes.
+- [ ] Sanitized real-PCAP acceptance for protocols with optional/vendor fields.
+- [ ] Native Linux gateway acceptance.
+- [ ] Linux SPAN/TAP acceptance with VLAN/QinQ and unnumbered capture NIC.
+- [ ] Real OpenWrt ARM64 acceptance on constrained hardware.
+- [ ] Long-run bounded-memory/state expiry test.
+- [ ] Burst capture/drop comparison against the clean pre-architecture baseline.
+- [ ] Documentation, changelog, compatibility matrix and `6.0.0-rc1` release checklist.
+
+## Canonical CLI taxonomy backlog
+
+| Super-group | Group | Protocols |
+|---|---|---|
+| network | addressing | dhcp, dhcpv6, arp, ndp, ra |
+| network | discovery | mdns, ssdp, upnp, llmnr, wsd, nbns |
+| network | l2-discovery | lldp, cdp, edp, fdp, mndp, lldp-med, stp, lacp |
+| network | multicast | igmp, mld |
+| network | routing | bgp, ospf, isis, rip |
+| network | redundancy | vrrp, hsrp |
+| network | time | ntp, ptp |
+| application | name-services | dns, dot |
+| application | encrypted | tls, quic |
+| application | web | http, http-proxy |
+| application | remote-access | rdp, ssh, telnet, vnc, winrm |
+| application | realtime | stun-turn |
+| application | printing | ipp, pjl, jetdirect, lpd |
+| application | voice | sip, sccp, rtp, rtcp |
+| application | media | rtsp, cast, airplay, dlna |
+| enterprise | fileshare | smb, ntlm, nfs, ftp |
+| enterprise | storage | sunrpc, nfs, iscsi, nvmeof |
+| enterprise | database | mysql, postgresql, mssql, oracle, mongodb, redis |
+| enterprise | identity | kerberos, ntlm, eapol, radius, tacacs |
+| enterprise | directory | cldap, netlogon, ldap, ldaps |
+| enterprise | management | snmp, ipmi, rmcp, asf, vmware-slp, syslog, netflow, ipfix, sflow |
+| industrial | building | bacnet, knx |
+| industrial | automation | modbus, profinet, ethernet-ip, cip, s7, opcua |
+| industrial | utility | dnp3 |
+| iot | messaging | mqtt, coap |
+| iot | smart-home | matter, thread |
+| vpn | modern-vpn | wireguard, openvpn |
+| vpn | ipsec-suite | ike, esp, ah |
+
+Duplicate protocol membership such as NFS and NTLM is intentional: a protocol bit may belong to
+multiple groups, but enabling either group sets the same single protocol bit and must not create
+duplicate parsing or telemetry.
+
+## Canonical vector schema backlog
+
+All proposed records follow:
+
+```text
+VECTOR|src_mac|src_ip|dst_ip|key=value key=value ...[|routed]
+```
+
+The schema-freeze phase must finalize ordering, escaping, missing values and maximum field lengths.
+Candidate vectors and their required metadata are:
+
+| Vector | Candidate fields |
+|---|---|
+| SMB | version, dialect, command, signing, encryption, compression, auth, capabilities |
+| NTLM | transport, message, username, domain, workstation, identity_class, windows, build |
+| NFS | version, procedure, procedure_id, auth, machine |
+| SUNRPC | program, program_id, version, procedure, auth, machine |
+| FTP | direction, command, username, response, server, tls, passive |
+| ISCSI | pdu, initiator, target, session, header_digest, data_digest |
+| NVMEOF | transport, pdu, pfv, hpda, cpda, header_digest, data_digest |
+| MYSQL | protocol, server_version, capabilities, charset, auth_plugin, username |
+| POSTGRESQL | protocol, phase, username, application, database, ssl_requested |
+| MSSQL | protocol, phase, username, version, build, subbuild, encryption |
+| ORACLE | transport, packet, username, program, version, service_present, host_present |
+| MONGODB | opcode, request_id, response_to, command, username |
+| REDIS | protocol, frame, command, username, auth_present |
+| KERBEROS | request, username, realm, identity_class, etype_count, etypes, preauth_present |
+| EAPOL | version, eapol_type, code, method, username, identity_class |
+| RADIUS | code, identifier, username, identity_class, service, eap, nas_present, message_authenticator |
+| TACACS | version, type, seq, username, flags, encrypted |
+| CLDAP | operation, netlogon, message_id |
+| NETLOGON | response, opcode, flags, nt_version, domain, forest, site, dc |
+| LDAP | message_id, operation, username, identity_class, auth, tls_upgrade |
+| LDAPS | transport, tls_version, record_type, ldap_encrypted |
+| SNMP | version, pdu, sysdescr, sysobjectid, security, username, engine_hash, enterprise, auth, priv, reportable |
+| RMCP | version, sequence, class |
+| IPMI | version, session, payload, username, netfn, command, authenticated, encrypted |
+| ASF | enterprise, type, tag |
+| VMWARE-SLP | version, function, service |
+| SYSLOG | format, facility, severity, version, hostname, appname, structured_data |
+| NETFLOW | version, count, sequence, engine_type, engine_id, source_id, uptime |
+| IPFIX | version, length, sequence, observation_domain, export_time, sets |
+| SFLOW | version, agent_type, agent, sub_agent, sequence, samples |
+| LLDP-MED | device_class, capabilities, network_policy, application, vlan, priority, dscp, inventory |
+| LACP | version, actor_system, actor_priority, actor_key, actor_port, actor_state, partner_system, partner_priority, partner_key, partner_port, partner_state |
+| STP | type, version, flags, root_id, root_cost, bridge_id, port_id, message_age, max_age, hello_time, forward_delay, mst_revision, mst_digest |
+| RIP | version, command, entries, auth, next_hop_present |
+| PTP | version, message, domain, sequence, transport_specific, two_step, clock_identity |
+| HTTP-PROXY | method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
+| TELNET | command, option, negotiation, username |
+| VNC | protocol, version, security_types, selected_security, server_name, width, height |
+| WINRM | transport, wsman, soap, method, auth, username, encrypted |
+| LPD | command, queue, username |
+| RTP | version, payload_type, marker, sequence, timestamp, ssrc, csrc_count, extension |
+| RTCP | version, packet_type, report_count, ssrc, compound |
+| RTSP | type, method, status, cseq, transport, username, server, user_agent, auth |
+| CAST | transport, framing, frame_length, encrypted |
+| AIRPLAY | protocol, method, username, server, user_agent, feature_present, pairing_present |
+| DLNA | dlna, upnp_av, profile_present, server, user_agent, transfer_mode |
+| KNX | protocol, version, service, total_length |
+| S7 | transport, protocol, rosctr, pdu_ref, parameter_length, data_length, function |
+| OPCUA | transport, message, chunk, size, secure_channel, username |
+| DNP3 | direction, primary, function, source, destination, length |
+| MATTER | transport, version, session_type, secure, privacy, message_counter, exchange_present |
+| THREAD | layer, mesh, originator_size, final_size, hops_left, deep_hops |
+| OPENVPN | transport, opcode, key_id, username, session_id_present, peer_id |
+| IKE | version, exchange, username, flags, message_id, initiator_spi, responder_spi, natt |
+| ESP | spi, sequence |
+| AH | next_header, payload_length, spi, sequence |
+
+## Completion definition for one protocol
+
+A protocol is not considered integrated merely because its parser compiles. Completion requires:
+
+- canonical enable bit, CLI membership and help entry;
+- safe BPF/dispatcher reachability;
+- bounded parser and malformed/truncation fixtures;
+- explicit privacy assertions for every emitted field;
+- fast-complete/fast-drop behavior where bulk traffic can follow;
+- canonical vector and legacy compatibility coverage;
+- collector acceptance and inventory mapping;
+- native, sanitizer and ARM64 gates;
+- removal or folding of the isolated staging header when its owning engine is established.

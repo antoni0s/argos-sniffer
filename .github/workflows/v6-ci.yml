@@ -119,6 +119,38 @@ jobs:
             tests/test_discovery.c -o /tmp/test-discovery-san
           /tmp/test-discovery-san
 
+      - name: Bounded filter engine regression
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_filter.c -o /tmp/test-filter
+          /tmp/test-filter
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text()
+          engine = Path('src/argos_filter.h').read_text()
+          assert src.count('#include "argos_filter.h"') == 1
+          assert 'SECTION: Shunting-Yard Filter Engine' not in src
+          for symbol in ('argos_filter_program_t', 'argos_filter_compile',
+                         'argos_filter_match', 'argos_filter_parse_mac',
+                         'argos_filter_parse_cidr_bits'):
+              assert symbol in engine and symbol in src
+          assert 'static inline int argos_filter_match' in engine
+          assert 'int stack[ARGOS_FILTER_MAX_TOKENS]' in engine
+          assert '#define ARGOS_FILTER_MAX_TOKENS 64' in engine
+          for forbidden in ('malloc(', 'calloc(', 'realloc(', 'emit_telemetry(',
+                            'dedup_should_suppress', 'owner4_', 'owner6_'):
+              assert forbidden not in engine
+          assert len(engine) < 18000
+          print('Filter engine architecture/hot-path invariants: PASS')
+          PY
+
+      - name: Bounded filter engine sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_filter.c -o /tmp/test-filter-san
+          /tmp/test-filter-san
+
       - name: TLS ClientHello / JA4 regression
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client
