@@ -19,12 +19,15 @@ new = '''                /* SYN is the connection-generation boundary for inspec
 s = replace_once(s, old, new, 'SYN reset integration')
 p.write_text(s)
 
-Path('tests/test_app_flow.c').write_text(r'''#define ARGOS_PORTABLE_TEST 1
+Path('tests/test_app_flow.c').write_text(r'''#define ARGOS_QUIC_STUB 1
+#define main argos_sniffer_embedded_main
+#include "../src/argos-sniffer.c"
+#undef main
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../src/argos-sniffer.c"
 
 int main(void) {
     uint8_t a[16] = {10,0,0,10};
