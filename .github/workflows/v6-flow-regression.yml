@@ -22,6 +22,8 @@ jobs:
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_app_flow.c -lm -o /tmp/test-app-flow
           /tmp/test-app-flow
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntlm_flow_completion.c -o /tmp/test-ntlm-flow
+          /tmp/test-ntlm-flow
 
       - name: Bounded UDP class suppression fixtures
         run: |
@@ -41,6 +43,10 @@ jobs:
           /tmp/test-app-flow-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_ntlm_flow_completion.c -o /tmp/test-ntlm-flow-san
+          /tmp/test-ntlm-flow-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_udp_suppress.c -o /tmp/test-udp-suppress-san
           /tmp/test-udp-suppress-san
 
@@ -49,6 +55,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           s=Path('src/argos-sniffer.c').read_text()
+          e=Path('src/argos_enterprise.h').read_text()
           u=Path('src/argos_udp_suppress.h').read_text()
           w=Path('src/argos_wireguard.h').read_text()
           assert 'APP_FLOW_SLOTS 1024' in s
@@ -60,6 +67,9 @@ jobs:
           assert 'app_flow_reset_pair(flow_ip_version' in s
           assert 'if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;' in s
           assert 'completed previous connection can never suppress the new handshake' in s
+          assert 'ae_set(r, "smb2", 0, "command=session-setup auth=spnego")' in e
+          assert 'ae_set(r, "smb2-ntlm", mt == 3U,' in e
+          assert 'Type 1/2 must not mark the TCP' in e
 
           assert 'ARGOS_UDP_SUPPRESS_SLOTS 256U' in u
           assert 'ARGOS_UDP_SUPPRESS_PROBES 2U' in u
