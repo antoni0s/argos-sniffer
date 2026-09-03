@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 typedef struct {
     int request;
@@ -70,7 +71,7 @@ static inline int argos_rtsp_parse(const unsigned char *p, size_t n,
             r->uri[u++] = (char)((c >= 0x20U && c <= 0x7eU && c != '|' && c != ';') ? c : ' ');
         }
         r->uri[u] = '\0';
-        if (i + 8U > n || memcmp(p + i, " RTSP/1.0", 9U) != 0) return 0;
+        if (i + 9U > n || memcmp(p + i, " RTSP/1.0", 9U) != 0) return 0;
         r->request = 1;
     }
 
