@@ -43,6 +43,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntp.c -o /tmp/test-ntp
           /tmp/test-ntp
 
+      - name: WireGuard structural fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_wireguard.c -o /tmp/test-wireguard
+          /tmp/test-wireguard
+
       - name: Dynamic BPF network matrix
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
@@ -75,6 +80,10 @@ jobs:
           /tmp/test-ntp-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_wireguard.c -o /tmp/test-wireguard-san
+          /tmp/test-wireguard-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
           /tmp/test-bpf-san
 
@@ -84,6 +93,7 @@ jobs:
           from pathlib import Path
           h=Path('src/argos_enterprise.h').read_text()
           m=Path('src/argos_multicast_membership.h').read_text()
+          w=Path('src/argos_wireguard.h').read_text()
           b=Path('src/argos_bpf.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
           t=Path('src/argos_tls_ports.h').read_text()
@@ -128,5 +138,13 @@ jobs:
           assert 'mode < 1U || mode > 5U' in h
           assert 'extra_bytes=%u' in h
           assert 'PRIV' not in h and 'REF-TIME' not in h
+
+          assert 'len != 148U' in w and 'len != 92U' in w and 'len != 64U' in w
+          assert 'p[1] != 0U || p[2] != 0U || p[3] != 0U' in w
+          assert 'len < 32U || (len & 15U) != 0U' in w
+          assert 'keys, MACs, cookies and ciphertext stay opaque' in w
+          assert '--wireguard-port' in s and 'opt_wireguard_port = 51820U' in s
+          assert '.wireguard_port = (uint16_t)(opt_enterprise ? opt_wireguard_port : 0U)' in s
+          assert 'cfg->wireguard_port' in b and 'WireGuard|%s' in s
           print('Network visibility permanent privacy/suppression invariants: PASS')
           PY
