@@ -121,6 +121,7 @@
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
 #include "argos_config.h"
+#include "argos_dedup.h"
 #include "argos_identity.h"
 #include "argos_udp_suppress.h"
 #include "argos_dns_track.h"
@@ -972,63 +973,16 @@ static void install_signal_handlers(void) {
  * Suppresses repetitive log entries within a sliding TTL time window and 
  * sanitizes payloads.
  * ============================================================================ */
-#define DEDUP_SLOTS 2048
-#define DEDUP_PROBES 8
 #define ARP_DEDUP_TTL_SECS 900
 #define NDP_DEDUP_TTL_SECS 900
 #define RA_DEDUP_TTL_SECS 1800
 static int rate_limit_ttl = 35;
-typedef struct { uint64_t key; time_t last_seen; uint8_t valid; } dedup_entry_t;
-static dedup_entry_t *dedup_table = NULL;
+static argos_dedup_state_t dedup_state = {0};
 
-/**
- * Determines whether a telemetry event should be suppressed based on rate limiting.
- */
 static int dedup_should_suppress_for(const char *mac, const char *evtype, const char *payload,
                                      int rl_enabled, int ttl, int sliding) {
-    if (!rl_enabled || ttl <= 0) return 0;
-    if (!dedup_table) {
-        dedup_table = (dedup_entry_t *)calloc(DEDUP_SLOTS, sizeof(*dedup_table));
-        if (!dedup_table) return 0; /* telemetry must fail open, never drop silently */
-    }
-    static const char sep = '|';
-    const char *pl = payload ? payload : "";
-    uint64_t h = 1469598103934665603ULL;
-    h = hash_update(h, mac, strlen(mac));
-    h = hash_update(h, &sep, 1U);
-    h = hash_update(h, evtype, strlen(evtype));
-    h = hash_update(h, &sep, 1U);
-    h = hash_update(h, pl, strlen(pl));
-    size_t base = (size_t)(h & (DEDUP_SLOTS - 1U));
-    time_t now = time(NULL);
-    size_t replace_slot = base;
-    time_t oldest_ts = now;
-
-    for (size_t probe = 0; probe < DEDUP_PROBES; ++probe) {
-        size_t slot = (base + probe) & (DEDUP_SLOTS - 1U);
-        dedup_entry_t *e = &dedup_table[slot];
-        if (e->valid && e->key == h) {
-            if ((now - e->last_seen) < ttl) {
-                if (sliding) e->last_seen = now;
-                return 1;
-            }
-            replace_slot = slot;
-            break;
-        }
-        if (!e->valid || (now - e->last_seen) >= ttl) {
-            replace_slot = slot;
-            break;
-        }
-        if (e->last_seen < oldest_ts) {
-            oldest_ts = e->last_seen;
-            replace_slot = slot;
-        }
-    }
-
-    dedup_table[replace_slot].key = h;
-    dedup_table[replace_slot].last_seen = now;
-    dedup_table[replace_slot].valid = 1;
-    return 0;
+    return argos_dedup_should_suppress(&dedup_state, mac, evtype, payload,
+                                       rl_enabled, ttl, sliding);
 }
 
 static int dedup_should_suppress(const char *mac, const char *evtype, const char *payload, int rl_enabled) {
@@ -2971,7 +2925,7 @@ int main(int argc, char *argv[]) {
         dns_table = (argos_dns_track_t *)calloc(TRACK_SLOTS, sizeof(*dns_table));
         if (!syn_table || !dns_table) {
             fprintf(stderr, "Error: unable to allocate extended-metrics state.\n");
-            free(syn_table); free(dns_table); free(dedup_table); free(owner4_table); free(owner6_table); return 1;
+            free(syn_table); free(dns_table); argos_dedup_destroy(&dedup_state); free(owner4_table); free(owner6_table); return 1;
         }
     }
 
@@ -3951,7 +3905,7 @@ int main(int argc, char *argv[]) {
     if (lan_netlink_fd >= 0) close(lan_netlink_fd);
     if (ipc_sock >= 0) close(ipc_sock);
     if (remote_sock >= 0) close(remote_sock);
-    free(syn_table); free(dns_table); free(dedup_table); free(owner4_table); free(owner6_table);
+    free(syn_table); free(dns_table); argos_dedup_destroy(&dedup_state); free(owner4_table); free(owner6_table);
     close(epoll_fd);
     return 0;
 }
