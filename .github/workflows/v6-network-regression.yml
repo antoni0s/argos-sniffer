@@ -111,7 +111,7 @@ jobs:
           assert 'ae_set(r,"mqtt",1,' in h
           assert 'client_id_hash=%08x' in h and 'client_id_len=%u' in h
           assert 'Username, password and Will topic/payload' in h
-          assert 'argos_flow_note_payload' in f and 'argos_flow_note_payload(&app_flow_state' in s and 'ent_tcp.complete' in s
+          assert 'argos_flow_note_payload' in f and 'argos_flow_note_payload(&runtime_state.application' in s and 'ent_tcp.complete' in s
           assert 'device-secret-123' not in h and 'alice@example.org' not in h
 
           assert '5683' in p and '5684' not in p
