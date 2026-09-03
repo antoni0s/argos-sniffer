@@ -5,6 +5,7 @@ on:
     branches: [version-6]
     paths:
       - '.github/scripts/v6_step13a_identity_runtime_refactor.py'
+      - '.github/scripts/v6_step13a_identity_runtime_order_fix.py'
       - '.github/workflows/v6-step13a-identity-runtime-refactor.yml'
   workflow_dispatch:
 
@@ -21,7 +22,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged architecture refactor
-        run: python3 .github/scripts/v6_step13a_identity_runtime_refactor.py
+        run: |
+          python3 .github/scripts/v6_step13a_identity_runtime_refactor.py
+          python3 .github/scripts/v6_step13a_identity_runtime_order_fix.py
 
       - name: Identity mode fixture
         run: |
@@ -54,6 +57,7 @@ jobs:
             'one common emitter definition': s.count('static void emit_identity_observation(')==1,
             'five common emitter calls': s.count('emit_identity_observation(src_mac')==5,
             'one IDENT serializer': s.count('emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"')==1,
+            'format helper explicitly declared': 'static void format_mac(const uint8_t mac[6], char out[18]);' in s,
             'help exposes one primary flag': '--identity[=MODE]' in s,
           }
           bad=[k for k,v in checks.items() if not v]
