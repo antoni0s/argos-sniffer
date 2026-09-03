@@ -22,7 +22,17 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged patch
-        run: python3 .github/scripts/v6_step8b_kerberos_etypes_patch.py
+        run: |
+          python3 .github/scripts/v6_step8b_kerberos_etypes_patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/test_kerberos_etypes.c')
+          s=p.read_text()
+          old='tcp[4]=0x6c; tcp[4+10]=0x0c;'
+          new='tcp[4]=0x6c; tcp[4+13]=0x0c;'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old,new,1))
+          PY
 
       - name: Kerberos etype fixtures
         run: |
