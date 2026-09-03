@@ -1,0 +1,62 @@
+name: V6 enterprise identity regression
+
+on:
+  push:
+    branches: [version-6]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    name: Enterprise identity fixtures and sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Strict identity fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_radius.c -o /tmp/test-radius
+          /tmp/test-radius
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_kerberos_etypes.c -o /tmp/test-krb
+          /tmp/test-krb
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_cldap_netlogon.c -o /tmp/test-cldap
+          /tmp/test-cldap
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_snmpv3_engineid.c -o /tmp/test-snmpv3
+          /tmp/test-snmpv3
+
+      - name: Sanitized identity fixtures
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          for t in radius kerberos_etypes cldap_netlogon snmpv3_engineid; do
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer \
+              tests/test_${t}.c -o /tmp/test-${t}-san
+            /tmp/test-${t}-san
+          done
+
+      - name: Identity privacy and integration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          p=Path('src/argos_enterprise_ports.h').read_text()
+          for port in ('1812','1813','161','162','389','88'):
+              assert port in p
+          assert 'case 1812: case 1813: return ae_radius' in h
+          assert 'case 88: return ae_kerberos' in h
+          assert 'case 389: return ae_cldap' in h
+          assert 'case 161: case 162: return ae_snmp' in h
+          assert 'etype_count=%u etypes=%s' in h
+          assert 'dc_site_hash=%08x client_site_hash=%08x' in h
+          assert 'engine_hash=%08x engine_len=%u enterprise=%u format=%u' in h
+          assert 'User-Name, Calling/Called-Station-Id' in h
+          assert 'never the raw EngineID, userName, auth or' in h
+          print('enterprise identity privacy/integration: PASS')
+          PY
