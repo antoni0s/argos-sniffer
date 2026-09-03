@@ -29,19 +29,31 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
             -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
 
-      - name: JA4 ALPN regression
+      - name: TLS ClientHello / JA4 regression
         run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_client.c -o /tmp/test-tls-client
+          /tmp/test-tls-client
           python3 - <<'PY'
           from pathlib import Path
+          t = Path('src/argos_tls.h').read_text()
           s = Path('src/argos-sniffer.c').read_text()
           decl = "char alpn_first = '0', alpn_last = '0';"
           fallback = 'if (alpn[0] == \'\\0\') strcpy(alpn, "none");'
           use = "a_cipher_count, a_ext_count, alpn_first, alpn_last"
-          assert s.count(decl) == 1
-          assert s.index(decl) < s.index(fallback) < s.index(use)
-          assert 'These placeholders are telemetry-only and never feed JA4.' in s
-          print('JA4 ALPN fallback ordering: PASS')
+          assert t.count(decl) == 1
+          assert t.index(decl) < t.index(fallback) < t.index(use)
+          assert 'These placeholders are telemetry-only and never feed JA4.' in t
+          assert 'argos_tls_client_parse(payload, len, &tls)' in s
+          assert 'dedup_should_suppress' not in t
+          assert 'emit_telemetry' not in t
+          print('TLS ClientHello engine / JA4 ALPN ordering: PASS')
           PY
+
+      - name: TLS ClientHello sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_tls_client.c -o /tmp/test-tls-client-san
+          /tmp/test-tls-client-san
 
       - name: QUIC v2 RFC 9369 vectors
         run: |
