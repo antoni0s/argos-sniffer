@@ -33,12 +33,16 @@ jobs:
           for r in rows:
               by.setdefault(r['method'],[]).append(float(r['packets_per_sec']))
           print('\nMedian packets/sec (CI runner; directional signal only):')
-          for method,vals in by.items():
-              print(f'{method}: {statistics.median(vals):.0f} pps')
-          if 'recvmsg' in by and 'recvmmsg32' in by:
-              base=statistics.median(by['recvmsg'])
-              batch=statistics.median(by['recvmmsg32'])
-              print(f'recvmmsg32 median ratio: {batch/base:.3f}x')
+          med={method:statistics.median(vals) for method,vals in by.items()}
+          for method in ('recvmsg','recvmmsg4','recvmmsg8','recvmmsg16','recvmmsg32'):
+              if method in med:
+                  print(f'{method}: {med[method]:.0f} pps')
+          if 'recvmsg' in med:
+              base=med['recvmsg']
+              print('\nMedian ratios vs recvmsg:')
+              for method in ('recvmmsg4','recvmmsg8','recvmmsg16','recvmmsg32'):
+                  if method in med:
+                      print(f'{method}: {med[method]/base:.3f}x')
           print('No pass/fail threshold is applied: hosted-runner timing is intentionally non-gating.')
           PY
 
@@ -50,7 +54,8 @@ jobs:
           s=Path('src/argos-sniffer.c').read_text()
           assert 'recvmsg(current_iface->fd, &msg, MSG_TRUNC)' in s
           assert 'epoll_wait(epoll_fd' in s
-          assert 'BENCH_BATCH 32U' in b
+          assert 'BENCH_MAX_BATCH 32U' in b
+          assert '{4U, 8U, 16U, 32U}' in b
           assert 'recvmmsg(' in b and 'recvmsg(' in b
           assert 'SO_TIMESTAMPNS' in b
           assert 'MSG_TRUNC' in b
