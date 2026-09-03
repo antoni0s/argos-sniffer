@@ -54,7 +54,12 @@ jobs:
           assert '32-byte MST configuration name is intentionally not emitted' in l2
           assert 'subtype == 3U' not in l2
           assert '#include "argos_l2.h"' in src
-          for old in ('argos_stp.h', 'argos_lldp_med.h', 'argos_lacp.h'):
-              assert not Path('src', old).exists()
+
+          # Standalone v6 staging modules may coexist in src/, but they must
+          # remain isolated from the production L2 runtime until migration.
+          for staged in ('argos_stp.h', 'argos_lldp_med.h', 'argos_lacp.h'):
+              assert Path('src', staged).exists()
+              assert f'#include "{staged}"' not in src
+              assert f'#include "{staged}"' not in l2
           print('enterprise L2 permanent invariants: PASS')
           PY
