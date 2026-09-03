@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../src/argos_udp_suppress.h"
+#include "../src/argos_flow_state.h"
 #include "../src/argos_wireguard.h"
 
 int main(void) {
