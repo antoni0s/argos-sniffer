@@ -19,25 +19,32 @@ jobs:
 
       - name: Strict framework fixtures
         run: |
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_framework.c -o /tmp/test-identity-framework
-          /tmp/test-identity-framework
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_rdp.c -o /tmp/test-identity-rdp
-          /tmp/test-identity-rdp
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntlm_privacy.c -o /tmp/test-ntlm-privacy
-          /tmp/test-ntlm-privacy
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_ntlm.c -o /tmp/test-identity-ntlm
-          /tmp/test-identity-ntlm
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_kerberos.c -o /tmp/test-identity-kerberos
-          /tmp/test-identity-kerberos
-          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_radius.c -o /tmp/test-identity-radius
-          /tmp/test-identity-radius
+          for f in \
+            tests/test_identity_config.c \
+            tests/test_identity_framework.c \
+            tests/test_identity_rdp.c \
+            tests/test_ntlm_privacy.c \
+            tests/test_identity_ntlm.c \
+            tests/test_identity_kerberos.c \
+            tests/test_identity_radius.c; do
+            out="/tmp/$(basename "$f" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$f" -o "$out"
+            "$out"
+          done
 
       - name: Sanitized framework fixtures
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          for f in tests/test_identity_framework.c tests/test_identity_rdp.c tests/test_ntlm_privacy.c tests/test_identity_ntlm.c tests/test_identity_kerberos.c tests/test_identity_radius.c; do
+          for f in \
+            tests/test_identity_config.c \
+            tests/test_identity_framework.c \
+            tests/test_identity_rdp.c \
+            tests/test_ntlm_privacy.c \
+            tests/test_identity_ntlm.c \
+            tests/test_identity_kerberos.c \
+            tests/test_identity_radius.c; do
             out="/tmp/$(basename "$f" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
               -fsanitize=address,undefined -fno-omit-frame-pointer "$f" -o "$out"
@@ -47,17 +54,24 @@ jobs:
       - name: CLI and privacy contract
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub
+          /tmp/argos-sniffer-stub > /tmp/help.txt
+          grep -F -- '--identity[=MODE]' /tmp/help.txt
+          ! grep -F -- '  --identity-raw  Second opt-in' /tmp/help.txt
           set +e
           /tmp/argos-sniffer-stub --identity >/tmp/id.out 2>/tmp/id.err; rc1=$?
           /tmp/argos-sniffer-stub --identity-raw >/tmp/raw.out 2>/tmp/raw.err; rc2=$?
+          /tmp/argos-sniffer-stub --identity=unsafe --enterprise >/tmp/bad.out 2>/tmp/bad.err; rc3=$?
           set -e
           test "$rc1" -ne 0
           test "$rc2" -ne 0
+          test "$rc3" -ne 0
           grep -F -- '--identity requires --enterprise or --enterprise-verbose' /tmp/id.err
-          grep -F -- '--identity-raw requires --identity' /tmp/raw.err
+          grep -F -- '--identity requires --enterprise or --enterprise-verbose' /tmp/raw.err
+          grep -F -- '--identity expects hash or raw' /tmp/bad.err
           python3 - <<'PY'
           from pathlib import Path
           h=Path('src/argos_identity.h').read_text()
+          c=Path('src/argos_config.h').read_text()
           s=Path('src/argos-sniffer.c').read_text()
           e=Path('src/argos_enterprise.h').read_text()
           nt=Path('tests/test_identity_ntlm.c').read_text()
@@ -66,14 +80,19 @@ jobs:
           assert 'Observed identity' in h and 'never device ownership' in h
           assert 'if (len > 160U) len = 160U' in h
           assert '2166136261U' in h and '16777619U' in h
-          assert 'if (opt_identity && !opt_enterprise)' in s
-          assert 'if (opt_identity_raw && !opt_identity)' in s
+          assert all(x in c for x in ('ARGOS_IDENTITY_OFF','ARGOS_IDENTITY_HASH','ARGOS_IDENTITY_RAW'))
+          assert 'argos_identity_mode_parse' in c
+          assert 'argos_identity_mode_t identity_mode = ARGOS_IDENTITY_OFF' in s
+          assert '{"identity", optional_argument, NULL, OPT_IDENTITY}' in s
+          assert '{"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW}' in s
+          assert 'argos_identity_enabled(identity_mode) && !opt_enterprise' in s
+          assert 'opt_identity_raw' not in s and 'int opt_identity' not in s
           assert 'no generic payload scanning' in s
           assert 'never passwords, tickets, tokens or auth blobs' in s
           assert 'argos_identity_rdp_mstshash' in h
-          assert 'if (opt_identity && dport == 3389U' in s
+          assert 'argos_identity_enabled(identity_mode) && dport == 3389U' in s
           assert 'argos_identity_ntlm_type3' in h
-          assert 'if (opt_identity && dport == 445U' in s
+          assert 'argos_identity_enabled(identity_mode) && dport == 445U' in s
           assert 'DomainName, UserName and' in h
           assert 'LM/NT responses, session keys' in h
           assert 'argos_identity_ntlm_utf16_field(n, remain, 28U, "domain"' in h
@@ -85,7 +104,7 @@ jobs:
           assert 'argos_identity_kerberos_asreq' in h
           assert 'AS-REQ only; never TGS-REQ' in h
           assert 'PA-DATA, tickets, authenticators, encrypted data and TGS-REQ identity' in h
-          assert 'if (opt_identity && dport == 88U && payload_len > 0)' in s
+          assert 'argos_identity_enabled(identity_mode) && dport == 88U && payload_len > 0' in s
           assert 'argos_identity_kerberos_asreq(buffer + payload_offset' in s
           assert 'argos_identity_kerberos_asreq(payload' in s
           assert 'PA-SECRET' not in h and 'PA-SECRET' not in s and 'PA-SECRET' in kt
@@ -95,7 +114,7 @@ jobs:
           assert 'p[0] != 1U' in h and 'Access-Request only' in h
           assert 'if (type == 1U)' in h
           assert 'User-Password, CHAP-Password, State, EAP-Message' in h
-          assert 'if (opt_identity && dport == 1812U)' in s
+          assert 'argos_identity_enabled(identity_mode) && dport == 1812U' in s
           radius_block=s[s.find('RADIUS observed identity'):s.find('UDP/88 uses')]
           assert 'dport == 1813U' not in radius_block
           assert all(x not in h and x not in s for x in ('PW-SECRET','STATE-SECRET','AUTH-SECRET'))
@@ -103,8 +122,9 @@ jobs:
           assert 'User-Name, Calling/Called-Station-Id' in e
           assert 'user_present=%u password_attr=%u' in e
           assert ' username=%s' not in e and ' user=%s' not in e
-          assert '%.45s|%.23s|%.23s|%.191s' in s
-          assert 'emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"' in s
+          assert s.count('static void emit_identity_observation(')==1
+          assert s.count('emit_identity_observation(src_mac')==5
+          assert s.count('emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"')==1
           assert 'cookie_present=%u cookie_len=%u cookie_hash=%08x' in e
           assert 'domain_present=%u domain_len=%u domain_hash=%08x' in e
           assert 'workstation_present=%u workstation_len=%u workstation_hash=%08x' in e
