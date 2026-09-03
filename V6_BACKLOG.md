@@ -34,6 +34,8 @@ cryptographic keys.
 - The compile-once bounded filter engine and permanent regression gate are complete.
 - The bounded network-context engine and permanent regression gate are complete; prefix refresh
   remains event-driven and ownership evidence remains lazily allocated.
+- Bounded TCP/UDP inspection state, optional SYN/DNS metrics and telemetry dedup now have one
+  lifecycle owner while retaining independent keys, probes, TTLs and allocation policies.
 - Thirty-seven standalone protocol headers are present as **runtime-isolated staging parsers**.
   They are test inputs, not permission to add 37 permanent public engine boundaries.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
@@ -46,7 +48,7 @@ cryptographic keys.
 - [x] Extract the compile-once userspace filter engine; retain fixed-stack inline matching.
 - [x] Build `argos_network.h`: LAN prefixes, netlink refresh, routed-source classification,
   bounded IPv4/IPv6 ownership and network visibility helpers.
-- [ ] Consolidate bounded flow tracking, UDP suppression and dedup ownership behind a state
+- [x] Consolidate bounded flow tracking, UDP suppression and dedup ownership behind a state
   subsystem without merging unrelated lifetimes or keys.
 - [ ] Consolidate the capture plane only where ownership is real: packet normalization,
   userspace filters and kernel BPF construction remain distinct internal sections.
