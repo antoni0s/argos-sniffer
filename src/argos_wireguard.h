@@ -11,6 +11,14 @@ typedef struct {
     char detail[96];
 } argos_wireguard_result_t;
 
+/* Shared structural classifier used by both the full parser and the optional
+ * pre-parser suppression path. 0=not valid type-4, 1=keepalive, 2=data. */
+static inline int argos_wireguard_transport_kind(const unsigned char *p, size_t len) {
+    if (!p || len < 4U || p[0] != 4U || p[1] != 0U || p[2] != 0U || p[3] != 0U) return 0;
+    if (len < 32U || (len & 15U) != 0U) return 0;
+    return len == 32U ? 1 : 2;
+}
+
 /* WireGuard v1 messages start with a one-byte type and three reserved zero
  * bytes. We use only structural properties that are visible before crypto;
  * sender/receiver indices, keys, MACs, cookies and ciphertext stay opaque. */
@@ -34,8 +42,9 @@ static inline int argos_wireguard_parse(const unsigned char *p, size_t len,
     } else if (type == 4U) {
         /* 16-byte transport header + AEAD ciphertext/tag. Empty keepalive is
          * 32 bytes; encrypted transport packets remain 16-byte aligned. */
-        if (len < 32U || (len & 15U) != 0U) return 0;
-        kind = len == 32U ? "transport-keepalive" : "transport-data";
+        int transport_kind = argos_wireguard_transport_kind(p, len);
+        if (transport_kind == 0) return 0;
+        kind = transport_kind == 1 ? "transport-keepalive" : "transport-data";
     } else {
         return 0;
     }

@@ -120,6 +120,7 @@
 #include "argos_hsrp.h"
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
+#include "argos_udp_suppress.h"
 #include "argos_dns_track.h"
 #include "argos_enterprise.h"
 #include "argos_raw_identity.h"
@@ -1081,6 +1082,10 @@ typedef struct {
 } app_flow_entry_t;
 
 static app_flow_entry_t app_flow_table[APP_FLOW_SLOTS];
+
+/* UDP suppression is intentionally separate from TCP DONE state. It is used
+ * only for protocol/message classes proven safe to skip briefly. */
+static argos_udp_suppress_entry_t udp_suppress_table[ARGOS_UDP_SUPPRESS_SLOTS];
 
 static uint64_t app_flow_key(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
                              uint16_t sport, uint16_t dport) {
@@ -3803,14 +3808,26 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 if (opt_enterprise && (sport == opt_wireguard_port || dport == opt_wireguard_port)) {
-                    argos_wireguard_result_t wg;
-                    if (argos_wireguard_parse(payload, (size_t)payload_len, &wg) && wg.emit) {
-                        char ent_mac[18], ent_sig[384];
-                        format_mac(src_mac, ent_mac);
-                        snprintf(ent_sig, sizeof(ent_sig), "%s|WireGuard|%s", src_ip_str, wg.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
-                            emit_telemetry("ENT|%s|%s|%s|WireGuard|%s%s\n",
-                                           ent_mac, src_ip_str, dst_ip_str, wg.detail, routed_str);
+                    /* Type-4 transport packets can be an elephant UDP flow. Validate the
+                     * exact WireGuard framing cheaply, then bypass the full parser for
+                     * repeated transport-data in a short epoch. Handshake/cookie types
+                     * and keepalives are always parsed. DNS/DHCP/QUIC/STUN/CoAP/NTP are
+                     * deliberately outside this suppression table. */
+                    int wg_transport = argos_wireguard_transport_kind(payload, (size_t)payload_len);
+                    int wg_suppressed = wg_transport == 2 &&
+                        argos_udp_suppress_recent(udp_suppress_table, flow_ip_version,
+                                                  flow_src_addr, flow_dst_addr, sport, dport,
+                                                  4U, (uint64_t)time(NULL));
+                    if (!wg_suppressed) {
+                        argos_wireguard_result_t wg;
+                        if (argos_wireguard_parse(payload, (size_t)payload_len, &wg) && wg.emit) {
+                            char ent_mac[18], ent_sig[384];
+                            format_mac(src_mac, ent_mac);
+                            snprintf(ent_sig, sizeof(ent_sig), "%s|WireGuard|%s", src_ip_str, wg.detail);
+                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                                emit_telemetry("ENT|%s|%s|%s|WireGuard|%s%s\n",
+                                               ent_mac, src_ip_str, dst_ip_str, wg.detail, routed_str);
+                        }
                     }
                 }
                 if (opt_enterprise && argos_enterprise_udp_port(sport, dport)) {
