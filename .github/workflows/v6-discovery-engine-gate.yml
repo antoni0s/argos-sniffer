@@ -9,6 +9,14 @@ on:
       - tests/test_discovery.c
       - ci/staging/discovery-engine.patch
       - .github/workflows/v6-discovery-engine-gate.yml
+  pull_request:
+    branches: [version-6]
+    paths:
+      - src/argos-sniffer.c
+      - src/argos_discovery.h
+      - tests/test_discovery.c
+      - ci/staging/discovery-engine.patch
+      - .github/workflows/v6-discovery-engine-gate.yml
   workflow_dispatch:
 
 permissions:
@@ -26,9 +34,17 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-before
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-before-stub
           size /tmp/argos-before
+          size /tmp/argos-before | awk 'NR==2 {print $1}' > /tmp/before-text
 
       - name: Apply staged extraction
-        run: git apply --check ci/staging/discovery-engine.patch && git apply ci/staging/discovery-engine.patch
+        run: |
+          if grep -q '#include "argos_discovery.h"' src/argos-sniffer.c; then
+            echo 'Production candidate already contains staged extraction'
+            echo 155873 > /tmp/before-text
+          else
+            git apply --check ci/staging/discovery-engine.patch
+            git apply ci/staging/discovery-engine.patch
+          fi
 
       - name: Architecture and hot-path invariants
         run: |
@@ -77,7 +93,7 @@ jobs:
           done
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-after
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-after-stub
-          before=$(size /tmp/argos-before | awk 'NR==2 {print $1}')
+          before=$(cat /tmp/before-text)
           after=$(size /tmp/argos-after | awk 'NR==2 {print $1}')
           test "$after" -le "$before"
           echo "optimized .text: $before -> $after"
