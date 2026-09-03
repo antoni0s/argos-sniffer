@@ -1,0 +1,79 @@
+name: V6 step 8a - RADIUS gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step8a_radius_patch.py'
+      - '.github/workflows/v6-step8a-radius.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step8a_radius_patch.py
+
+      - name: RADIUS fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_radius.c -o /tmp/test-radius
+          /tmp/test-radius
+
+      - name: Dynamic BPF matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
+          /tmp/test-dynamic-bpf
+          grep -F '1812' src/argos_enterprise_ports.h
+          grep -F '1813' src/argos_enterprise_ports.h
+
+      - name: RADIUS privacy/integration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          assert 'case 1812: case 1813: return ae_radius' in h
+          assert 'User-Name, Calling/Called-Station-Id' in h
+          assert 'Authenticator are never' in h
+          assert 'user_present=%u' in h and 'calling_station_present=%u' in h
+          assert 'password_attr=%u' in h and 'message_auth=%u' in h
+          assert 'alice@example.org' not in h
+          print('RADIUS privacy/integration: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: RADIUS sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_radius.c -o /tmp/test-radius-san
+          /tmp/test-radius-san
+
+      - name: Existing enterprise regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp1.c -o /tmp/test-hsrp1 && /tmp/test-hsrp1
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_hsrp2.c -o /tmp/test-hsrp2 && /tmp/test-hsrp2
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_vrrp.c -o /tmp/test-vrrp && /tmp/test-vrrp
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_enterprise_ports.h src/argos_enterprise.h tests/test_radius.c
+          git commit -m 'feat(v6): fingerprint RADIUS AAA metadata'
+          git push origin HEAD:version-6
