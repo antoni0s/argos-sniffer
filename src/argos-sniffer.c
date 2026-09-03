@@ -122,6 +122,7 @@
 #include "argos_wireguard.h"
 #include "argos_config.h"
 #include "argos_dedup.h"
+#include "argos_flow_state.h"
 #include "argos_identity.h"
 #include "argos_udp_suppress.h"
 #include "argos_dns_track.h"
@@ -1035,110 +1036,14 @@ static void source_dedup_signature(char *out, size_t out_cap, const char *src_ip
 
 /* ============================================================================
  * SECTION: Application Flow Suppression
- * Keeps a tiny fixed-size state table for outbound HTTP/TLS flows. Once the
- * useful application fingerprint has been observed (or a small payload budget
- * is exhausted), later application-data packets skip deep HTTP/TLS parsing.
- * SYN/SYNACK/FIN/RST handling stays independent and is never suppressed here.
+ * Generic fixed-size TCP generation/DONE state lives in argos_flow_state.h.
+ * Protocol-specific completion policy remains here beside the parsers.
  * ============================================================================ */
-#define APP_FLOW_SLOTS 1024
-#define APP_FLOW_PROBES 4
-#define APP_FLOW_TTL_SECS 60
-#define APP_FLOW_PACKET_BUDGET 8
-
-typedef struct {
-    uint64_t key;
-    time_t last_seen;
-    uint8_t src[16];
-    uint8_t dst[16];
-    uint16_t sport;
-    uint16_t dport;
-    uint8_t ip_version;
-    uint8_t payload_packets;
-    uint8_t valid;
-    uint8_t done;
-} app_flow_entry_t;
-
-static app_flow_entry_t app_flow_table[APP_FLOW_SLOTS];
+static argos_flow_state_t app_flow_state = {0};
 
 /* UDP suppression is intentionally separate from TCP DONE state. It is used
  * only for protocol/message classes proven safe to skip briefly. */
 static argos_udp_suppress_entry_t udp_suppress_table[ARGOS_UDP_SUPPRESS_SLOTS];
-
-static uint64_t app_flow_key(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
-                             uint16_t sport, uint16_t dport) {
-    size_t addr_len = ip_version == 6U ? 16U : 4U;
-    uint64_t h = 1469598103934665603ULL;
-    h = hash_update(h, &ip_version, sizeof(ip_version));
-    h = hash_update(h, src, addr_len);
-    h = hash_update(h, dst, addr_len);
-    h = hash_update(h, &sport, sizeof(sport));
-    h = hash_update(h, &dport, sizeof(dport));
-    return h;
-}
-
-static app_flow_entry_t *app_flow_find(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
-                                       uint16_t sport, uint16_t dport, int create) {
-    size_t addr_len = ip_version == 6U ? 16U : 4U;
-    uint64_t key = app_flow_key(ip_version, src, dst, sport, dport);
-    size_t base = (size_t)(key & (APP_FLOW_SLOTS - 1U));
-    time_t now = time(NULL);
-    size_t replace_slot = base;
-    time_t oldest = now;
-
-    for (size_t probe = 0; probe < APP_FLOW_PROBES; ++probe) {
-        size_t slot = (base + probe) & (APP_FLOW_SLOTS - 1U);
-        app_flow_entry_t *e = &app_flow_table[slot];
-        if (e->valid && e->key == key && e->ip_version == ip_version &&
-            e->sport == sport && e->dport == dport &&
-            memcmp(e->src, src, addr_len) == 0 && memcmp(e->dst, dst, addr_len) == 0) {
-            if ((now - e->last_seen) <= APP_FLOW_TTL_SECS) {
-                e->last_seen = now;
-                return e;
-            }
-            e->valid = 0;
-        }
-        if (!e->valid || (now - e->last_seen) > APP_FLOW_TTL_SECS) {
-            replace_slot = slot;
-            break;
-        }
-        if (e->last_seen < oldest) {
-            oldest = e->last_seen;
-            replace_slot = slot;
-        }
-    }
-
-    if (!create) return NULL;
-
-    app_flow_entry_t *e = &app_flow_table[replace_slot];
-    memset(e, 0, sizeof(*e));
-    e->key = key;
-    e->last_seen = now;
-    e->ip_version = ip_version;
-    e->sport = sport;
-    e->dport = dport;
-    memcpy(e->src, src, addr_len);
-    memcpy(e->dst, dst, addr_len);
-    e->valid = 1;
-    return e;
-}
-
-static int app_flow_should_skip(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
-                                uint16_t sport, uint16_t dport) {
-    app_flow_entry_t *e = app_flow_find(ip_version, src, dst, sport, dport, 0);
-    return e && e->done;
-}
-
-/* A fresh TCP SYN starts a new connection even when the kernel reuses the same
- * 5-tuple inside APP_FLOW_TTL_SECS. Clear both directional cache entries so a
- * completed previous connection can never suppress the new handshake or its
- * first application fingerprint. No allocation occurs on this reset path. */
-static void app_flow_reset_pair(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
-                                uint16_t sport, uint16_t dport) {
-    app_flow_entry_t *forward = app_flow_find(ip_version, src, dst, sport, dport, 0);
-    if (forward) forward->valid = 0;
-    app_flow_entry_t *reverse = app_flow_find(ip_version, dst, src, dport, sport, 0);
-    if (reverse) reverse->valid = 0;
-}
 
 /* A complete TLS ClientHello is enough to finish TLS fingerprinting. HTTP is
  * complete once the request header terminator is present in the captured
@@ -1167,18 +1072,6 @@ static int app_flow_payload_complete(uint16_t sport, uint16_t dport, const unsig
         }
     }
     return 0;
-}
-
-static void app_flow_note_payload(uint8_t ip_version, const uint8_t *src, const uint8_t *dst,
-                                  uint16_t sport, uint16_t dport, int fingerprint_complete) {
-    app_flow_entry_t *e = app_flow_find(ip_version, src, dst, sport, dport, 1);
-    if (!e) return;
-    if (fingerprint_complete) {
-        e->done = 1;
-        return;
-    }
-    if (e->payload_packets < 255U) e->payload_packets++;
-    if (e->payload_packets >= APP_FLOW_PACKET_BUDGET) e->done = 1;
 }
 
 static inline uint16_t read_be16(const unsigned char *p) { return (uint16_t)((p[0] << 8) | p[1]); }
@@ -3601,14 +3494,14 @@ int main(int argc, char *argv[]) {
                 /* SYN is the connection-generation boundary for inspect-once state.
                  * Reset before consulting DONE so rapid 5-tuple reuse is re-inspected. */
                 if (tcp->syn && !tcp->ack)
-                    app_flow_reset_pair(flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
+                    argos_flow_reset_pair(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
 
                 int enterprise_tcp = runtime_cfg.enterprise_enabled && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
                                 ((opt_http && (dport == 80U || dport == 8080U)) ||
                                  (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) || enterprise_tcp);
-                if (app_track && app_flow_should_skip(flow_ip_version, flow_src_addr, flow_dst_addr,
-                                                      sport, dport)) {
+                if (app_track && argos_flow_should_skip(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr,
+                                      sport, dport)) {
                     continue;
                 }
 
@@ -3696,8 +3589,8 @@ int main(int argc, char *argv[]) {
                     int fingerprint_complete = app_flow_payload_complete(
                         sport, dport, buffer + payload_offset, payload_len);
                     if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
-                    app_flow_note_payload(flow_ip_version, flow_src_addr, flow_dst_addr,
-                                          sport, dport, fingerprint_complete);
+                    argos_flow_note_payload(&app_flow_state, flow_ip_version, flow_src_addr, flow_dst_addr,
+                                        sport, dport, fingerprint_complete);
                 }
             }
             else if (protocol == IPPROTO_UDP) {
