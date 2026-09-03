@@ -48,6 +48,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_wireguard.c -o /tmp/test-wireguard
           /tmp/test-wireguard
 
+      - name: DNSEXT correlation fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dns_track.c -o /tmp/test-dns-track
+          /tmp/test-dns-track
+
       - name: Dynamic BPF network matrix
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
@@ -58,33 +63,21 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_stun_turn.c -o /tmp/test-stun-turn-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_stun_turn.c -o /tmp/test-stun-turn-san
           /tmp/test-stun-turn-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_mqtt.c -o /tmp/test-mqtt-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_mqtt.c -o /tmp/test-mqtt-san
           /tmp/test-mqtt-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_coap.c -o /tmp/test-coap-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_coap.c -o /tmp/test-coap-san
           /tmp/test-coap-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_igmp_mld.c -o /tmp/test-igmp-mld-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_igmp_mld.c -o /tmp/test-igmp-mld-san
           /tmp/test-igmp-mld-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_ntp.c -o /tmp/test-ntp-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_ntp.c -o /tmp/test-ntp-san
           /tmp/test-ntp-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_wireguard.c -o /tmp/test-wireguard-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_wireguard.c -o /tmp/test-wireguard-san
           /tmp/test-wireguard-san
-          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_dns_track.c -o /tmp/test-dns-track-san
+          /tmp/test-dns-track-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
           /tmp/test-bpf-san
 
       - name: Network privacy and suppression invariants
@@ -94,6 +87,7 @@ jobs:
           h=Path('src/argos_enterprise.h').read_text()
           m=Path('src/argos_multicast_membership.h').read_text()
           w=Path('src/argos_wireguard.h').read_text()
+          d=Path('src/argos_dns_track.h').read_text()
           b=Path('src/argos_bpf.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
           t=Path('src/argos_tls_ports.h').read_text()
@@ -146,5 +140,15 @@ jobs:
           assert '--wireguard-port' in s and 'opt_wireguard_port = 51820U' in s
           assert '.wireguard_port = (uint16_t)(opt_enterprise ? opt_wireguard_port : 0U)' in s
           assert 'cfg->wireguard_port' in b and 'WireGuard|%s' in s
+
+          assert 'ARGOS_DNS_TRACK_PROBES 8U' in d and 'ARGOS_DNS_TRACK_TTL_USEC 5000000ULL' in d
+          for f in ('client_addr[16]','server_addr[16]','client_port','server_port','qname_hash','qtype','txid','ip_version'):
+              assert f in d
+          assert 'memcmp(e->client_addr' in d and 'memcmp(e->server_addr' in d
+          assert 'flow_dst_addr, flow_src_addr' in s
+          assert 'dport, sport, txid, response_qtype, response_qname' in s
+          assert 'tracked->valid = 0' in s
+          assert 'flow_src_key' not in s and 'flow_dst_key' not in s and 'addr6_key(' not in s
+          assert '(txid ^' not in s
           print('Network visibility permanent privacy/suppression invariants: PASS')
           PY
