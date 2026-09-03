@@ -55,22 +55,35 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           s=Path('src/argos-sniffer.c').read_text()
+          f=Path('src/argos_flow_state.h').read_text()
           e=Path('src/argos_enterprise.h').read_text()
           u=Path('src/argos_udp_suppress.h').read_text()
           w=Path('src/argos_wireguard.h').read_text()
-          assert 'APP_FLOW_SLOTS 1024' in s
-          assert 'APP_FLOW_PROBES 4' in s
-          assert 'APP_FLOW_TTL_SECS 60' in s
-          assert 'APP_FLOW_PACKET_BUDGET 8' in s
-          assert 'app_flow_reset_pair' in s
+
+          # Generic TCP generation/DONE state is isolated from parser policy.
+          assert 'ARGOS_FLOW_SLOTS 1024U' in f
+          assert 'ARGOS_FLOW_PROBES 4U' in f
+          assert 'ARGOS_FLOW_TTL_SECS 60' in f
+          assert 'ARGOS_FLOW_PACKET_BUDGET 8U' in f
+          assert 'malloc(' not in f and 'calloc(' not in f and 'realloc(' not in f
+          assert 'argos_flow_reset_pair' in f
+          assert 'rapid 5-tuple reuse' in f
+          assert '#include "argos_flow_state.h"' in s
+          assert 'static argos_flow_state_t app_flow_state = {0};' in s
           assert 'if (tcp->syn && !tcp->ack)' in s
-          assert 'app_flow_reset_pair(flow_ip_version' in s
+          assert 'argos_flow_reset_pair(&app_flow_state' in s
+          assert 'argos_flow_should_skip(&app_flow_state' in s
+          assert 'argos_flow_note_payload(&app_flow_state' in s
+          assert 'static int app_flow_payload_complete' in s
           assert 'if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;' in s
-          assert 'completed previous connection can never suppress the new handshake' in s
+          assert 'app_flow_table' not in s and 'app_flow_entry_t' not in s
+
+          # Multi-message NTLM remains inspectable until Type 3 / packet budget.
           assert 'ae_set(r, "smb2", 0, "command=session-setup auth=spnego")' in e
           assert 'ae_set(r, "smb2-ntlm", mt == 3U,' in e
           assert 'Type 1/2 must not mark the TCP' in e
 
+          # UDP class suppression remains a separate, narrower mechanism.
           assert 'ARGOS_UDP_SUPPRESS_SLOTS 256U' in u
           assert 'ARGOS_UDP_SUPPRESS_PROBES 2U' in u
           assert 'ARGOS_UDP_SUPPRESS_TTL_SECS 5U' in u
