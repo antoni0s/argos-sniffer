@@ -119,6 +119,7 @@
 #include "argos_config.h"
 #include "argos_telemetry.h"
 #include "argos_packet.h"
+#include "argos_discovery.h"
 #include "argos_dedup.h"
 #include "argos_flow_state.h"
 #include "argos_identity.h"
@@ -1348,50 +1349,33 @@ static void parse_lldp(const unsigned char *payload, int len, const char *mac, c
  * or the 0x20 (space) padding byte, and trims trailing spaces from the
  * decoded result.
  */
-static void decode_netbios_name(const unsigned char *enc, char *out, int outsize) {
-    int o = 0;
-    for (int i = 0; i + 1 < 32 && o < outsize - 1; i += 2) {
-        if (enc[i] < 'A' || enc[i] > 'P' || enc[i+1] < 'A' || enc[i+1] > 'P') break; /* not valid half-ASCII encoding -> stop */
-        unsigned char c = (unsigned char)(((enc[i] - 'A') << 4) | (enc[i+1] - 'A'));
-        if (c == 0 || c == 0x20) break; /* NUL or space padding marks the end of the real name */
-        out[o++] = (c >= 32 && c <= 126 && c != '|') ? (char)c : ' '; /* keep printable ASCII, blank out anything else (incl. our own '|' delimiter) */
-    }
-    out[o] = '\0'; while (o > 0 && out[o-1] == ' ') out[--o] = '\0'; /* trim trailing padding spaces */
-}
-
 /**
  * Parses NetBIOS Name Service requests.
  */
 static void parse_netbios(const unsigned char *payload, int len, const char *mac, const char *src_ip, const char *routed_str, int rl_enabled) {
-    if (len < 50 || payload[12] != 0x20) return; 
-    char name[17]; decode_netbios_name(payload + 13, name, sizeof(name));
-    char sig[96]; source_dedup_signature(sig, sizeof(sig), src_ip, name, routed_str);
-    if (name[0] && !dedup_should_suppress(mac, "NBNS", sig, rl_enabled)) emit_telemetry("NBNS|%s|%s|%s%s\n", mac, src_ip, name, routed_str);
+    argos_discovery_nbns_t parsed;
+    if (!argos_discovery_nbns_parse(payload, (size_t)len, &parsed)) return;
+    char sig[96]; source_dedup_signature(sig, sizeof(sig), src_ip, parsed.name, routed_str);
+    if (!dedup_should_suppress(mac, "NBNS", sig, rl_enabled))
+        emit_telemetry("NBNS|%s|%s|%s%s\n", mac, src_ip, parsed.name, routed_str);
 }
 
 
 /* Parse an Ethernet/IPv4 ARP payload and update the passive ownership cache. */
 static void parse_arp_vector(const unsigned char *payload, int len, int ifindex, int rl_enabled) {
-    if (!payload || len < 28) return;
-    uint16_t htype = read_be16(payload);
-    uint16_t ptype = read_be16(payload + 2);
-    uint8_t hlen = payload[4], plen = payload[5];
-    uint16_t oper = read_be16(payload + 6);
-    if (htype != 1U || ptype != 0x0800U || hlen != 6U || plen != 4U) return;
-
-    const uint8_t *sha = payload + 8;
+    argos_discovery_arp_t parsed;
     uint32_t spa, tpa;
-    memcpy(&spa, payload + 14, sizeof(spa));
-    memcpy(&tpa, payload + 24, sizeof(tpa));
-    if (!mac_is_unicast_nonzero(sha)) return;
+    if (len < 0 || !argos_discovery_arp_parse(payload, (size_t)len, &parsed)) return;
+    memcpy(&spa, parsed.sender_ip, sizeof(spa));
+    memcpy(&tpa, parsed.target_ip, sizeof(tpa));
 
     char mac[18], sender_ip[INET_ADDRSTRLEN], target_ip[INET_ADDRSTRLEN];
     struct in_addr a;
-    format_mac(sha, mac);
+    format_mac(parsed.sender_mac, mac);
     a.s_addr = spa; if (!inet_ntop(AF_INET, &a, sender_ip, sizeof(sender_ip))) return;
     a.s_addr = tpa; if (!inet_ntop(AF_INET, &a, target_ip, sizeof(target_ip))) return;
 
-    const char *op = oper == 1U ? "request" : (oper == 2U ? "reply" : "other");
+    const char *op = parsed.operation == 1U ? "request" : (parsed.operation == 2U ? "reply" : "other");
     const char *routed = is_routed_source_ipv4(spa, ifindex) ? "|routed" : "";
     char sig[128];
     snprintf(sig, sizeof(sig), "%s|%s|%s|%s", sender_ip, target_ip, op, routed[0] ? "routed" : "direct");
@@ -1400,53 +1384,7 @@ static void parse_arp_vector(const unsigned char *payload, int len, int ifindex,
 
     /* Learn only after evaluating the event so a stale owner cannot be hidden
      * before this packet is classified. */
-    owner4_note(spa, sha);
-}
-
-static int decode_dhcp6_name(const uint8_t *buf, size_t len, char *out, size_t out_cap) {
-    size_t p = 0, o = 0;
-    if (!buf || !out || out_cap == 0U) return 0;
-    out[0] = '\0';
-    while (p < len) {
-        uint8_t n = buf[p++];
-        if (n == 0U) break;
-        if ((n & 0xC0U) != 0U || n > 63U || (size_t)n > len - p) return 0;
-        if (o != 0U) {
-            if (o + 1U >= out_cap) return 0;
-            out[o++] = '.';
-        }
-        for (uint8_t i = 0; i < n; ++i) {
-            if (o + 1U >= out_cap) return 0;
-            unsigned char c = buf[p++];
-            out[o++] = (char)((c >= 32U && c <= 126U && c != '|') ? c : '_');
-        }
-    }
-    out[o] = '\0';
-    return o > 0U;
-}
-
-static const char *dhcp6_msg_name(uint8_t type) {
-    switch (type) {
-        case 1: return "SOLICIT";
-        case 3: return "REQUEST";
-        case 5: return "RENEW";
-        case 6: return "REBIND";
-        case 11: return "INFORMATION";
-        case 4: return "CONFIRM";
-        case 8: return "RELEASE";
-        case 9: return "DECLINE";
-        default: return "OTHER";
-    }
-}
-
-static const char *dhcp6_duid_name(uint16_t type) {
-    switch (type) {
-        case 1: return "LLT";
-        case 2: return "EN";
-        case 3: return "LL";
-        case 4: return "UUID";
-        default: return "UNKNOWN";
-    }
+    owner4_note(spa, parsed.sender_mac);
 }
 
 /* DHCPv6 is emitted as a separate fixed-format vector. Only client-originated
@@ -1454,160 +1392,78 @@ static const char *dhcp6_duid_name(uint16_t type) {
  * client fingerprint value. */
 static void parse_dhcp6(const unsigned char *payload, int len, const char *mac,
                         const char *src_ip, const char *routed_str, int rl_enabled) {
-    if (!payload || len < 4) return;
-    uint8_t msg_type = payload[0];
-    if (msg_type == 12U || msg_type == 13U) return; /* relay messages have a different header */
-
-    const char *duid_type = "UNKNOWN";
-    char vendor[128] = "none", oro[256] = "none", fqdn[256] = "none";
-    int pos = 4;
-    while (pos + 4 <= len) {
-        uint16_t code = read_be16(payload + pos);
-        uint16_t olen = read_be16(payload + pos + 2);
-        pos += 4;
-        if ((int)olen > len - pos) break;
-        const uint8_t *v = payload + pos;
-
-        if (code == 1U && olen >= 2U) { /* Client Identifier / DUID */
-            duid_type = dhcp6_duid_name(read_be16(v));
-        } else if (code == 6U && olen >= 2U) { /* Option Request Option */
-            size_t used = 0;
-            oro[0] = '\0';
-            for (size_t i = 0; i + 1U < (size_t)olen; i += 2U) {
-                uint16_t val = read_be16(v + i);
-                int n = snprintf(oro + used, sizeof(oro) - used, "%s%u", used ? "," : "", (unsigned)val);
-                if (n < 0 || (size_t)n >= sizeof(oro) - used) break;
-                used += (size_t)n;
-            }
-            if (oro[0] == '\0') strcpy(oro, "none");
-        } else if (code == 16U && olen >= 6U) { /* Vendor Class */
-            size_t vp = 4U; /* enterprise-number */
-            uint16_t vlen = read_be16(v + vp); vp += 2U;
-            if ((size_t)vlen <= (size_t)olen - vp) {
-                int take = (int)vlen;
-                if (take > (int)sizeof(vendor) - 1) take = (int)sizeof(vendor) - 1;
-                sanitize_field(v + vp, take, vendor, (int)sizeof(vendor), 0);
-                if (vendor[0] == '\0') strcpy(vendor, "none");
-            }
-        } else if (code == 39U && olen >= 2U) { /* Client FQDN: flags + DNS name */
-            if (!decode_dhcp6_name(v + 1, (size_t)olen - 1U, fqdn, sizeof(fqdn))) strcpy(fqdn, "none");
-        }
-        pos += (int)olen;
-    }
-
+    argos_discovery_dhcp6_t parsed;
+    if (len < 0 || !argos_discovery_dhcp6_parse(payload, (size_t)len, &parsed)) return;
     char payload_sig[768], sig[896];
-    snprintf(payload_sig, sizeof(payload_sig), "%s|%s|%s|%s|%s", dhcp6_msg_name(msg_type), duid_type, vendor, oro, fqdn);
+    snprintf(payload_sig, sizeof(payload_sig), "%s|%s|%s|%s|%s", parsed.message_type,
+             parsed.duid_type, parsed.vendor, parsed.option_request, parsed.fqdn);
     source_dedup_signature(sig, sizeof(sig), src_ip, payload_sig, routed_str);
     if (!dedup_should_suppress(mac, "DHCP6", sig, rl_enabled)) {
         emit_telemetry("DHCP6|%s|%s|%s|%s|%s|%s|%s%s\n",
-                       mac, src_ip, dhcp6_msg_name(msg_type), duid_type, vendor, oro, fqdn, routed_str);
+                       mac, src_ip, parsed.message_type, parsed.duid_type, parsed.vendor,
+                       parsed.option_request, parsed.fqdn, routed_str);
     }
-}
-
-static const uint8_t *ndp_find_lladdr(const uint8_t *icmp, int len, int opt_off, uint8_t wanted_type) {
-    int pos = opt_off;
-    while (pos + 2 <= len) {
-        uint8_t type = icmp[pos], units = icmp[pos + 1];
-        if (units == 0U) break;
-        int olen = (int)units * 8;
-        if (olen > len - pos) break;
-        if (type == wanted_type && olen >= 8) return icmp + pos + 2;
-        pos += olen;
-    }
-    return NULL;
 }
 
 static void parse_ra_vector(const uint8_t *icmp, int len, const uint8_t frame_src_mac[6],
                             const struct in6_addr *src_addr, const char *src_ip, int ifindex,
                             int rl_enabled) {
-    if (!icmp || len < 16 || icmp[0] != ND_ROUTER_ADVERT || !frame_src_mac || !src_addr) return;
+    argos_discovery_ra_t parsed;
+    if (!frame_src_mac || !src_addr || len < 0 ||
+        !argos_discovery_ra_parse(icmp, (size_t)len, &parsed)) return;
     char mac[18]; format_mac(frame_src_mac, mac);
-    uint8_t hop_limit = icmp[4], raf = icmp[5];
-    uint16_t lifetime = read_be16(icmp + 6);
-    char flags[8]; size_t fo = 0;
-    if (raf & 0x80U) flags[fo++] = 'M';
-    if (raf & 0x40U) flags[fo++] = 'O';
-    if (raf & 0x20U) flags[fo++] = 'H';
-    if (fo == 0U) flags[fo++] = '-';
-    flags[fo] = '\0';
-
     char prefix[INET6_ADDRSTRLEN] = "none";
-    unsigned prefix_len = 0U, mtu = 0U;
-    int pos = 16;
-    while (pos + 2 <= len) {
-        uint8_t type = icmp[pos], units = icmp[pos + 1];
-        if (units == 0U) break;
-        int olen = (int)units * 8;
-        if (olen > len - pos) break;
-        if (type == 3U && olen >= 32 && strcmp(prefix, "none") == 0) {
-            prefix_len = icmp[pos + 2];
-            struct in6_addr pfx; memcpy(&pfx, icmp + pos + 16, 16);
-            if (!inet_ntop(AF_INET6, &pfx, prefix, sizeof(prefix))) strcpy(prefix, "none");
-        } else if (type == 5U && olen >= 8) {
-            uint32_t mtu_be; memcpy(&mtu_be, icmp + pos + 4, sizeof(mtu_be));
-            mtu = ntohl(mtu_be);
-        }
-        pos += olen;
+    if (parsed.has_prefix) {
+        struct in6_addr pfx;
+        memcpy(&pfx, parsed.prefix, sizeof(pfx));
+        if (!inet_ntop(AF_INET6, &pfx, prefix, sizeof(prefix))) strcpy(prefix, "none");
     }
 
     int mismatch = owner6_mismatch(src_addr, frame_src_mac);
     const char *routed = (is_routed_source_ipv6(src_addr, ifindex) || mismatch) ? "|routed" : "";
     char sig[256];
-    snprintf(sig, sizeof(sig), "%s|%u|%s|%u|%s|%u|%u|%s", src_ip, (unsigned)hop_limit, flags,
-             (unsigned)lifetime, prefix, prefix_len, mtu, routed[0] ? "routed" : "direct");
+    snprintf(sig, sizeof(sig), "%s|%u|%s|%u|%s|%u|%u|%s", src_ip,
+             (unsigned)parsed.hop_limit, parsed.flags, (unsigned)parsed.lifetime,
+             prefix, (unsigned)parsed.prefix_length, (unsigned)parsed.mtu,
+             routed[0] ? "routed" : "direct");
     if (!dedup_should_suppress_discovery(mac, "RA", sig, rl_enabled))
         emit_telemetry("RA|%s|%s|%u|%s|%u|%s|%u|%u%s\n", mac, src_ip,
-                       (unsigned)hop_limit, flags, (unsigned)lifetime, prefix, prefix_len, mtu, routed);
+                       (unsigned)parsed.hop_limit, parsed.flags, (unsigned)parsed.lifetime,
+                       prefix, (unsigned)parsed.prefix_length, (unsigned)parsed.mtu, routed);
     owner6_note(src_addr, frame_src_mac);
 }
 
 static void parse_ndp_vector(const uint8_t *icmp, int len, const uint8_t frame_src_mac[6],
                              const struct in6_addr *src_addr, const char *src_ip, int ifindex,
                              int rl_enabled) {
-    if (!icmp || len < 8 || !frame_src_mac || !src_addr) return;
-    uint8_t type = icmp[0];
-    if (type == ND_ROUTER_ADVERT) {
+    if (!icmp || len < 0 || !frame_src_mac || !src_addr) return;
+    if (len > 0 && icmp[0] == ND_ROUTER_ADVERT) {
         parse_ra_vector(icmp, len, frame_src_mac, src_addr, src_ip, ifindex, rl_enabled);
         return;
     }
-    if (type != ND_ROUTER_SOLICIT && type != ND_NEIGHBOR_SOLICIT && type != ND_NEIGHBOR_ADVERT) return;
-
-    const char *name = type == ND_ROUTER_SOLICIT ? "RS" : (type == ND_NEIGHBOR_SOLICIT ? "NS" : "NA");
-    int opt_off = type == ND_ROUTER_SOLICIT ? 8 : 24;
-    if (len < opt_off) return;
-    uint8_t wanted = type == ND_NEIGHBOR_ADVERT ? 2U : 1U;
-    const uint8_t *opt_mac = ndp_find_lladdr(icmp, len, opt_off, wanted);
-    const uint8_t *identity_mac = (opt_mac && mac_is_unicast_nonzero(opt_mac)) ? opt_mac : frame_src_mac;
-    char mac[18]; format_mac(identity_mac, mac);
+    argos_discovery_ndp_t parsed;
+    if (!argos_discovery_ndp_parse(icmp, (size_t)len, frame_src_mac, &parsed)) return;
+    char mac[18]; format_mac(parsed.identity_mac, mac);
 
     char target[INET6_ADDRSTRLEN] = "none";
     struct in6_addr target_addr; memset(&target_addr, 0, sizeof(target_addr));
-    if (type == ND_NEIGHBOR_SOLICIT || type == ND_NEIGHBOR_ADVERT) {
-        memcpy(&target_addr, icmp + 8, 16);
+    if (parsed.has_target) {
+        memcpy(&target_addr, parsed.target, sizeof(target_addr));
         if (!inet_ntop(AF_INET6, &target_addr, target, sizeof(target))) strcpy(target, "none");
     }
-
-    char flags[8] = "-";
-    if (type == ND_NEIGHBOR_ADVERT) {
-        size_t f = 0; uint8_t b = icmp[4];
-        if (b & 0x80U) flags[f++] = 'R';
-        if (b & 0x40U) flags[f++] = 'S';
-        if (b & 0x20U) flags[f++] = 'O';
-        if (f == 0U) flags[f++] = '-';
-        flags[f] = '\0';
-    }
-
-    int mismatch = owner6_mismatch(src_addr, identity_mac);
+    int mismatch = owner6_mismatch(src_addr, parsed.identity_mac);
     const char *routed = (is_routed_source_ipv6(src_addr, ifindex) || mismatch) ? "|routed" : "";
-    char sig[320]; snprintf(sig, sizeof(sig), "%s|%s|%s|%s|%s", src_ip, name, target, flags,
+    char sig[320]; snprintf(sig, sizeof(sig), "%s|%s|%s|%s|%s", src_ip, parsed.kind,
+                            target, parsed.flags,
                             routed[0] ? "routed" : "direct");
     if (!dedup_should_suppress_discovery(mac, "NDP", sig, rl_enabled))
-        emit_telemetry("NDP|%s|%s|%s|%s|%s%s\n", mac, src_ip, name, target, flags, routed);
+        emit_telemetry("NDP|%s|%s|%s|%s|%s%s\n", mac, src_ip, parsed.kind,
+                       target, parsed.flags, routed);
 
     /* Source LLA owns the packet's source address. An NA TLLA additionally
      * claims the advertised target address. */
-    owner6_note(src_addr, identity_mac);
-    if (type == ND_NEIGHBOR_ADVERT) owner6_note(&target_addr, identity_mac);
+    owner6_note(src_addr, parsed.identity_mac);
+    if (parsed.is_advertisement) owner6_note(&target_addr, parsed.identity_mac);
 }
 
 /**
@@ -1619,36 +1475,15 @@ static void parse_ndp_vector(const uint8_t *icmp, int len, const uint8_t frame_s
  * has no length/value byte at all and is simply skipped.
  */
 static void parse_dhcp(const unsigned char *payload, int len, const char *mac, const char *src_ip, const char *routed_str, int rl_enabled) {
-    if (len < 241 || payload[236] != 0x63 || payload[237] != 0x82 || payload[238] != 0x53 || payload[239] != 0x63) return;
-    char hostname_raw[64] = {0}, vendor_raw[64] = {0}, prl_raw[256] = {0};
-    int have_host = 0, have_vendor = 0, have_prl = 0, pos = 240;
-    while (pos < len) {
-        uint8_t code = payload[pos++];
-        if (code == 0xff) break;
-        if (code == 0x00) continue; /* End / Pad */
-        if (pos >= len) break;
-        uint8_t olen = payload[pos++]; if (pos + olen > len) break;
-        if (code == 12) { int n = olen < 63 ? olen : 63; memcpy(hostname_raw, payload + pos, (size_t)n); hostname_raw[n] = '\0'; have_host = 1; } /* option 12 = Host Name */
-        else if (code == 60) { int n = olen < 63 ? olen : 63; memcpy(vendor_raw, payload + pos, (size_t)n); vendor_raw[n] = '\0'; have_vendor = 1; } /* option 60 = Vendor Class Identifier */
-        else if (code == 55) { /* option 55 = Parameter Request List: one byte per requested DHCP option code */
-            size_t used = 0;
-            for (int j = 0; j < olen && used < sizeof(prl_raw) - 8; j++) {
-                int n = snprintf(prl_raw + used, sizeof(prl_raw) - used, "%s%u", used ? "," : "", payload[pos + j]);
-                if (n > 0) used += (size_t)n;
-            }
-            have_prl = 1;
-        }
-        pos += olen; /* skip to the next option, whether or not we cared about this one */
-    }
-    if (have_host || have_vendor || have_prl) {
-        char host[64], vendor[64], prl[256], payload_sig[384], sig[512];
-        sanitize_field((unsigned char*)hostname_raw, (int)strlen(hostname_raw), host, sizeof(host), 0);
-        sanitize_field((unsigned char*)vendor_raw, (int)strlen(vendor_raw), vendor, sizeof(vendor), 0);
-        sanitize_field((unsigned char*)prl_raw, (int)strlen(prl_raw), prl, sizeof(prl), 0);
-        snprintf(payload_sig, sizeof(payload_sig), "%s|%s|%s", host, vendor, prl);
-        source_dedup_signature(sig, sizeof(sig), src_ip, payload_sig, routed_str);
-        if (!dedup_should_suppress(mac, "DHCP", sig, rl_enabled)) emit_telemetry("DHCP|%s|%s|%s|%s|%s%s\n", mac, src_ip, host, vendor, prl, routed_str);
-    }
+    argos_discovery_dhcp4_t parsed;
+    if (len < 0 || !argos_discovery_dhcp4_parse(payload, (size_t)len, &parsed)) return;
+    char payload_sig[384], sig[512];
+    snprintf(payload_sig, sizeof(payload_sig), "%s|%s|%s", parsed.hostname, parsed.vendor,
+             parsed.parameter_request_list);
+    source_dedup_signature(sig, sizeof(sig), src_ip, payload_sig, routed_str);
+    if (!dedup_should_suppress(mac, "DHCP", sig, rl_enabled))
+        emit_telemetry("DHCP|%s|%s|%s|%s|%s%s\n", mac, src_ip, parsed.hostname,
+                       parsed.vendor, parsed.parameter_request_list, routed_str);
 }
 
 /**
@@ -1669,47 +1504,7 @@ static void parse_dhcp(const unsigned char *payload, int len, const char *mac, c
  * otherwise spin forever.
  */
 static int decode_dns_name(const unsigned char *payload, int payload_len, int start_pos, char *out, int out_max) {
-    int pos = start_pos, o = 0, guard = 0;
-    int original_pos = -1;
-    
-    while (guard++ < 64) {
-        if (pos >= payload_len) break;
-        uint8_t label_len = payload[pos++];
-        if (label_len == 0) {
-            /* Zero-length label = end of name. If we got here by following
-             * a compression pointer, resume at the byte right after that
-             * pointer in the *original* record instead of stopping. */
-            if (original_pos != -1) {
-                pos = original_pos;
-                original_pos = -1;
-                continue;
-            }
-            break;
-        }
-
-        if ((label_len & 0xC0) == 0xC0) {
-            /* Compression pointer: low 6 bits of this byte + all 8 bits of
-             * the next byte form a 14-bit offset from the start of the DNS
-             * message to jump to. */
-            if (pos >= payload_len) break;
-            int ptr = ((label_len & 0x3F) << 8) | payload[pos++];
-            if (original_pos == -1) {
-                original_pos = pos; /* remember only the first return address */
-            }
-            pos = ptr; 
-            continue;
-        }
-
-        /* Ordinary label: `label_len` raw bytes follow. */
-        if (label_len > 63 || pos + label_len > payload_len) break;
-        if (o > 0 && o < out_max - 1) out[o++] = '.';
-        for (int i = 0; i < label_len && pos < payload_len && o < out_max - 1; i++) {
-            unsigned char c = payload[pos++];
-            out[o++] = (isalnum(c) || c == '-' || c == '_') ? (char)tolower(c) : '.';
-        }
-    }
-    out[o] = '\0'; 
-    return o;
+    return argos_discovery_dns_name(payload, payload_len, start_pos, out, out_max);
 }
 
 /**
@@ -1718,36 +1513,20 @@ static int decode_dns_name(const unsigned char *payload, int payload_len, int st
  * pointer are both handled without allocating or walking unrelated records.
  */
 static int dns_question_qtype(const unsigned char *payload, int payload_len, int start_pos, uint16_t *qtype) {
-    if (!payload || !qtype || start_pos < 0 || start_pos >= payload_len) return 0;
-    int pos = start_pos;
-    int guard = 0;
-    while (pos < payload_len && guard++ < 128) {
-        uint8_t label_len = payload[pos++];
-        if (label_len == 0) break;
-        if ((label_len & 0xC0U) == 0xC0U) {
-            if (pos >= payload_len) return 0;
-            pos++;
-            break;
-        }
-        if (label_len > 63U || pos + (int)label_len > payload_len) return 0;
-        pos += (int)label_len;
-    }
-    if (pos + 4 > payload_len) return 0;
-    *qtype = read_be16(payload + pos);
-    return 1;
+    return argos_discovery_dns_qtype(payload, payload_len, start_pos, qtype);
 }
 
 /**
  * Parses mDNS query records.
  */
 static void parse_mdns(const unsigned char *payload, int len, const char *mac, const char *src_ip, int dport_or_sport, const char *routed_str, int rl_enabled) {
-    if (len < 12 || read_be16(payload + 4) == 0) return;
-    char qname[256], sig[384];
-    if (decode_dns_name(payload, len, 12, qname, sizeof(qname)) > 0 && qname[0]) {
-        source_dedup_signature(sig, sizeof(sig), src_ip, qname, routed_str);
-        if (dedup_should_suppress(mac, "MDNS", sig, rl_enabled)) return;
-        emit_telemetry("MDNS|%s|%s|%d|%s%s\n", mac, src_ip, dport_or_sport, qname, routed_str);
-    }
+    argos_discovery_mdns_t parsed;
+    char sig[384];
+    if (len < 0 || !argos_discovery_mdns_parse(payload, (size_t)len, &parsed)) return;
+    source_dedup_signature(sig, sizeof(sig), src_ip, parsed.question, routed_str);
+    if (dedup_should_suppress(mac, "MDNS", sig, rl_enabled)) return;
+    emit_telemetry("MDNS|%s|%s|%d|%s%s\n", mac, src_ip, dport_or_sport,
+                   parsed.question, routed_str);
 }
 
 /* ============================================================================
