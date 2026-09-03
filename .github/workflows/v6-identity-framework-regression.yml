@@ -27,6 +27,8 @@ jobs:
           /tmp/test-ntlm-privacy
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_ntlm.c -o /tmp/test-identity-ntlm
           /tmp/test-identity-ntlm
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_kerberos.c -o /tmp/test-identity-kerberos
+          /tmp/test-identity-kerberos
 
       - name: Sanitized framework fixtures
         env:
@@ -49,6 +51,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_identity_ntlm.c -o /tmp/test-identity-ntlm-san
           /tmp/test-identity-ntlm-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_identity_kerberos.c -o /tmp/test-identity-kerberos-san
+          /tmp/test-identity-kerberos-san
 
       - name: CLI and privacy contract
         run: |
@@ -66,7 +72,8 @@ jobs:
           h=Path('src/argos_identity.h').read_text()
           s=Path('src/argos-sniffer.c').read_text()
           e=Path('src/argos_enterprise.h').read_text()
-          t=Path('tests/test_identity_ntlm.c').read_text()
+          nt=Path('tests/test_identity_ntlm.c').read_text()
+          kt=Path('tests/test_identity_kerberos.c').read_text()
           assert 'Observed identity' in h and 'never device ownership' in h
           assert 'if (len > 160U) len = 160U' in h
           assert '2166136261U' in h and '16777619U' in h
@@ -83,10 +90,19 @@ jobs:
           assert 'argos_identity_ntlm_utf16_field(n, remain, 28U, "domain"' in h
           assert 'argos_identity_ntlm_utf16_field(n, remain, 36U, "user"' in h
           assert 'argos_identity_ntlm_utf16_field(n, remain, 44U, "workstation"' in h
-          assert '%.45s|%.23s|%.23s|%.191s' in s
           assert 'LM-SECRET-DO-NOT-EMIT' not in h and 'NT-SECRET-DO-NOT-EMIT' not in h
           assert 'LM-SECRET-DO-NOT-EMIT' not in s and 'NT-SECRET-DO-NOT-EMIT' not in s
-          assert 'LM-SECRET-DO-NOT-EMIT' in t and 'NT-SECRET-DO-NOT-EMIT' in t
+          assert 'LM-SECRET-DO-NOT-EMIT' in nt and 'NT-SECRET-DO-NOT-EMIT' in nt
+          assert 'argos_identity_kerberos_asreq' in h
+          assert 'AS-REQ only; never TGS-REQ' in h
+          assert 'PA-DATA, tickets, authenticators, encrypted data and TGS-REQ identity' in h
+          assert 'if (opt_identity && dport == 88U && payload_len > 0)' in s
+          assert 'argos_identity_kerberos_asreq(buffer + payload_offset' in s
+          assert 'argos_identity_kerberos_asreq(payload' in s
+          assert 'PA-SECRET' not in h and 'PA-SECRET' not in s and 'PA-SECRET' in kt
+          assert ' request=%s realm=%s etype_count=%u etypes=%s' not in e or 'request=%s realm=%s etype_count=%u etypes=%s' in e
+          assert ' principal=%s' not in e and ' cname=%s' not in e
+          assert '%.45s|%.23s|%.23s|%.191s' in s
           assert 'emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"' in s
           assert 'cookie_present=%u cookie_len=%u cookie_hash=%08x' in e
           assert 'domain_present=%u domain_len=%u domain_hash=%08x' in e
