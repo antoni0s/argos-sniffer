@@ -118,11 +118,16 @@ s=s.replace(inc,'#include "argos_config.h"\n#include "argos_dedup.h"\n#include "
 
 start=s.find('#define DEDUP_SLOTS 2048')
 if start<0: raise SystemExit('dedup block start missing')
-end=s.find('/* Discovery records describe relatively stable ownership/fingerprint state.', start)
-if end<0: raise SystemExit('dedup block end missing')
+# Stop before the identity runtime helper introduced by 13a. The dedup module
+# extraction must move only cache mechanics, not remove telemetry serialization.
+emitter_marker='/* format_mac is implemented with the packet/flow helpers below; declare it\n'
+end=s.find(emitter_marker, start)
+if end<0: raise SystemExit('identity emitter boundary missing')
 block=s[start:end]
 for required in ('DEDUP_PROBES 8','dedup_entry_t','dedup_should_suppress_for','dedup_should_suppress('):
     if required not in block: raise SystemExit(f'dedup block missing {required}')
+if 'emit_identity_observation' in block:
+    raise SystemExit('dedup extraction boundary swallowed identity emitter')
 replacement='''#define ARP_DEDUP_TTL_SECS 900\n#define NDP_DEDUP_TTL_SECS 900\n#define RA_DEDUP_TTL_SECS 1800\nstatic int rate_limit_ttl = 35;\nstatic argos_dedup_state_t dedup_state = {0};\n\nstatic int dedup_should_suppress_for(const char *mac, const char *evtype, const char *payload,\n                                     int rl_enabled, int ttl, int sliding) {\n    return argos_dedup_should_suppress(&dedup_state, mac, evtype, payload,\n                                       rl_enabled, ttl, sliding);\n}\n\nstatic int dedup_should_suppress(const char *mac, const char *evtype, const char *payload, int rl_enabled) {\n    return dedup_should_suppress_for(mac, evtype, payload, rl_enabled, rate_limit_ttl, 1);\n}\n\n'''
 s=s[:start]+replacement+s[end:]
 
@@ -131,6 +136,8 @@ if count != 2: raise SystemExit(f'dedup cleanup replacement count={count}')
 s=s.replace('free(dedup_table)', 'argos_dedup_destroy(&dedup_state)')
 if 'dedup_table' in s or 'DEDUP_SLOTS' in s or 'DEDUP_PROBES' in s or 'dedup_entry_t' in s:
     raise SystemExit('legacy dedup implementation remains in main')
+if s.count('static void emit_identity_observation(') != 1:
+    raise SystemExit('identity emitter not preserved exactly once')
 
 src.write_text(s)
 
