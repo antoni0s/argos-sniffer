@@ -80,6 +80,6 @@ jobs:
           assert 'argos_udp_suppress_recent(udp_suppress_table' in s
           assert 'Handshake/cookie types' in s and 'keepalives are always parsed' in s
           assert 'DNS/DHCP/QUIC/STUN/CoAP/NTP' in s
-          assert 'if (opt_enterprise && argos_enterprise_udp_port(sport, dport))' in s
+          assert 'if (runtime_cfg.enterprise_enabled && argos_enterprise_udp_port(sport, dport))' in s
           print('Flow suppression permanent invariants: PASS')
           PY
