@@ -29,13 +29,15 @@ jobs:
           /tmp/test-identity-ntlm
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_kerberos.c -o /tmp/test-identity-kerberos
           /tmp/test-identity-kerberos
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_radius.c -o /tmp/test-identity-radius
+          /tmp/test-identity-radius
 
       - name: Sanitized framework fixtures
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          for f in tests/test_identity_framework.c tests/test_identity_rdp.c tests/test_ntlm_privacy.c tests/test_identity_ntlm.c tests/test_identity_kerberos.c; do
+          for f in tests/test_identity_framework.c tests/test_identity_rdp.c tests/test_ntlm_privacy.c tests/test_identity_ntlm.c tests/test_identity_kerberos.c tests/test_identity_radius.c; do
             out="/tmp/$(basename "$f" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
               -fsanitize=address,undefined -fno-omit-frame-pointer "$f" -o "$out"
@@ -60,6 +62,7 @@ jobs:
           e=Path('src/argos_enterprise.h').read_text()
           nt=Path('tests/test_identity_ntlm.c').read_text()
           kt=Path('tests/test_identity_kerberos.c').read_text()
+          rt=Path('tests/test_identity_radius.c').read_text()
           assert 'Observed identity' in h and 'never device ownership' in h
           assert 'if (len > 160U) len = 160U' in h
           assert '2166136261U' in h and '16777619U' in h
@@ -88,6 +91,18 @@ jobs:
           assert 'PA-SECRET' not in h and 'PA-SECRET' not in s and 'PA-SECRET' in kt
           assert 'request=%s realm=%s etype_count=%u etypes=%s' in e
           assert ' principal=%s' not in e and ' cname=%s' not in e
+          assert 'argos_identity_radius_access_request' in h
+          assert 'p[0] != 1U' in h and 'Access-Request only' in h
+          assert 'if (type == 1U)' in h
+          assert 'User-Password, CHAP-Password, State, EAP-Message' in h
+          assert 'if (opt_identity && dport == 1812U)' in s
+          radius_block=s[s.find('RADIUS observed identity'):s.find('UDP/88 uses')]
+          assert 'dport == 1813U' not in radius_block
+          assert all(x not in h and x not in s for x in ('PW-SECRET','STATE-SECRET','AUTH-SECRET'))
+          assert all(x in rt for x in ('PW-SECRET','STATE-SECRET','AUTH-SECRET'))
+          assert 'User-Name, Calling/Called-Station-Id' in e
+          assert 'user_present=%u password_attr=%u' in e
+          assert ' username=%s' not in e and ' user=%s' not in e
           assert '%.45s|%.23s|%.23s|%.191s' in s
           assert 'emit_telemetry("IDENT|%s|%s|%s|%s|%s%s\\n"' in s
           assert 'cookie_present=%u cookie_len=%u cookie_hash=%08x' in e
