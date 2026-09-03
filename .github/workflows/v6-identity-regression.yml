@@ -28,13 +28,15 @@ jobs:
           /tmp/test-cldap
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_snmpv3_engineid.c -o /tmp/test-snmpv3
           /tmp/test-snmpv3
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_raw_identity.c -o /tmp/test-raw-id
+          /tmp/test-raw-id
 
       - name: Sanitized identity fixtures
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          for t in radius kerberos_etypes cldap_netlogon snmpv3_engineid; do
+          for t in radius kerberos_etypes cldap_netlogon snmpv3_engineid raw_identity; do
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
               -fsanitize=address,undefined -fno-omit-frame-pointer \
               tests/test_${t}.c -o /tmp/test-${t}-san
@@ -47,6 +49,8 @@ jobs:
           from pathlib import Path
           h=Path('src/argos_enterprise.h').read_text()
           p=Path('src/argos_enterprise_ports.h').read_text()
+          r=Path('src/argos_raw_identity.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
           for port in ('1812','1813','161','162','389','88'):
               assert port in p
           assert 'case 1812: case 1813: return ae_radius' in h
@@ -58,5 +62,11 @@ jobs:
           assert 'engine_hash=%08x engine_len=%u enterprise=%u format=%u' in h
           assert 'User-Name, Calling/Called-Station-Id' in h
           assert 'never the raw EngineID, userName, auth or' in h
+          assert '02:<IPv4 bytes>:04' in r and '40-bit FNV-1a' in r
+          assert 'pkt_type == LINK_RAW_IP && is_ip_packet' in s
+          assert 'argos_raw_identity_v4(buffer + l3_offset + 12, src_mac)' in s
+          assert 'argos_raw_identity_v6(src_ip6_addr.s6_addr, src_mac)' in s
+          assert 'snprintf(mac_str, sizeof(mac_str), "%s", current_iface->name)' not in s
+          assert 'pkt_type == LINK_RAW_IP) snprintf(ent_mac' not in s
           print('enterprise identity privacy/integration: PASS')
           PY
