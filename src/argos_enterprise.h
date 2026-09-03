@@ -981,6 +981,96 @@ static inline int ae_radius(const unsigned char *p, int len, uint16_t port,
     return 1;
 }
 
+static inline const char *ae_stun_class(unsigned c) {
+    return c == 0U ? "request" : c == 1U ? "indication" :
+           c == 2U ? "success" : c == 3U ? "error" : "other";
+}
+
+static inline const char *ae_stun_method(unsigned m) {
+    switch (m) {
+        case 0x001U: return "Binding";
+        case 0x003U: return "Allocate";
+        case 0x004U: return "Refresh";
+        case 0x006U: return "Send";
+        case 0x007U: return "Data";
+        case 0x008U: return "CreatePermission";
+        case 0x009U: return "ChannelBind";
+        default: return "Other";
+    }
+}
+
+/* Privacy/performance-minimized RFC 8489 / RFC 8656 control fingerprint.
+ * Transaction IDs and address attributes are never emitted. USERNAME, REALM,
+ * NONCE, USERHASH and authentication values remain opaque. TURN Send/Data and
+ * DATA attributes carry application payload and are rejected here; Ethernet
+ * capture additionally fast-drops Send/Data and ChannelData in classic BPF. */
+static inline int ae_stun_turn(const unsigned char *p, int len,
+                               argos_enterprise_result_t *r) {
+    if (!p || !r || len < 20 || (p[0] & 0xc0U) != 0U) return 0;
+    uint16_t type = ae_be16(p);
+    uint16_t mlen = ae_be16(p + 2);
+    if ((mlen & 3U) != 0U || 20U + (uint32_t)mlen > (uint32_t)len) return 0;
+    if (ae_be32(p + 4) != 0x2112a442U) return 0;
+
+    unsigned method = (unsigned)(type & 0x000fU) |
+                      (unsigned)((type & 0x00e0U) >> 1) |
+                      (unsigned)((type & 0x3e00U) >> 2);
+    unsigned cls = (unsigned)((type & 0x0010U) >> 4) |
+                   (unsigned)((type & 0x0100U) >> 7);
+    /* TURN Send/Data indications are relay payload, not fingerprints. */
+    if (method == 0x006U || method == 0x007U) return 0;
+
+    char software[128] = {0};
+    uint32_t priority = 0U, lifetime = 0U;
+    unsigned use_candidate = 0U, ice_controlled = 0U, ice_controlling = 0U;
+    unsigned integrity = 0U, integrity256 = 0U, fingerprint = 0U;
+    unsigned requested_transport = 0U, address_family = 0U, channel_present = 0U;
+
+    size_t pos = 20U, end = 20U + (size_t)mlen;
+    while (pos < end) {
+        if (pos + 4U > end) return 0;
+        uint16_t at = ae_be16(p + pos), alen = ae_be16(p + pos + 2U);
+        size_t value = pos + 4U;
+        size_t padded = ((size_t)alen + 3U) & ~(size_t)3U;
+        if (value + padded > end || value + (size_t)alen > end) return 0;
+        const unsigned char *v = p + value;
+        switch (at) {
+            case 0x0008U: integrity = 1U; break;                 /* MESSAGE-INTEGRITY */
+            case 0x000cU: if (alen == 4U) channel_present = 1U; break;
+            case 0x000dU: if (alen == 4U) lifetime = ae_be32(v); break;
+            case 0x0013U: return 0;                             /* DATA: relay payload */
+            case 0x0017U: if (alen == 4U) address_family = v[0]; break;
+            case 0x0019U: if (alen == 4U) requested_transport = v[0]; break;
+            case 0x001cU: integrity256 = 1U; break;              /* MESSAGE-INTEGRITY-SHA256 */
+            case 0x0024U: if (alen == 4U) priority = ae_be32(v); break;
+            case 0x0025U: if (alen == 0U) use_candidate = 1U; break;
+            case 0x8022U:
+                if (alen > 0U) {
+                    int n = alen > 120U ? 120 : (int)alen;
+                    ae_clean(v, n, software, sizeof(software));
+                }
+                break;
+            case 0x8028U: if (alen == 4U) fingerprint = 1U; break;
+            case 0x8029U: if (alen == 8U) ice_controlled = 1U; break;
+            case 0x802aU: if (alen == 8U) ice_controlling = 1U; break;
+            default: break; /* includes all identity/address/auth values */
+        }
+        pos = value + padded;
+    }
+    if (pos != end) return 0;
+
+    const char *proto = (method == 0x003U || method == 0x004U ||
+                         method == 0x008U || method == 0x009U) ? "turn" : "stun";
+    const char *ice = ice_controlled && ice_controlling ? "both" :
+                      ice_controlled ? "controlled" : ice_controlling ? "controlling" : "-";
+    ae_set(r, proto, 0,
+           "method=%s class=%s software=%s priority=%u use_candidate=%u ice=%s integrity=%u integrity_sha256=%u fingerprint=%u requested_transport=%u lifetime=%u address_family=%u channel_present=%u",
+           ae_stun_method(method), ae_stun_class(cls), software[0] ? software : "-",
+           (unsigned)priority, use_candidate, ice, integrity, integrity256, fingerprint,
+           requested_transport, (unsigned)lifetime, address_family, channel_present);
+    return 1;
+}
+
 static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
                                              const unsigned char *p, int len,
                                              argos_enterprise_result_t *r) {
@@ -996,6 +1086,7 @@ static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
         case 427: return ae_slp(p, len, r);
         case 623: return ae_ipmi(p, len, r);
         case 1812: case 1813: return ae_radius(p, len, port, r);
+        case 3478: return ae_stun_turn(p, len, r);
         case 5060: return ae_sip(p, len, r);
         case 5678: return ae_mndp(p, len, r);
         case 47808: return ae_bacnet(p, len, r);

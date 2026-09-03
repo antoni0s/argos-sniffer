@@ -84,6 +84,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             ADD(ts, ts_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
         }
         for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i) {
+            if (ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT) continue;
             ADD(ud, ud_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
             ADD(us, us_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
         }
@@ -189,6 +190,18 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         size_t udp_start = p->len;
         p->code[udp_ja].k = (uint32_t)(udp_start - udp_ja - 1U);
         EMIT(abpf_stmt(p, BPF_LDX | BPF_B | BPF_MSH, 14));
+        size_t stun_dport_ja = (size_t)-1, stun_sport_ja = (size_t)-1;
+        if (cfg->enterprise) {
+            /* UDP/3478 is special: TURN relay data can be an elephant flow.
+             * Jump matched 3478 packets to a small STUN-only admission block
+             * after the generic UDP port checks. */
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_STUN_TURN_UDP_PORT, 0, 1));
+            stun_dport_ja = p->len; EMIT(abpf_stmt(p, BPF_JMP | BPF_JA, 0));
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_STUN_TURN_UDP_PORT, 0, 1));
+            stun_sport_ja = p->len; EMIT(abpf_stmt(p, BPF_JMP | BPF_JA, 0));
+        }
         if (ud_n) {
             EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
             for (size_t i = 0; i < ud_n; ++i) {
@@ -204,6 +217,27 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             }
         }
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+        if (cfg->enterprise) {
+            size_t stun_start = p->len;
+            p->code[stun_dport_ja].k = (uint32_t)(stun_start - stun_dport_ja - 1U);
+            p->code[stun_sport_ja].k = (uint32_t)(stun_start - stun_sport_ja - 1U);
+            /* Minimum STUN datagram: 8-byte UDP + 20-byte STUN header. */
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 18));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, 27, 1, 0));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+            /* STUN has top two bits 00; ChannelData starts 01 and is dropped. */
+            EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_IND, 22));
+            EMIT(abpf_stmt(p, BPF_ALU | BPF_AND | BPF_K, 0xc0));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 0, 1, 0));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+            /* TURN Send/Data indications (0x0016/0x0017) carry relay payload. */
+            EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 22));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 0x0016, 0, 1));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+            EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 0x0017, 0, 1));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
+            EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+        }
     }
 
 #undef ADD

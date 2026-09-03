@@ -111,6 +111,17 @@ int main(void) {
     expect(pass(&p, pkt, tcp4(pkt, 50000, 44818, 0x18, 24)), "EtherNet/IP TCP/44818 passes");
     expect(pass(&p, pkt, tcp4(pkt, 44818, 50000, 0x18, 24)), "EtherNet/IP TCP response passes");
     expect(pass(&p, pkt, udp4(pkt, 50000, 47808, 20)), "BACnet/IP passes");
+    size_t stun_n = udp4(pkt, 50000, 3478, 32); pkt[42]=0x00; pkt[43]=0x01;
+    expect(pass(&p, pkt, stun_n), "STUN Binding control on UDP/3478 passes");
+    stun_n = udp4(pkt, 3478, 50000, 32); pkt[42]=0x01; pkt[43]=0x01;
+    expect(pass(&p, pkt, stun_n), "STUN response from UDP/3478 passes");
+    stun_n = udp4(pkt, 50000, 3478, 32); pkt[42]=0x40; pkt[43]=0x01;
+    expect(!pass(&p, pkt, stun_n), "TURN ChannelData fast-drops in kernel BPF");
+    stun_n = udp4(pkt, 50000, 3478, 32); pkt[42]=0x00; pkt[43]=0x16;
+    expect(!pass(&p, pkt, stun_n), "TURN Send indication fast-drops in kernel BPF");
+    stun_n = udp4(pkt, 3478, 50000, 32); pkt[42]=0x00; pkt[43]=0x17;
+    expect(!pass(&p, pkt, stun_n), "TURN Data indication fast-drops in kernel BPF");
+    expect(!pass(&p, pkt, udp4(pkt, 50000, 3478, 0)), "short UDP/3478 packet drops");
     expect(pass(&p, pkt, proto4(pkt, 89)), "OSPF passes");
     expect(pass(&p, pkt, proto4(pkt, 112)), "VRRP passes");
     expect(pass(&p, pkt, eth(pkt, 100)), "802.3 LLC enterprise discovery passes");

@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define ARGOS_STUN_TURN_UDP_PORT 3478U
+
 /* Single source of truth shared by the enterprise parser admission checks and
  * the vector-aware kernel BPF builder. Keep these lists limited to protocols
  * for which Argos has a bounded parser. */
@@ -12,7 +14,7 @@ static const uint16_t ARGOS_ENTERPRISE_TCP_PORTS[] = {
     3260, 3306, 3389, 5060, 5432, 9100, 44818
 };
 static const uint16_t ARGOS_ENTERPRISE_UDP_PORTS[] = {
-    88, 111, 161, 162, 389, 427, 623, 1812, 1813, 1985, 2049, 5060, 5678, 47808, 44818
+    88, 111, 161, 162, 389, 427, 623, 1812, 1813, 1985, 2049, 3478, 5060, 5678, 47808, 44818
 };
 #define ARGOS_ENTERPRISE_TCP_PORT_COUNT (sizeof(ARGOS_ENTERPRISE_TCP_PORTS) / sizeof(ARGOS_ENTERPRISE_TCP_PORTS[0]))
 #define ARGOS_ENTERPRISE_UDP_PORT_COUNT (sizeof(ARGOS_ENTERPRISE_UDP_PORTS) / sizeof(ARGOS_ENTERPRISE_UDP_PORTS[0]))
