@@ -5,6 +5,7 @@ on:
     branches: [version-6]
     paths:
       - '.github/scripts/v6_step12b_identity_framework.py'
+      - '.github/scripts/v6_step12b_identity_framework_retry.py'
       - '.github/workflows/v6-step12b-identity-framework.yml'
   workflow_dispatch:
 
@@ -21,7 +22,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged identity framework
-        run: python3 .github/scripts/v6_step12b_identity_framework.py
+        run: |
+          python3 .github/scripts/v6_step12b_identity_framework.py
+          python3 .github/scripts/v6_step12b_identity_framework_retry.py
 
       - name: Identity framework fixtures
         run: |
@@ -61,7 +64,7 @@ jobs:
           assert 'if (opt_identity && !opt_enterprise)' in s
           assert 'if (opt_identity_raw && !opt_identity)' in s
           assert 'passwords, tickets, tokens or auth blobs' in s
-          assert 'generic payload' not in h.lower()
+          assert 'no generic payload scanning' in s
           print('identity framework invariants: PASS')
           PY
 
