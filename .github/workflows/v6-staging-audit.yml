@@ -1,0 +1,103 @@
+name: V6 staging module audit
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - 'src/argos_ah.h'
+      - 'src/argos_airplay.h'
+      - 'src/argos_cast.h'
+      - 'src/argos_dlna.h'
+      - 'src/argos_dnp3.h'
+      - 'src/argos_esp.h'
+      - 'src/argos_ftp.h'
+      - 'src/argos_http_proxy.h'
+      - 'src/argos_ike.h'
+      - 'src/argos_ipfix.h'
+      - 'src/argos_knx.h'
+      - 'src/argos_lacp.h'
+      - 'src/argos_ldap.h'
+      - 'src/argos_ldaps.h'
+      - 'src/argos_lldp_med.h'
+      - 'src/argos_lpd.h'
+      - 'src/argos_matter.h'
+      - 'src/argos_mongodb.h'
+      - 'src/argos_netflow.h'
+      - 'src/argos_nvmeof.h'
+      - 'src/argos_opcua.h'
+      - 'src/argos_openvpn.h'
+      - 'src/argos_ptp.h'
+      - 'src/argos_redis.h'
+      - 'src/argos_rip.h'
+      - 'src/argos_rtcp.h'
+      - 'src/argos_rtp.h'
+      - 'src/argos_rtsp.h'
+      - 'src/argos_s7.h'
+      - 'src/argos_sflow.h'
+      - 'src/argos_stp.h'
+      - 'src/argos_syslog.h'
+      - 'src/argos_tacacs.h'
+      - 'src/argos_telnet.h'
+      - 'src/argos_thread.h'
+      - 'src/argos_vnc.h'
+      - 'src/argos_winrm.h'
+      - 'tests/test_staging_headers.c'
+      - '.github/workflows/v6-staging-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Strict compile and boundary validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Strict all-header translation unit
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            tests/test_staging_headers.c -o /tmp/test-staging-headers
+          /tmp/test-staging-headers
+
+      - name: ASan + UBSan boundary validation
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_staging_headers.c -o /tmp/test-staging-headers-san
+          /tmp/test-staging-headers-san
+
+      - name: Staging architecture invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          headers = sorted(Path('src').glob('argos_*.h'))
+          staging = {
+              'argos_ah.h','argos_airplay.h','argos_cast.h','argos_dlna.h','argos_dnp3.h',
+              'argos_esp.h','argos_ftp.h','argos_http_proxy.h','argos_ike.h','argos_ipfix.h',
+              'argos_knx.h','argos_lacp.h','argos_ldap.h','argos_ldaps.h','argos_lldp_med.h',
+              'argos_lpd.h','argos_matter.h','argos_mongodb.h','argos_netflow.h','argos_nvmeof.h',
+              'argos_opcua.h','argos_openvpn.h','argos_ptp.h','argos_redis.h','argos_rip.h',
+              'argos_rtcp.h','argos_rtp.h','argos_rtsp.h','argos_s7.h','argos_sflow.h',
+              'argos_stp.h','argos_syslog.h','argos_tacacs.h','argos_telnet.h','argos_thread.h',
+              'argos_vnc.h','argos_winrm.h'
+          }
+          present = {p.name for p in headers}
+          missing = staging - present
+          assert not missing, f'missing staging headers: {sorted(missing)}'
+
+          forbidden = ('malloc(', 'calloc(', 'realloc(', 'emit_telemetry(',
+                       'dedup_should_suppress', 'sendto(', 'write(', 'printf(')
+          for name in sorted(staging):
+              text = Path('src', name).read_text()
+              assert '#ifndef ' in text and '#define ' in text and '#endif' in text, name
+              for token in forbidden:
+                  assert token not in text, f'{name}: forbidden runtime/hot-path token {token}'
+          print(f'Staging headers validated: {len(staging)}')
+          PY
