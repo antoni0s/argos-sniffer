@@ -11,6 +11,9 @@ c=cfg.read_text()
 anchor='''static inline int argos_identity_raw(argos_identity_mode_t mode) {\n    return mode == ARGOS_IDENTITY_RAW;\n}\n\n#endif\n'''
 if c.count(anchor)!=1:
     raise SystemExit(f'config anchor count={c.count(anchor)}')
+# Keep the standalone header self-contained for tests and future reuse.
+if '#include <stdint.h>\n' not in c:
+    c=c.replace('#include <string.h>\n','#include <stdint.h>\n#include <string.h>\n',1)
 addition=r'''static inline int argos_identity_raw(argos_identity_mode_t mode) {
     return mode == ARGOS_IDENTITY_RAW;
 }
@@ -52,21 +55,18 @@ static inline const char *argos_runtime_config_validate(const argos_runtime_conf
 '''
 cfg.write_text(c.replace(anchor,addition,1))
 
-# Replace the five related locals with one explicit runtime configuration object.
 old='''    int opt_enterprise = 0, opt_enterprise_rl = 1;\n    argos_identity_mode_t identity_mode = ARGOS_IDENTITY_OFF;\n    uint16_t opt_wireguard_port = 51820U;\n    int wireguard_port_explicit = 0;\n'''
 new='''    argos_runtime_config_t runtime_cfg;\n    argos_runtime_config_init(&runtime_cfg);\n'''
 if s.count(old)!=1:
     raise SystemExit(f'runtime local anchor count={s.count(old)}')
 s=s.replace(old,new,1)
 
-# Enterprise cases now express intent through config API.
 old='''            case OPT_ENTERPRISE: opt_enterprise = 1; opt_enterprise_rl = 1; opt_v6 = 1; break;\n            case OPT_ENTERPRISE_VERBOSE: opt_enterprise = 1; opt_enterprise_rl = 0; opt_v6 = 1; break;\n'''
 new='''            case OPT_ENTERPRISE: argos_runtime_enable_enterprise(&runtime_cfg, 0); opt_v6 = 1; break;\n            case OPT_ENTERPRISE_VERBOSE: argos_runtime_enable_enterprise(&runtime_cfg, 1); opt_v6 = 1; break;\n'''
 if s.count(old)!=1:
     raise SystemExit(f'enterprise cases anchor count={s.count(old)}')
 s=s.replace(old,new,1)
 
-# Convert remaining runtime identifiers mechanically but only as C identifiers.
 repls={
     r'\bidentity_mode\b':'runtime_cfg.identity_mode',
     r'\bopt_wireguard_port\b':'runtime_cfg.wireguard_port',
@@ -77,15 +77,12 @@ repls={
 for pat,val in repls.items():
     s=re.sub(pat,val,s)
 
-# Replace two separate dependency checks with one module-owned validation boundary.
 old='''    if (runtime_cfg.wireguard_port_explicit && !runtime_cfg.enterprise_enabled) {\n        fprintf(stderr, "Error: --wireguard-port requires --enterprise or --enterprise-verbose.\\n");\n        return 1;\n    }\n\n    if (argos_identity_enabled(runtime_cfg.identity_mode) && !runtime_cfg.enterprise_enabled) {\n        fprintf(stderr, "Error: --identity requires --enterprise or --enterprise-verbose.\\n");\n        return 1;\n    }\n'''
 new='''    const char *runtime_cfg_error = argos_runtime_config_validate(&runtime_cfg);\n    if (runtime_cfg_error) {\n        fprintf(stderr, "Error: %s\\n", runtime_cfg_error);\n        return 1;\n    }\n'''
 if s.count(old)!=1:
     raise SystemExit(f'validation block anchor count={s.count(old)}')
 s=s.replace(old,new,1)
 
-# Invariants: no legacy standalone runtime locals remain. Struct member names
-# intentionally preserve semantic field names such as wireguard_port_explicit.
 for legacy in ('opt_enterprise','opt_enterprise_rl','opt_wireguard_port'):
     if re.search(r'\b'+legacy+r'\b',s):
         raise SystemExit(f'legacy runtime identifier remains: {legacy}')
