@@ -1,0 +1,86 @@
+name: V6 step 10b - MQTT gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step10b_mqtt_patch.py'
+      - '.github/workflows/v6-step10b-mqtt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step10b_mqtt_patch.py
+
+      - name: MQTT CONNECT fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_mqtt.c -o /tmp/test-mqtt
+          /tmp/test-mqtt
+
+      - name: Dynamic BPF MQTT and MQTTS matrix
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-bpf
+          /tmp/test-bpf
+
+      - name: MQTT privacy and DONE invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          p=Path('src/argos_enterprise_ports.h').read_text()
+          t=Path('src/argos_tls_ports.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert '1883' in p and 'case 1883: return ae_mqtt' in h
+          assert '8883U   /* MQTT over implicit TLS */' in t
+          assert 'ae_set(r,"mqtt",1,' in h
+          assert 'client_id_hash=%08x' in h and 'client_id_len=%u' in h
+          assert 'Username, password and Will topic/payload' in h
+          assert 'app_flow_note_payload' in s and 'ent_tcp.complete' in s
+          assert 'device-secret-123' not in h and 'alice@example.org' not in h
+          print('MQTT privacy/DONE invariants: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: MQTT sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_mqtt.c -o /tmp/test-mqtt-san
+          /tmp/test-mqtt-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_dynamic_bpf.c -o /tmp/test-bpf-san
+          /tmp/test-bpf-san
+
+      - name: Existing network and enterprise regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_stun_turn.c -o /tmp/test-stun && /tmp/test-stun
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_raw_identity.c -o /tmp/test-raw && /tmp/test-raw
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_enterprise_ports.h src/argos_tls_ports.h src/argos_enterprise.h tests/test_dynamic_bpf.c tests/test_mqtt.c
+          git commit -m 'feat(v6): fingerprint MQTT CONNECT metadata'
+          git push origin HEAD:version-6
