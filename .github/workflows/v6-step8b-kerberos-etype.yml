@@ -1,0 +1,70 @@
+name: V6 step 8b - Kerberos etype gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step8b_kerberos_etype_patch.py'
+      - '.github/workflows/v6-step8b-kerberos-etype.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version-6
+        uses: actions/checkout@v4
+        with:
+          ref: version-6
+          fetch-depth: 0
+
+      - name: Apply staged patch
+        run: python3 .github/scripts/v6_step8b_kerberos_etype_patch.py
+
+      - name: Kerberos e-type fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_kerberos_etype.c -o /tmp/test-kerberos-etype
+          /tmp/test-kerberos-etype
+
+      - name: Kerberos privacy/integration invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h').read_text()
+          assert 'etypes=%s etype_count=%u' in h
+          assert 'f.tag == 0xa8U' in h
+          assert 'f.tag == 0xa2U' in h
+          assert 'cname/sname, PA-DATA, tickets and encrypted material remain opaque' in h
+          assert 'alice' not in h
+          print('Kerberos etype privacy/integration: PASS')
+          PY
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-v6-stub
+
+      - name: Kerberos e-type sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_kerberos_etype.c -o /tmp/test-kerberos-etype-san
+          /tmp/test-kerberos-etype-san
+
+      - name: Existing enterprise regressions
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_enterprise.c -o /tmp/test-enterprise && /tmp/test-enterprise
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_radius.c -o /tmp/test-radius && /tmp/test-radius
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_vrrp.c -o /tmp/test-vrrp && /tmp/test-vrrp
+
+      - name: Commit only after every gate passes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_enterprise.h tests/test_kerberos_etype.c
+          git commit -m 'feat(v6): fingerprint Kerberos encryption preferences'
+          git push origin HEAD:version-6
