@@ -1,0 +1,89 @@
+name: V6 step 12b - identity framework gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step12b_identity_framework.py'
+      - '.github/workflows/v6-step12b-identity-framework.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  identity-framework-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged identity framework
+        run: python3 .github/scripts/v6_step12b_identity_framework.py
+
+      - name: Identity framework fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_identity_framework.c -o /tmp/test-identity-framework
+          /tmp/test-identity-framework
+
+      - name: Identity framework sanitizers
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_identity_framework.c -o /tmp/test-identity-framework-san
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 /tmp/test-identity-framework-san
+
+      - name: CLI dependency contract
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub
+          set +e
+          /tmp/argos-sniffer-stub --identity >/tmp/id.out 2>/tmp/id.err; rc1=$?
+          /tmp/argos-sniffer-stub --identity-raw >/tmp/raw.out 2>/tmp/raw.err; rc2=$?
+          set -e
+          test "$rc1" -ne 0
+          test "$rc2" -ne 0
+          grep -F -- '--identity requires --enterprise or --enterprise-verbose' /tmp/id.err
+          grep -F -- '--identity-raw requires --identity' /tmp/raw.err
+          /tmp/argos-sniffer-stub --help | grep -F -- '--identity'
+          /tmp/argos-sniffer-stub --help | grep -F -- '--identity-raw'
+
+      - name: Framework invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_identity.h').read_text()
+          s=Path('src/argos-sniffer.c').read_text()
+          assert 'Observed identity' in h and 'never device ownership' in h
+          assert 'if (len > 160U) len = 160U' in h
+          assert '2166136261U' in h and '16777619U' in h
+          assert 'raw_mode' in h
+          assert 'OPT_IDENTITY' in s and 'OPT_IDENTITY_RAW' in s
+          assert 'if (opt_identity && !opt_enterprise)' in s
+          assert 'if (opt_identity_raw && !opt_identity)' in s
+          assert 'passwords, tickets, tokens or auth blobs' in s
+          assert 'generic payload' not in h.lower()
+          print('identity framework invariants: PASS')
+          PY
+
+      - name: Strict full and stub builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-stub2
+
+      - name: Existing enterprise identity regressions
+        run: |
+          for f in tests/test_enterprise.c tests/test_radius.c tests/test_kerberos_etypes.c tests/test_cldap_netlogon.c tests/test_snmpv3_engineid.c tests/test_raw_identity.c; do
+            [ -f "$f" ] || continue
+            out="/tmp/$(basename "$f" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$f" -o "$out"
+            "$out"
+          done
+
+      - name: Commit production framework only after green gate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/argos-sniffer.c src/argos_identity.h tests/test_identity_framework.c
+          git diff --cached --quiet && exit 0
+          git commit -m "feat(v6): add opt-in identity evidence framework"
+          git push origin HEAD:version-6
