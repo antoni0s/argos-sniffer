@@ -87,6 +87,29 @@ jobs:
             tests/test_packet.c -o /tmp/test-packet-san
           /tmp/test-packet-san
 
+      - name: Capture plane regression and sanitizers
+        env: {ASAN_OPTIONS: detect_leaks=1:halt_on_error=1, UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1}
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_capture.c -o /tmp/test-capture
+          /tmp/test-capture
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_capture.c -o /tmp/test-capture-san
+          /tmp/test-capture-san
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('src/argos-sniffer.c').read_text(); c=Path('src/argos_capture.h').read_text()
+          assert s.count('#include "argos_capture.h"') == 1
+          for symbol in ('argos_capture_open', 'argos_capture_receive',
+                         'argos_capture_report_stats', 'argos_capture_close'):
+              assert symbol in c and symbol in s
+          for old in ('active_ifaces', 'capture_iface_t', 'hatype_to_link'):
+              assert old not in s
+          assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c
+          assert 'argos_packet_decode' not in c and 'argos_filter_match' not in c
+          assert len(c) < 10000
+          print('Capture plane ownership invariants: PASS')
+          PY
+
       - name: Stateless discovery engine regression
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_discovery.c -o /tmp/test-discovery
@@ -229,7 +252,7 @@ jobs:
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dynamic_bpf.c -o /tmp/test-dynamic-bpf
           /tmp/test-dynamic-bpf
-          grep -F 'argos_bpf_attach(sock, &bpf_cfg)' src/argos-sniffer.c
+          grep -F 'argos_bpf_attach(sock, bpf)' src/argos_capture.h
           grep -F 'ARGOS_ENTERPRISE_TCP_PORTS' src/argos_bpf.h
           grep -F '44818' src/argos_enterprise_ports.h
           grep -F 'case 44818: return ae_cip' src/argos_enterprise.h
