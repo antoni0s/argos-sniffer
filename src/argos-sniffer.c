@@ -2791,10 +2791,8 @@ int main(int argc, char *argv[]) {
     int max_packets = 0, packet_count = 0;
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
-    int opt_enterprise = 0, opt_enterprise_rl = 1;
-    argos_identity_mode_t identity_mode = ARGOS_IDENTITY_OFF;
-    uint16_t opt_wireguard_port = 51820U;
-    int wireguard_port_explicit = 0;
+    argos_runtime_config_t runtime_cfg;
+    argos_runtime_config_init(&runtime_cfg);
     int opt;
     enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT, OPT_IDENTITY, OPT_IDENTITY_RAW };
     static const struct option long_options[] = {
@@ -2828,24 +2826,24 @@ int main(int argc, char *argv[]) {
                 snprintf(sensor_name, sizeof(sensor_name), "%s", optarg);
                 break;
             case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
-            case OPT_ENTERPRISE: opt_enterprise = 1; opt_enterprise_rl = 1; opt_v6 = 1; break;
-            case OPT_ENTERPRISE_VERBOSE: opt_enterprise = 1; opt_enterprise_rl = 0; opt_v6 = 1; break;
+            case OPT_ENTERPRISE: argos_runtime_enable_enterprise(&runtime_cfg, 0); opt_v6 = 1; break;
+            case OPT_ENTERPRISE_VERBOSE: argos_runtime_enable_enterprise(&runtime_cfg, 1); opt_v6 = 1; break;
             case OPT_IDENTITY:
-                if (!argos_identity_mode_parse(optarg, &identity_mode)) {
+                if (!argos_identity_mode_parse(optarg, &runtime_cfg.identity_mode)) {
                     fprintf(stderr, "Error: --identity expects hash or raw (use --identity=hash or --identity=raw).\n");
                     return 1;
                 }
                 break;
             case OPT_IDENTITY_RAW:
                 /* v6 compatibility alias for the former second flag. */
-                identity_mode = ARGOS_IDENTITY_RAW;
+                runtime_cfg.identity_mode = ARGOS_IDENTITY_RAW;
                 break;
             case OPT_WIREGUARD_PORT: {
                 char *end = NULL; long v = strtol(optarg, &end, 10);
                 if (!end || *end || v < 1 || v > 65535) {
                     fprintf(stderr, "Error: invalid --wireguard-port: %s\n", optarg); return 1;
                 }
-                opt_wireguard_port = (uint16_t)v; wireguard_port_explicit = 1; break;
+                runtime_cfg.wireguard_port = (uint16_t)v; runtime_cfg.wireguard_port_explicit = 1; break;
             }
             case 'E': opt_ext_metrics = 1; break;
             case 'i': iface = optarg; break;
@@ -2958,13 +2956,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (wireguard_port_explicit && !opt_enterprise) {
-        fprintf(stderr, "Error: --wireguard-port requires --enterprise or --enterprise-verbose.\n");
-        return 1;
-    }
-
-    if (argos_identity_enabled(identity_mode) && !opt_enterprise) {
-        fprintf(stderr, "Error: --identity requires --enterprise or --enterprise-verbose.\n");
+    const char *runtime_cfg_error = argos_runtime_config_validate(&runtime_cfg);
+    if (runtime_cfg_error) {
+        fprintf(stderr, "Error: %s\n", runtime_cfg_error);
         return 1;
     }
 
@@ -2981,7 +2975,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !opt_enterprise) {
+    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !runtime_cfg.enterprise_enabled) {
         opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;
         opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;
         opt_v6 = 1;
@@ -2992,8 +2986,8 @@ int main(int argc, char *argv[]) {
         .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
         .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),
         .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),
-        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(opt_enterprise != 0),
-        .wireguard_port = (uint16_t)(opt_enterprise ? opt_wireguard_port : 0U)
+        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(runtime_cfg.enterprise_enabled != 0),
+        .wireguard_port = (uint16_t)(runtime_cfg.enterprise_enabled ? runtime_cfg.wireguard_port : 0U)
     };
 
     install_signal_handlers();
@@ -3277,7 +3271,7 @@ int main(int argc, char *argv[]) {
                 ip_ttl = ip6->ip6_hlim;
                 if (skip_ipv6_exthdrs(buffer, (int)len, l3_offset, &ip_protocol, &l4_offset) < 0) continue;
             } else if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
-                       (opt_enterprise && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                       (runtime_cfg.enterprise_enabled && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
                                            l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 /* L2 discovery/control: no IP addresses. Filters can still match on MAC.
@@ -3361,7 +3355,7 @@ int main(int argc, char *argv[]) {
              * Using the destination MAC would turn multicast addresses such as
              * LLDP's 01:80:c2:00:00:0e into fake device identities. */
             if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
-                (opt_enterprise && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
+                (runtime_cfg.enterprise_enabled && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
                                     l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
                 memcpy(device_mac, src_mac, 6);
@@ -3380,50 +3374,50 @@ int main(int argc, char *argv[]) {
             if (l3_proto == 0x88cc) {
                 if (opt_l2)
                     parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str, opt_l2_rl);
-                if (opt_enterprise) {
+                if (runtime_cfg.enterprise_enabled) {
                     argos_lldp_med_result_t med;
                     if (argos_lldp_med_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &med)) {
-                        if (!dedup_should_suppress(mac_str, "ENT", med.detail, opt_enterprise_rl))
+                        if (!dedup_should_suppress(mac_str, "ENT", med.detail, runtime_cfg.enterprise_rate_limited))
                             emit_telemetry("ENT|%s|-|-|LLDP-MED|%s\n", mac_str, med.detail);
                     }
                 }
                 continue;
             }
-            if (opt_enterprise && l3_proto <= 1500U) {
+            if (runtime_cfg.enterprise_enabled && l3_proto <= 1500U) {
                 argos_stp_result_t stp;
                 if (argos_stp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, opt_enterprise_rl))
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|STP|%s\n", mac_str, stp.detail);
                     continue;
                 }
                 if (argos_rstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, opt_enterprise_rl))
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|RSTP|%s\n", mac_str, stp.detail);
                     continue;
                 }
                 argos_mstp_result_t mstp;
                 if (argos_mstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &mstp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", mstp.detail, opt_enterprise_rl))
+                    if (!dedup_should_suppress(mac_str, "ENT", mstp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|MSTP|%s\n", mac_str, mstp.detail);
                     continue;
                 }
             }
-            if (opt_enterprise && l3_proto == 0x8809U) {
+            if (runtime_cfg.enterprise_enabled && l3_proto == 0x8809U) {
                 argos_lacp_result_t lacp;
                 if (argos_lacp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &lacp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail, opt_enterprise_rl))
+                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|LACP|%s\n", mac_str, lacp.detail);
                 }
                 continue;
             }
-            if (opt_enterprise && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
+            if (runtime_cfg.enterprise_enabled && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
                                    l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U)) {
                 argos_enterprise_result_t ent;
                 if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, (int)len - l3_offset, &ent) && ent.emit) {
                     char ent_sig[640];
                     snprintf(ent_sig, sizeof(ent_sig), "%s|%s", ent.proto, ent.detail);
-                    if (!dedup_should_suppress(mac_str, "ENT", ent_sig, opt_enterprise_rl))
+                    if (!dedup_should_suppress(mac_str, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|%s|%s\n", mac_str, ent.proto, ent.detail);
                 }
                 continue;
@@ -3452,13 +3446,13 @@ int main(int argc, char *argv[]) {
             const uint8_t *flow_dst_addr = is_ipv6_packet ? dst_ip6_addr.s6_addr : (const uint8_t *)&dst_ip_num;
 
             if (protocol == IPPROTO_ICMPV6 && is_ipv6_packet) {
-                if (opt_enterprise && ttl == 1U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                if (runtime_cfg.enterprise_enabled && ttl == 1U && l4_offset >= 0 && l4_offset < l3_packet_end) {
                     argos_membership_result_t membership;
                     if (argos_mld_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
                         char ent_mac[18], ent_sig[384];
                         format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|MLD|%s", src_ip_str, membership.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                             emit_telemetry("ENT|%s|%s|%s|MLD|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
                     }
                 }
@@ -3469,20 +3463,20 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            if (opt_enterprise && protocol == 2U && ttl == 1U &&
+            if (runtime_cfg.enterprise_enabled && protocol == 2U && ttl == 1U &&
                 l4_offset >= 0 && l4_offset < l3_packet_end) {
                 argos_membership_result_t membership;
                 if (argos_igmp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
                     char ent_mac[18], ent_sig[384];
                     format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|IGMP|%s", src_ip_str, membership.detail);
-                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|%s|%s|IGMP|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
                 }
                 continue;
             }
 
-            if (opt_enterprise && protocol == 112U && ttl == 255U &&
+            if (runtime_cfg.enterprise_enabled && protocol == 112U && ttl == 255U &&
                 l4_offset >= 0 && l4_offset < l3_packet_end) {
                 argos_vrrp_result_t vrrp;
                 if (argos_vrrp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset),
@@ -3490,20 +3484,20 @@ int main(int argc, char *argv[]) {
                     char ent_mac[18], ent_sig[384];
                     format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|VRRP|%s", src_ip_str, vrrp.detail);
-                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|%s|%s|VRRP|%s%s\n",
                                        ent_mac, src_ip_str, dst_ip_str, vrrp.detail, routed_str);
                 }
                 continue;
             }
 
-            if (opt_enterprise && protocol == 89U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+            if (runtime_cfg.enterprise_enabled && protocol == 89U && l4_offset >= 0 && l4_offset < l3_packet_end) {
                 argos_enterprise_result_t ent;
                 if (argos_enterprise_parse_ipproto(protocol, buffer + l4_offset, l3_packet_end - l4_offset, &ent) && ent.emit) {
                     char ent_mac[18], ent_sig[640];
                     format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent.proto, ent.detail);
-                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent.proto, ent.detail, routed_str);
                 }
                 continue;
@@ -3520,7 +3514,7 @@ int main(int argc, char *argv[]) {
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
                                    (opt_http && (dport == 80U || dport == 8080U)) ||
                                    (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) ||
-                                   (opt_enterprise && argos_enterprise_tcp_port(sport, dport));
+                                   (runtime_cfg.enterprise_enabled && argos_enterprise_tcp_port(sport, dport));
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
                     if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
@@ -3655,7 +3649,7 @@ int main(int argc, char *argv[]) {
                 if (tcp->syn && !tcp->ack)
                     app_flow_reset_pair(flow_ip_version, flow_src_addr, flow_dst_addr, sport, dport);
 
-                int enterprise_tcp = opt_enterprise && argos_enterprise_tcp_port(sport, dport);
+                int enterprise_tcp = runtime_cfg.enterprise_enabled && argos_enterprise_tcp_port(sport, dport);
                 int app_track = payload_len > 0 &&
                                 ((opt_http && (dport == 80U || dport == 8080U)) ||
                                  (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) || enterprise_tcp);
@@ -3702,7 +3696,7 @@ int main(int argc, char *argv[]) {
                         char ent_mac[18], ent_sig[768];
                         format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_tcp.proto, ent_tcp.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                             emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
                     }
                 }
@@ -3710,37 +3704,37 @@ int main(int argc, char *argv[]) {
                 /* Identity is a separate explicit vector. RDP extraction is
                  * attempted only on client->server 3389 handshake payloads that
                  * enterprise mode already admitted; default ENT remains redacted. */
-                if (argos_identity_enabled(identity_mode) && dport == 3389U && payload_len > 0) {
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 3389U && payload_len > 0) {
                     argos_identity_result_t ident;
                     if (argos_identity_rdp_mstshash(buffer + payload_offset, (size_t)payload_len,
-                                                    argos_identity_raw(identity_mode), &ident)) {
+                                                    argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
                         emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
-                                                  opt_enterprise_rl);
+                                                  runtime_cfg.enterprise_rate_limited);
                     }
                 }
 
                 /* NTLM Type 3 is the client authentication handshake carrying
                  * observed domain/user/workstation identity metadata. Only those
                  * three bounded security buffers are parsed; auth responses are not. */
-                if (argos_identity_enabled(identity_mode) && dport == 445U && payload_len > 0) {
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 445U && payload_len > 0) {
                     argos_identity_result_t ids[3];
                     size_t id_count = argos_identity_ntlm_type3(
                         buffer + payload_offset, (size_t)payload_len,
-                        argos_identity_raw(identity_mode), ids);
+                        argos_identity_raw(runtime_cfg.identity_mode), ids);
                     for (size_t ii = 0; ii < id_count; ++ii) {
                         emit_identity_observation(src_mac, src_ip_str, &ids[ii], routed_str,
-                                                  opt_enterprise_rl);
+                                                  runtime_cfg.enterprise_rate_limited);
                     }
                 }
 
                 /* Kerberos observed identity: only client->KDC AS-REQ cname/realm. */
-                if (argos_identity_enabled(identity_mode) && dport == 88U && payload_len > 0) {
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 88U && payload_len > 0) {
                     argos_identity_result_t ident;
                     if (argos_identity_kerberos_asreq(buffer + payload_offset,
                                                       (size_t)payload_len, 1,
-                                                      argos_identity_raw(identity_mode), &ident)) {
+                                                      argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
                         emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
-                                                  opt_enterprise_rl);
+                                                  runtime_cfg.enterprise_rate_limited);
                     }
                 }
 
@@ -3764,8 +3758,8 @@ int main(int argc, char *argv[]) {
                                                   dport == 5353U || sport == 5353U)) ||
                                    (opt_dns && (dport == 53U || sport == 53U)) ||
                                    (opt_tls && dport == 443U) ||
-                                   (opt_enterprise && (argos_enterprise_udp_port(sport, dport) ||
-                                                       sport == opt_wireguard_port || dport == opt_wireguard_port));
+                                   (runtime_cfg.enterprise_enabled && (argos_enterprise_udp_port(sport, dport) ||
+                                                       sport == runtime_cfg.wireguard_port || dport == runtime_cfg.wireguard_port));
                 if (!udp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
                     if (is_ipv6_packet ? owner6_mismatch(&src_ip6_addr, src_mac) : owner4_mismatch(src_ip_num, src_mac)) {
@@ -3870,27 +3864,27 @@ int main(int argc, char *argv[]) {
                 else if (opt_tls && dport == 443) {
                     parse_quic(payload, payload_len, mac_str, src_ip_str, dst_ip_str, dport, routed_str, opt_tls_rl);
                 }
-                if (opt_enterprise && ttl == 1U && (sport == 1985U || dport == 1985U)) {
+                if (runtime_cfg.enterprise_enabled && ttl == 1U && (sport == 1985U || dport == 1985U)) {
                     char ent_mac[18], ent_sig[512];
                     format_mac(src_mac, ent_mac);
 
                     argos_hsrp2_result_t hsrp2;
                     if (argos_hsrp2_parse(payload, (size_t)payload_len, &hsrp2)) {
                         snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP2|%s", src_ip_str, hsrp2.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                             emit_telemetry("ENT|%s|%s|%s|HSRP2|%s%s\n",
                                            ent_mac, src_ip_str, dst_ip_str, hsrp2.detail, routed_str);
                     } else {
                         argos_hsrp1_result_t hsrp1;
                         if (argos_hsrp1_parse(payload, (size_t)payload_len, &hsrp1)) {
                             snprintf(ent_sig, sizeof(ent_sig), "%s|HSRP|%s", src_ip_str, hsrp1.detail);
-                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                                 emit_telemetry("ENT|%s|%s|%s|HSRP|%s%s\n",
                                                ent_mac, src_ip_str, dst_ip_str, hsrp1.detail, routed_str);
                         }
                     }
                 }
-                if (opt_enterprise && (sport == opt_wireguard_port || dport == opt_wireguard_port)) {
+                if (runtime_cfg.enterprise_enabled && (sport == runtime_cfg.wireguard_port || dport == runtime_cfg.wireguard_port)) {
                     /* Type-4 transport packets can be an elephant UDP flow. Validate the
                      * exact WireGuard framing cheaply, then bypass the full parser for
                      * repeated transport-data in a short epoch. Handshake/cookie types
@@ -3907,40 +3901,40 @@ int main(int argc, char *argv[]) {
                             char ent_mac[18], ent_sig[384];
                             format_mac(src_mac, ent_mac);
                             snprintf(ent_sig, sizeof(ent_sig), "%s|WireGuard|%s", src_ip_str, wg.detail);
-                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                            if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                                 emit_telemetry("ENT|%s|%s|%s|WireGuard|%s%s\n",
                                                ent_mac, src_ip_str, dst_ip_str, wg.detail, routed_str);
                         }
                     }
                 }
-                if (opt_enterprise && argos_enterprise_udp_port(sport, dport)) {
+                if (runtime_cfg.enterprise_enabled && argos_enterprise_udp_port(sport, dport)) {
                     argos_enterprise_result_t ent_udp;
                     if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
                         char ent_mac[18], ent_sig[768];
                         format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, opt_enterprise_rl))
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
                             emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
                     }
                 }
                 /* RADIUS observed identity: client Access-Request User-Name only. */
-                if (argos_identity_enabled(identity_mode) && dport == 1812U) {
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 1812U) {
                     argos_identity_result_t ident;
                     if (argos_identity_radius_access_request(payload, (size_t)payload_len,
-                                                             argos_identity_raw(identity_mode), &ident)) {
+                                                             argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
                         emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
-                                                  opt_enterprise_rl);
+                                                  runtime_cfg.enterprise_rate_limited);
                     }
                 }
 
                 /* UDP/88 uses the same strictly bounded AS-REQ parser without
                  * the RFC 4120 TCP record-length prefix. */
-                if (argos_identity_enabled(identity_mode) && dport == 88U) {
+                if (argos_identity_enabled(runtime_cfg.identity_mode) && dport == 88U) {
                     argos_identity_result_t ident;
                     if (argos_identity_kerberos_asreq(payload, (size_t)payload_len, 0,
-                                                      argos_identity_raw(identity_mode), &ident)) {
+                                                      argos_identity_raw(runtime_cfg.identity_mode), &ident)) {
                         emit_identity_observation(src_mac, src_ip_str, &ident, routed_str,
-                                                  opt_enterprise_rl);
+                                                  runtime_cfg.enterprise_rate_limited);
                     }
                 }
             }
