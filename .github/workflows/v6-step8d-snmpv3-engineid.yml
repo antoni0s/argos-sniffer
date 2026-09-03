@@ -22,7 +22,18 @@ jobs:
           fetch-depth: 0
 
       - name: Apply staged patch
-        run: python3 .github/scripts/v6_step8d_snmpv3_engineid_patch.py
+        run: |
+          python3 .github/scripts/v6_step8d_snmpv3_engineid_patch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('src/argos_enterprise.h'); s=h.read_text()
+          s=s.replace('if (security_model != 3) return 0; pos=hn;', 'if (security_model != 3) return 0;\n    pos=hn;')
+          s=s.replace('if (w<0 || (size_t)w>=sizeof(value)-used) break; used+=(size_t)w;', 'if (w<0 || (size_t)w>=sizeof(value)-used) break;\n            used+=(size_t)w;')
+          h.write_text(s)
+          t=Path('tests/test_snmpv3_engineid.c'); q=t.read_text()
+          q=q.replace('    unsigned char discovery[360];memcpy(discovery,msg,m);\n', '')
+          t.write_text(q)
+          PY
 
       - name: SNMPv3 EngineID fixtures
         run: |
