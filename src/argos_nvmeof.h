@@ -38,7 +38,7 @@ static inline int argos_nvmeof_parse(const unsigned char *p, size_t n,
     memset(r,0,sizeof(*r));
 
     r->pdu_type=p[0]; r->flags=p[1]; r->hlen=p[2]; r->plen=anv_le32(p+4);
-    if (r->hlen < 8U || r->plen < r->hlen) return 0;
+    if (r->hlen < 8U || r->plen < r->hlen || (size_t)r->plen > n) return 0;
 
     switch (r->pdu_type) {
         case 0x00U: /* ICReq */
