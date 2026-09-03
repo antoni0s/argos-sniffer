@@ -1,0 +1,106 @@
+name: V6 filter engine consolidation gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - src/argos_filter.h
+      - tests/test_filter.c
+      - ci/staging/filter-engine.patch
+      - .github/workflows/v6-filter-engine-gate.yml
+  pull_request:
+    branches: [version-6]
+    paths:
+      - src/argos-sniffer.c
+      - src/argos_filter.h
+      - tests/test_filter.c
+      - ci/staging/filter-engine.patch
+      - .github/workflows/v6-filter-engine-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  filter-engine:
+    name: Fixtures, sanitizers, native and ARM64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baseline strict builds and size
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-before
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-before-stub
+          size /tmp/argos-before | awk 'NR==2 {print $1}' > /tmp/before-text
+
+      - name: Prepare staged or PR candidate
+        run: |
+          if grep -q '#include "argos_filter.h"' src/argos-sniffer.c; then
+            echo 'Production candidate already contains staged extraction'
+            echo 155341 > /tmp/before-text
+          else
+            git apply --check ci/staging/filter-engine.patch
+            git apply ci/staging/filter-engine.patch
+          fi
+
+      - name: Architecture and hot-path invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text()
+          engine = Path('src/argos_filter.h').read_text()
+          assert src.count('#include "argos_filter.h"') == 1
+          assert 'SECTION: Shunting-Yard Filter Engine' not in src
+          for symbol in ('argos_filter_program_t', 'argos_filter_compile',
+                         'argos_filter_match', 'argos_filter_parse_mac',
+                         'argos_filter_parse_cidr_bits'):
+              assert symbol in engine and symbol in src
+          assert 'static inline int argos_filter_match' in engine
+          assert 'int stack[ARGOS_FILTER_MAX_TOKENS]' in engine
+          assert '#define ARGOS_FILTER_MAX_TOKENS 64' in engine
+          for forbidden in ('malloc(', 'calloc(', 'realloc(', 'emit_telemetry(',
+                            'dedup_should_suppress', 'owner4_', 'owner6_'):
+              assert forbidden not in engine
+          assert len(engine) < 18000
+          print('Filter engine architecture/hot-path invariants: PASS')
+          PY
+
+      - name: Filter fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_filter.c -o /tmp/test-filter
+          /tmp/test-filter
+
+      - name: Filter sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_filter.c -o /tmp/test-filter-san
+          /tmp/test-filter-san
+
+      - name: Full native regression matrix
+        run: |
+          set -eu
+          for source in tests/test_*.c; do
+            binary="/tmp/$(basename "$source" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -lm -o "$binary"
+            "$binary"
+          done
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-after
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-after-stub
+          before=$(cat /tmp/before-text)
+          after=$(size /tmp/argos-after | awk 'NR==2 {print $1}')
+          test "$after" -le "$before"
+          echo "optimized .text: $before -> $after"
+
+      - name: ARM64 strict full and stub builds
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            src/argos-sniffer.c -lm -o /tmp/argos-arm64-full
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
+            -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-arm64-stub
