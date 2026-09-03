@@ -44,14 +44,17 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           src = Path('src/argos-sniffer.c').read_text()
-          stp = Path('src/argos_stp.h').read_text()
+          l2 = Path('src/argos_l2.h').read_text()
           bpf = Path('src/argos_bpf.h').read_text()
           for proto in ('STP', 'RSTP', 'MSTP', 'LACP', 'LLDP-MED'):
               assert f'|-|-|{proto}|' in src
           assert src.count('l3_proto <= 1500U') >= 3
           assert 'BPF_JGT | BPF_K, 1500' in bpf
-          assert 'argos_rstp_parse' in stp and 'argos_mstp_parse' in stp
-          assert '32-byte MST configuration name is intentionally not emitted' in stp
-          assert 'subtype == 3U' not in Path('src/argos_lldp_med.h').read_text()
+          assert 'argos_rstp_parse' in l2 and 'argos_mstp_parse' in l2
+          assert '32-byte MST configuration name is intentionally not emitted' in l2
+          assert 'subtype == 3U' not in l2
+          assert '#include "argos_l2.h"' in src
+          for old in ('argos_stp.h', 'argos_lldp_med.h', 'argos_lacp.h'):
+              assert not Path('src', old).exists()
           print('enterprise L2 permanent invariants: PASS')
           PY
