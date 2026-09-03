@@ -16,6 +16,9 @@ if '#define QUIC_STATE_SLOTS 64' in q:
 start = h.index('#define QUIC_STATE_SLOTS 64')
 end = h.rindex('#endif /* ARGOS_QUIC_HEAVY_H */')
 stateful = h[start:end].rstrip()
+# Preserve code exactly while normalizing legacy trailing whitespace so the
+# production consolidation passes git diff --check.
+stateful = '\n'.join(line.rstrip() for line in stateful.splitlines())
 # Header-only engine: GC is used by the main program but not by every standalone
 # QUIC fixture that includes this header. Keep strict -Werror builds clean.
 stateful = stateful.replace('static void quic_heavy_gc(void)',
