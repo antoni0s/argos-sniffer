@@ -112,7 +112,6 @@
 #endif
 #include "argos_tls_ports.h"
 #include "argos_tls.h"
-#include "argos_tls_server.h"
 #include "argos_lldp_med.h"
 #include "argos_lacp.h"
 #include "argos_stp.h"
