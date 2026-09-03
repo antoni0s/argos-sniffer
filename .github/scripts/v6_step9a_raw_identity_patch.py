@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 def replace_once(text, old, new, label):
@@ -62,10 +63,15 @@ s=replace_once(s,
 '''            if (pkt_type != LINK_RAW_IP) {\n                if (memcmp(device_mac, zero_mac, 6) == 0 || memcmp(device_mac, bcast_mac, 6) == 0) continue;\n            }\n\n            char mac_str[18];\n            const char *routed_str = routed_evidence ? "|routed" : "";\n\n            if (pkt_type == LINK_RAW_IP) {\n                snprintf(mac_str, sizeof(mac_str), "%s", current_iface->name);\n            } else {\n                snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",\n                         device_mac[0], device_mac[1], device_mac[2], device_mac[3], device_mac[4], device_mac[5]);\n            }\n''',
 '''            if (memcmp(device_mac, zero_mac, 6) == 0 || memcmp(device_mac, bcast_mac, 6) == 0) continue;\n\n            char mac_str[18];\n            const char *routed_str = routed_evidence ? "|routed" : "";\n            format_mac(device_mac, mac_str);\n''','raw mac_str identity')
 
-raw_ent='''                    if (pkt_type == LINK_RAW_IP) snprintf(ent_mac, sizeof(ent_mac), "%s", current_iface->name);\n                    else format_mac(src_mac, ent_mac);\n'''
-if s.count(raw_ent) != 4:
-    raise SystemExit(f'enterprise raw identity overrides: expected 4, got {s.count(raw_ent)}')
-s=s.replace(raw_ent,'''                    format_mac(src_mac, ent_mac);\n''')
+# Enterprise telemetry had multiple copies of the same raw-IP interface-name
+# fallback at different indentation depths (VRRP, OSPF, TCP, HSRP and UDP).
+# Replace them structurally so every enterprise vector uses the same stable
+# source identity, while still failing closed if the source shape changes.
+pat = re.compile(r'(?m)^(?P<i>\s*)if \(pkt_type == LINK_RAW_IP\) snprintf\(ent_mac, sizeof\(ent_mac\), "%s", current_iface->name\);\n(?P=i)else format_mac\(src_mac, ent_mac\);$')
+matches = list(pat.finditer(s))
+if len(matches) != 5:
+    raise SystemExit(f'enterprise raw identity overrides: expected 5, got {len(matches)}')
+s = pat.sub(lambda m: f'{m.group("i")}format_mac(src_mac, ent_mac);', s)
 
 srcp.write_text(s)
 
