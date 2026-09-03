@@ -1,0 +1,82 @@
+name: V6 step 14d - telemetry engine extraction gate
+
+on:
+  push:
+    branches: [version-6]
+    paths:
+      - '.github/scripts/v6_step14d_extract_telemetry_engine.py'
+      - '.github/workflows/v6-step14d-telemetry-engine.yml'
+      - 'tests/test_telemetry.c'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply staged telemetry extraction
+        run: python3 .github/scripts/v6_step14d_extract_telemetry_engine.py
+
+      - name: Architecture and hot-path invariants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('src/argos-sniffer.c').read_text()
+          telemetry = Path('src/argos_telemetry.h').read_text()
+          assert src.count('#include "argos_telemetry.h"') == 1
+          assert 'SECTION: Telemetry Output Engine' not in src
+          assert 'static void emit_telemetry(' not in src
+          assert 'static int parse_host_port(' not in src
+          for symbol in ('emit_telemetry', 'parse_host_port', 'ipc_sock', 'remote_sock',
+                         'opt_sensor_mode', 'sensor_observation_outer_vlan'):
+              assert symbol in telemetry
+          assert 'MSG_DONTWAIT' in telemetry
+          assert 'event[1024]' in telemetry
+          assert 'sensor_wire[1280]' in telemetry
+          assert 'OBS|%s|%s|%s|%.*s' in telemetry
+          assert 'malloc(' not in telemetry and 'calloc(' not in telemetry and 'realloc(' not in telemetry
+          print('Telemetry architecture/hot-path invariants: PASS')
+          PY
+
+      - name: Telemetry wire-format fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_telemetry.c -o /tmp/test-telemetry
+          /tmp/test-telemetry
+
+      - name: Telemetry sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_telemetry.c -o /tmp/test-telemetry-san
+          /tmp/test-telemetry-san
+
+      - name: Existing engine regressions
+        run: |
+          for t in test_quic_v2 test_tls_client test_tls_server test_enterprise test_lldp_med test_lacp test_stp test_rstp test_mstp test_vrrp test_hsrp1 test_hsrp2 test_identity_framework test_app_flow; do
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/${t}.c -lm -o /tmp/${t}
+            /tmp/${t}
+          done
+
+      - name: Strict native builds
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/argos-sniffer-v6-stub
+
+      - name: Commit production telemetry engine
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/argos_telemetry.h src/argos-sniffer.c tests/test_telemetry.c
+          git diff --cached --check
+          git commit -m 'refactor(v6): extract telemetry engine'
+          git push origin HEAD:version-6
