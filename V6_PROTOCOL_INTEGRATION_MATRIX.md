@@ -302,7 +302,11 @@ startup preparation. First evidence and failed preparation never allocate or ret
 keys, probes, TTL and wire behavior remain unchanged. PR #23 (`b799b791…`) prepares
 the existing 8 KiB IPv4 and 5 KiB IPv6 ownership tables only for enabled L2 families;
 ARP/NDP never allocate/retry and partial OOM remains family-local/fail-open. Packet-time
-QUIC allocations remain open; no staging row is promoted.
+QUIC allocation is closed by PR #24 (`76472e9d…`): `argos_quic_state_t` owns an
+enabled-only 81,919-byte workspace and the opt-in 593,408-byte/64-session heavy table;
+packet calls do not allocate/retry. This verifies lifecycle/state ownership only;
+canonical bits, exact row fields/budgets and collector mapping remain open, and no
+staging row is promoted.
 
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 

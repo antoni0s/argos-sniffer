@@ -36,7 +36,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
-| 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate state. | Eliminate packet-time allocation, explicit prepare/destroy contracts, partial-init cleanup, byte budgets, clock behavior and cache-eviction semantics. |
+| 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). | Freeze per-engine packet/byte/state budgets, clock behavior, expiry, saturation/eviction and tuple-reuse semantics. |
 | 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
@@ -90,10 +90,10 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
   absent/OOM state stays fail-open and packet calls never allocate or retry (PR #22).
 - Network ownership is prepared at startup only for enabled L2 families; partial
   failure stays family-local/fail-open and ARP/NDP calls never allocate or retry (PR #23).
-- QUIC stateless and stateful decrypt allocate scratch buffers per call;
-  `quic_heavy_ensure_table` allocates its table on first use.
-- Consequently **no malloc in the packet hot path is not currently satisfied**;
-  QUIC remains open after the completed dedup and network ownership repairs.
+- QUIC owns one enabled-only startup workspace and its opt-in heavy session table;
+  valid, invalid and stateful packet calls never allocate or retry (PR #24).
+- The audited remaining owners therefore satisfy **no malloc in the packet hot path**;
+  complete budget/expiry/saturation coverage remains open before C2 can freeze.
 - Preserve disabled-mode footprint by allocating enabled subsystem capacity at
   startup/explicit activation, before capture processing. If future JIT activation
   is required, request activation and return; prepare resources at a lifecycle
@@ -165,9 +165,8 @@ ASan/UBSan/LSan and ARM64 full/stub/fixture compilation (not hardware execution)
 Native full/stub text is 156309/144022 (-124/+204), BSS unchanged at 80304/80296,
 main stack 84944 (-16). Size budgets are unchanged; no throughput claim.
 
-Remaining C2/C8 work includes enabled-capacity selection, packet-time QUIC allocation
-and lifecycle, sink setup extraction, and complete clock/saturation/
-budget/backpressure testing. This does not freeze C2 or C8.
+Remaining C2/C8 work includes complete clock/saturation/budget/backpressure testing
+and sink setup extraction. This does not freeze C2 or C8.
 
 #### Dedup preparation — PR #22, `833849024c09b4064d9091bedf85f18545780801`
 
@@ -183,7 +182,7 @@ This intentionally removes the old per-evidence allocation retry after OOM;
 explicit lifecycle retry is possible outside packet processing. Enabled idle
 instances now reserve 49152 bytes before first evidence, rather than lazily on it;
 steady-state cache capacity, keys/hash, probes, fixed/sliding TTL and wire output
-remain unchanged. QUIC packet-time allocation remains unresolved.
+remain unchanged. PR #24 subsequently closes QUIC packet-time allocation.
 
 `test_dedup_lifecycle` traps allocation on first/failed-cache evidence, checks repeat
 prepare/destroy, independent owners, and 30000 decision/full-cache comparisons with
@@ -222,6 +221,26 @@ family selection, inspector bypass and partial failures. Core 33917508319, L2
 33917508349 and staging 33917508313 PASS, including ASan/UBSan/LSan and ARM64
 full/stub/fixture compilation. Native full/stub text is 156949/144438; BSS remains
 80304/80296. No capture-throughput or ARM64 hardware-execution claim.
+
+#### QUIC workspace ownership — PR #24, `76472e9dab2e47fcd30231c78fc653be7e7ab2e1`
+
+`argos_quic_state_t` explicitly owns reusable packet, presence-map and ClientHello
+scratch plus the bounded heavy session table. `argos_quic_prepare(state, heavy)` runs
+after final CLI precedence and before capture: disabled TLS and live inspector allocate
+nothing; enabled TLS reserves 81,919 bytes; TLS+`-W` additionally reserves the existing
+593,408-byte/64-session table. Partial failure remains fail-open and lifecycle retry is
+explicit; repeated prepare preserves state and destroy is repeat-safe. Heavy mode stays
+runtime opt-in and its capacity/TTL/reassembly behavior is unchanged.
+
+Stateless/stateful valid packets and invalid-tag packets perform no allocation or retry.
+AES-GCM authenticates before CTR plaintext work, avoiding decrypt CPU on forged Initials.
+The reusable byte presence map was retained to favor simple bounded operations over saving
+roughly 7 KiB. `test_quic_lifecycle` covers successful stateless/stateful decrypt, tag
+failure, allocation failures and repeat lifecycle with allocator traps. Core 33919266074,
+L2 33919265965 and staging 33919266033 PASS, including ASan/UBSan/LSan and ARM64
+full/stub/fixture compilation. Native full/stub text is 157024/144438; BSS is
+80360/80296 (+75/+0 text and +56/+0 BSS from PR #23). This is a structural CPU/latency
+benefit; no measured capture-throughput or ARM64 hardware-execution claim.
 
 ### Packet reachability
 
@@ -322,7 +341,7 @@ full/stub and the capture contract fixture were compiled, not hardware-executed.
   epoll immediately. A zero-interface return still requires close, as main already
   does. Open must not be called on a live owner; arbitrary zeroed state is not an
   initialized capture owner. PR #21 above covers process startup state/sink cleanup;
-  remaining packet-time allocations and full QUIC lifecycle are still open.
+  packet-time allocation is closed by PR #22–24; full budget/expiry/saturation coverage remains open.
 - `test_capture_contract` mocks syscall failures without raw-socket privileges;
   it checks EINTR/EAGAIN, clamping, per-packet versus fixed link/index, malformed
   ancillary extents, partial startup and repeated close. `test_capture` also checks
@@ -542,9 +561,8 @@ No dependency is waived by a protocol's position in that sequence.
 
 - Frame fixtures for STP/RSTP/MSTP, native+UDP PTP, IPv4/IPv6 AH/ESP, fragments,
   VLAN/QinQ/PPPoE, raw/cooked/unsupported links and ancillary VLAN/timestamp data.
-- Allocator interception after startup including successful/failing QUIC decrypt;
-  zero allocations required. Dedup and ARP/NDP first/failed-evidence interception
-  is delivered by PR #22 and PR #23.
+- Allocator interception after startup covers successful/failing QUIC decrypt and
+  dedup/ARP/NDP first/failed evidence with zero packet-time allocations (PR #22–24).
 - Partial initialization, repeated shutdown, allocation failure, table saturation,
   tuple reuse, clock rollback and expiry; explicit per-protocol packet/byte budgets.
 - Disabled-engine counters proving no payload parsing or state lookup; startup

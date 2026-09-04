@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `b799b791…` (PR #23).
-**Now:** remove QUIC scratch/state allocation from packet handling (C2).
+Branch: `version-6`. Verified checkpoint: `76472e9d…` (PR #24).
+**Now:** freeze bounded-state budgets, expiry and saturation behavior (C2).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -30,6 +30,7 @@ Branch: `version-6`. Verified checkpoint: `b799b791…` (PR #23).
 - [x] Process startup failures unwind state/capture/sinks; telemetry-owned repeat-safe close and actual-main fault gates — PR #21.
 - [x] Enabled-only dedup preparation removes allocation/retry from packet handling; lifecycle/equivalence gates — PR #22.
 - [x] Enabled-family network ownership preparation removes ARP/NDP allocation/retry from packet handling — PR #23.
+- [x] Enabled-only QUIC workspace/session preparation removes packet allocations and rejects forged tags before decrypt work — PR #24.
 
 ## How to update — mandatory
 
@@ -66,12 +67,9 @@ Branch: `version-6`. Verified checkpoint: `b799b791…` (PR #23).
 
 ### C2. Bounded state / lifecycle
 
-- [ ] Remove packet-time QUIC scratch/state allocations;
-  prepare only enabled capacity outside packet handling; heavy QUIC remains opt-in/default cheap.
-- [ ] **NOW:** QUIC capacity/failure policy and lifecycle tests beyond the completed
-  SYN/DNS/dedup/network/process-startup cleanup;
-  no extra generic tracker. First-evidence allocation traps must cover all remaining owners.
-- [ ] Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
+- [x] Remove packet-time QUIC scratch/state allocations; prepare only enabled capacity outside
+  packet handling; heavy QUIC remains opt-in/default cheap.
+- [ ] **NOW:** Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
   measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
 
 ### C3. Config / bitmap / help
@@ -217,14 +215,14 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** QUIC scratch/state allocation outside packet handling, keeping heavy mode opt-in
-and the disabled path effectively free. C1 non-port/PTP depends on C3/C4;
+**Next:** C2 budget/expiry/saturation/tuple-reuse audit, then C3 canonical bitmap/config tables.
+C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; C2/C8 remain incomplete.
-PR #23: core 33917508319, L2 33917508349, staging 33917508313 PASS.
-Native full/stub text 156949/144438; BSS unchanged at 80304/80296.
-Ownership reserves 8 KiB IPv4 plus 5 KiB IPv6 only for enabled L2 families.
+PR #24: core 33919266074, L2 33919265965, staging 33919266033 PASS.
+Native full/stub text 157024/144438; BSS 80360/80296. Enabled TLS reserves an
+81,919-byte QUIC workspace; TLS+`-W` also reserves the existing 593,408-byte table.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

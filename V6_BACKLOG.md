@@ -33,7 +33,7 @@ cryptographic keys.
 - The discovery engine and permanent regression gate are complete.
 - The compile-once bounded filter engine and permanent regression gate are complete.
 - The bounded network-context engine and permanent regression gate are complete; prefix refresh
-  remains event-driven and ownership evidence remains lazily allocated.
+  remains event-driven and enabled ownership capacity is prepared before capture.
 - Bounded TCP/UDP inspection state, optional SYN/DNS metrics and telemetry dedup now have one
   lifecycle owner while retaining independent keys, probes, TTLs and allocation policies.
 - Capture socket/epoll setup, bounded receive metadata and drop statistics now have a
@@ -199,7 +199,8 @@ blueprint. Preserve all special holds and all privacy rules above.
 - [ ] Skip disabled engines before payload parsing or state lookup.
 - [ ] Generate the classic-BPF whitelist from enabled protocol families while preserving safe
   fallbacks for VLAN, QinQ, PPPoE and IPv6 extension headers.
-- [ ] Keep heavy QUIC reassembly runtime opt-in and lazily allocated.
+- [x] Keep heavy QUIC reassembly runtime opt-in with enabled-demand startup allocation;
+  disabled/default paths remain allocation-free and packet handling never allocates.
 - [ ] Add dispatcher equivalence fixtures proving legacy flag selections reach the same parsers.
 - [ ] Benchmark packets/sec, loop latency, binary text size and AF_PACKET drop counters.
 
