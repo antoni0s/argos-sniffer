@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
-**Now:** runtime network context adoption. **Not yet:** full core freeze or staging runtime integration.
+**Now:** network context adoption gate / measured size tradeoff. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -23,6 +23,9 @@ Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
 - Work in dependency order below. Mark only the active item **NOW**.
 - Tick only delivered, verified scope: fixtures/malformed/truncation → sanitizers →
   native full/stub + ARM64 → production → cleanup. Record actual evidence, not assumed tests.
+- Source length is not a correctness/performance budget. If important architecture work exceeds
+  compiled-size limits, test reasonable alternatives and present benefit, measured text/RAM/runtime
+  costs and a recommendation. Do not discard important work or silently relax the gate.
 - On completion, move/summarize the item in **Done**: one short outcome + PR/commit.
   Remove transient logs, failed attempts and repeated implementation notes from this file;
   preserve evidence in Git/PR/tests and unresolved requirements in open tasks.
@@ -38,7 +41,8 @@ Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Runtime adoption of network context within the existing size/performance gate.
+- [ ] **NOW:** Runtime network context adoption — PR #12: correctness/sanitizer/native/ARM64 checks pass;
+  approve measured +812-byte native text tradeoff and rerun size gate before promotion (limit unchanged).
   Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
   remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
@@ -184,6 +188,10 @@ fixtures and gates; fold/remove temporary staging headers only after canonical o
 
 ## Release gates
 
+- [ ] Repository hygiene: delete obsolete merged branches; retain `main` and active `version-6`.
+  PR #1–11 heads were verified merged; PR #4 branch is now reused by active PR #12 and must be kept.
+  Other deletions await authenticated branch-delete access; none deleted.
+  Final `version-6` → `main` only after release gates.
 - [ ] Legacy/canonical golden corpus and sanitized real-PCAP optional/vendor-field acceptance.
 - [ ] Native Linux gateway; SPAN/TAP including VLAN/QinQ/unnumbered NIC; real constrained OpenWrt ARM64.
 - [ ] Long-run bounded memory/expiry and burst/drop comparison to pre-architecture baseline.
@@ -196,9 +204,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 runtime network context adoption; then remaining reachability tests.
+**Next:** Approve/reject network context size tradeoff; then remaining C1 reachability tests.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none for this step. PR #11 merged; core 33845034267, L2 33845034214,
-staging 33845034207 PASS. ARM64 fixtures compile only; real hardware remains open.
+**Pending PR:** #12 on reused `v6-network-production-gate`, not merged. Core 33863375209:
+correctness/sanitizers/native/ARM64 PASS, size FAIL; L2 33863375161 and staging 33863375177 PASS.
+ARM64 fixtures compile only; real hardware remains open. Branch cleanup awaits deletion access.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
