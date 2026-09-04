@@ -138,9 +138,30 @@ and staging 33893211837 PASS: strict standalone/native full+stub, ASan/UBSan/LSa
 ARM64 full+stub/lifecycle fixture compilation and unchanged size budgets.
 ARM64 fixtures compile only; no new hardware performance claim.
 
-Remaining C2/C8 work includes main's post-prepare capture-failure exits and sink
-cleanup, enabled-capacity selection, packet-time dedup/network/QUIC allocations,
-and complete lifecycle/clock/saturation/budget testing. This does not freeze C2.
+#### Process startup cleanup — candidate, permanent gates pending
+
+Main routes CLI/validation/state-preparation errors to shared state/sink cleanup.
+After any capture-open attempt, it first closes the initialized capture owner;
+early CLI errors never touch uninitialized capture storage. Normal shutdown closes
+the optional netlink listener before joining the same cleanup. Existing exit codes,
+packet loop, telemetry emission, BPF policy and protocol selection are unchanged.
+Telemetry owns repeat-safe `argos_telemetry_close`: closes owned Unix/UDP descriptors,
+invalidates them and resets enable flags; it does not close the stdout stream.
+Replacement UDP options invalidate the old descriptor before fallible resolution,
+preventing stale ownership/double-close. This does not make main reentrant or add
+concurrent shutdown, and does not yet extract sink setup from CLI.
+
+`test_startup_lifecycle.c` runs actual main/owners with fake syscalls/resolution,
+tracked heap/descriptors and a fresh child process for each case. It covers CLI
+validation after sink creation, initial/replacement sink failure, resolver failure,
+both metrics allocation failures, capture epoll/list/socket/bind/registration
+failures, optional netlink failures, SIGTERM shutdown, disabled metrics, repeated
+sink close and owned descriptor zero. No raw socket privilege or external traffic.
+The fixture is permanent in native, sanitizer and ARM64 compilation gates.
+
+Remaining C2/C8 work includes enabled-capacity selection, packet-time dedup/network/
+QUIC allocations and lifecycle, sink setup extraction, and complete clock/saturation/
+budget/backpressure testing. This does not freeze C2 or C8.
 
 ### Packet reachability
 
@@ -240,7 +261,8 @@ full/stub and the capture contract fixture were compiled, not hardware-executed.
 - Capture close is repeat-safe after any open attempt; allocation failure releases
   epoll immediately. A zero-interface return still requires close, as main already
   does. Open must not be called on a live owner; arbitrary zeroed state is not an
-  initialized capture owner. Global runtime/sink failure cleanup is still open.
+  initialized capture owner. The process cleanup candidate above covers the remaining
+  global runtime/sink failure paths; production promotion still requires its gate.
 - `test_capture_contract` mocks syscall failures without raw-socket privileges;
   it checks EINTR/EAGAIN, clamping, per-packet versus fixed link/index, malformed
   ancillary extents, partial startup and repeated close. `test_capture` also checks
