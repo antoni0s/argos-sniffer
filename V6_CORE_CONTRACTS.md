@@ -2,6 +2,7 @@
 
 Audit baseline: `0b704b8e2d0288702cc91b86c2f66914fa6eaaab` (`version-6`).
 Capture production commit: `aacdf45d867e13a1b382661bace53aa905fe1331` (PR #6).
+Transport API production commit: `136d772e17a02421624a9942cf7e2ba73e6cccb4` (PR #8).
 This is an **interim audit, not integration approval**.
 The protocol integration matrix remains the master blueprint. Its planned fields
 are not evidence of runtime reachability or collector compatibility.
