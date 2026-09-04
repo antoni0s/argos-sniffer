@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `7e18fab4…` (PR #21).
-**Now:** dedup preparation staged; waiting for text-budget approval (C2, PR #22).
+**Now:** dedup preparation approved; fresh gate and promotion pending (C2, PR #22).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -37,7 +37,10 @@ Branch: `version-6`. Verified checkpoint: `7e18fab4…` (PR #21).
   native full/stub + ARM64 → production → cleanup. Record actual evidence, not assumed tests.
 - Source length is not a correctness/performance budget. If important architecture work exceeds
   compiled-size limits, test reasonable alternatives and present benefit, measured text/RAM/runtime
-  costs and a recommendation. Do not discard important work or silently relax the gate.
+  costs and a recommendation. Small justified code-size growth is accepted when it improves
+  CPU/latency, boundedness or ownership; report and revise the guard with evidence instead of
+  escalating every few bytes. Significant RAM/hot-path costs still require review. Never trade
+  runtime quality for cosmetic byte savings; distinguish measured speedups from structural benefits.
 - On completion, move/summarize the item in **Done**: one short outcome + PR/commit.
   Remove transient logs, failed attempts and repeated implementation notes from this file;
   preserve evidence in Git/PR/tests and unresolved requirements in open tasks.
@@ -220,8 +223,9 @@ VLAN depends on schema approval.
 allocation-free fail-open lookup. Core 33896102915 passes native/ASan/UBSan/LSan/
 ARM64 compilation, fails only size; L2 33896102897 and staging 33896102861 PASS.
 Full text 156581 exceeds cap 156441 by 140 bytes after five measured alternatives;
-recommend this exact cap revision, pending approval. BSS unchanged; stack +16;
-existing 48 KiB cache reserved at startup only when needed. No tick/merge yet.
+User approved the exact cap revision to 156581 and prioritizes CPU/latency/code quality.
+BSS unchanged; stack +16; existing 48 KiB cache reserved at startup only when needed.
+Fresh approved gate and merge pending; no tick yet.
 PR #21: core 33894580958, L2 33894580816, staging 33894580782 PASS.
 Native full/stub text 156309/144022 (-124/+204), within unchanged budgets;
 BSS unchanged; main stack 84944 (-16); packet loop unchanged.

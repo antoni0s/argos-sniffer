@@ -36,7 +36,7 @@ jobs:
       - name: Packet, transport and capture contract sanitizers
         run: |
           set -eu
-          for source in tests/test_startup_lifecycle.c tests/test_runtime_state.c tests/test_state_lifecycle.c tests/test_packet.c tests/test_packet_ah.c tests/test_bpf_capacity.c tests/test_nonport_contract.c tests/test_encapsulation.c tests/test_packet_fragments.c tests/test_link_contract.c tests/test_inspector.c tests/test_router_exception.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
+          for source in tests/test_dedup_lifecycle.c tests/test_dedup.c tests/test_startup_lifecycle.c tests/test_runtime_state.c tests/test_state_lifecycle.c tests/test_packet.c tests/test_packet_ah.c tests/test_bpf_capacity.c tests/test_nonport_contract.c tests/test_encapsulation.c tests/test_packet_fragments.c tests/test_link_contract.c tests/test_inspector.c tests/test_router_exception.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
             binary="/tmp/$(basename "$source" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -lm -o "$binary"
             ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$binary"
@@ -49,6 +49,7 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/arm-stub
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_transport.c -o /tmp/arm-transport
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_runtime_state.c -o /tmp/arm-runtime-state
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dedup_lifecycle.c -o /tmp/arm-dedup-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_state_lifecycle.c -o /tmp/arm-state-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_startup_lifecycle.c -lm -o /tmp/arm-startup-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_packet_ah.c -lm -o /tmp/arm-packet-ah
@@ -66,11 +67,12 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_telemetry.c -o /tmp/arm-telemetry-context
           if aarch64-linux-gnu-nm /tmp/arm-full /tmp/arm-stub | grep -q 'argos_packet_transport'; then exit 1; fi
           if aarch64-linux-gnu-nm /tmp/arm-full /tmp/arm-stub | grep -Eq 'argos_network_context|argos_network_router_exception|argos_packet_tcp_header_length'; then exit 1; fi
-      - name: Text and BSS budget (explicit approval required to revise)
+      - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # PR #12: user-approved single-scan network policy tradeoff, +812
-          # full text vs 155629 baseline. No extra headroom or BSS increase.
+          # PR #22: approved +140 cap revision for allocation-free packet dedup.
+          # CPU/latency and ownership take priority over tiny text differences.
+          # Record benefit and measured costs; no extra headroom or BSS increase.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 156441
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 156581
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304

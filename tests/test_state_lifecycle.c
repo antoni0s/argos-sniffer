@@ -109,9 +109,11 @@ static void evidence(void) {
             (uint8_t)version, client, server, 50000, 53, 1, 1, "fixture.invalid", 1001));
     }
     hot = 0; assert(count == allocations);
-    /* Dedup remains a separate lazy cache until the next change. */
+    assert(argos_dedup_prepare(&a.dedup));
+    count = allocations; hot = 1;
     assert(!argos_dedup_should_suppress_at(&a.dedup, "aa", "TLS", "x", 1, 35, 1, 100));
     assert(live == 5);
+    hot = 0; assert(count == allocations);
     argos_runtime_state_destroy(&a); argos_runtime_state_destroy(&b);
     assert(!live); empty(&a); empty(&b);
 }
