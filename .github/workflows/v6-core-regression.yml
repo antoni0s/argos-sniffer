@@ -17,6 +17,7 @@ jobs:
           python3 tests/check_transport_adoption.py
           python3 tests/check_network_adoption.py
           python3 tests/check_quic_adoption.py
+          python3 tests/check_tls_allocation.py
           for source in tests/test_*.c; do
             binary="/tmp/$(basename "$source" .c)"
             cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -lm -o "$binary"
@@ -53,6 +54,7 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dedup_lifecycle.c -o /tmp/arm-dedup-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_network_owner_lifecycle.c -o /tmp/arm-network-owner-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_quic_lifecycle.c -o /tmp/arm-quic-lifecycle
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_tls_md5.c -o /tmp/arm-tls-md5
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_state_lifecycle.c -o /tmp/arm-state-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_startup_lifecycle.c -lm -o /tmp/arm-startup-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_packet_ah.c -lm -o /tmp/arm-packet-ah
@@ -73,9 +75,9 @@ jobs:
       - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # C2 QUIC candidate: all remaining allocation leaves packet handling.
+          # C2 TLS follow-up: JA4 hashing is streaming/fixed-stack/no-allocation.
           # CPU/latency and ownership take priority over tiny text differences.
           # Record benefit and measured costs; no extra headroom or BSS increase.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 157024
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 157384
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360
