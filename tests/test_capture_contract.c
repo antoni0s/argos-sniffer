@@ -16,9 +16,13 @@
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+static int fake_opt(int fd, int level, int opt, const void *p, socklen_t n);
+#define setsockopt fake_opt
 #include "../src/argos_bpf.h"
+#undef setsockopt
 
 static int fault, closes[128], next_fd, recv_mode;
+static int filter_calls, filter_failure;
 static unsigned short recv_hatype = ARPHRD_ETHER;
 static int fake_close(int fd) { assert(fd >= 0 && fd < 128); ++closes[fd]; return 0; }
 static int fake_epoll(int flags) { (void)flags; if (fault == 1) { errno = EMFILE; return -1; } return 90; }
@@ -31,7 +35,7 @@ static int fake_ioctl(int fd, unsigned long request, ...) {
     (void)fd; va_list ap; va_start(ap, request); struct ifreq *p = va_arg(ap, struct ifreq *); va_end(ap);
     if (request == SIOCGIFINDEX) { if (fault == 4) return -1; p->ifr_ifindex = 7; }
     else { assert(request == SIOCGIFHWADDR); if (fault == 5) return -1;
-           p->ifr_hwaddr.sa_family = fault == 6 ? 0xffff : ARPHRD_ETHER; }
+           p->ifr_hwaddr.sa_family = fault == 6 ? 0xffff : fault == 11 ? ARPHRD_PPP : ARPHRD_ETHER; }
     return 0;
 }
 static int fake_bind(int fd, const struct sockaddr *addr, socklen_t n) {
@@ -43,7 +47,15 @@ static int fake_ctl(int ep, int op, int fd, struct epoll_event *e) {
     return fault == 8 ? -1 : 0;
 }
 static int fake_opt(int fd, int level, int opt, const void *p, socklen_t n) {
-    (void)fd; (void)level; (void)opt; (void)p; (void)n; return fault == 9 ? -1 : 0;
+    (void)fd;
+    if (level == SOL_SOCKET && opt == SO_ATTACH_FILTER) {
+        ++filter_calls;
+        assert(n == sizeof(struct sock_fprog));
+        const struct sock_fprog *prog = p;
+        assert(prog->len > 0 && prog->len <= ARGOS_BPF_MAX_INSNS);
+        if (filter_failure) { errno = EPERM; return -1; }
+    }
+    return fault == 9 ? -1 : 0;
 }
 static ssize_t fake_recv(int fd, struct msghdr *m, int flags) {
     (void)fd; assert(flags == MSG_TRUNC);
@@ -153,10 +165,32 @@ static void link_ownership(void) {
     }
     recv_hatype = ARPHRD_ETHER;
 }
+
+static void filter_lifecycle(void) {
+    argos_bpf_config_t bpf = {0};
+    bpf.syn = bpf.multi = bpf.dhcp = bpf.netbios = bpf.dns = 1;
+    bpf.http = bpf.tls = bpf.l2 = bpf.ipv6 = bpf.enterprise = 1;
+    bpf.wireguard_port = 51820;
+    for (int mode = 0; mode < 6; ++mode) {
+        fault = mode == 4 ? 11 : 0; filter_calls = 0;
+        filter_failure = mode == 1;
+        next_fd = 20; memset(closes, 0, sizeof(closes));
+        argos_capture_state_t s;
+        /* Existing policy: syscall/build failure warns but retains capture.
+         * any/raw/live inspector intentionally bypass Ethernet-only BPF. */
+        assert(argos_capture_open(&s, mode == 3 ? "any" : "eth0", 0,
+                                  mode == 2, mode == 5 ? NULL : &bpf) == 1);
+        assert(filter_calls == (mode < 2 ? 1 : 0));
+        if (mode == 5) assert(errno == EINVAL);
+        argos_capture_close(&s); argos_capture_close(&s);
+        assert(closes[20] == 1 && closes[90] == 1);
+    }
+    filter_failure = 0; fault = 0;
+}
 int main(int argc, char **argv) {
     (void)argv;
     if (argc == 1) metadata();
-    link_ownership(); lifecycle();
+    link_ownership(); lifecycle(); filter_lifecycle();
     puts("Capture metadata/lifecycle contracts: PASS");
     return 0;
 }

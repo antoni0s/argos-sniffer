@@ -13,19 +13,26 @@ static uint32_t load_n(const unsigned char *pkt, size_t len, size_t off, unsigne
     return be32(pkt + off);
 }
 
-static uint32_t run_bpf(const argos_bpf_program_t *p, const unsigned char *pkt, size_t len) {
+static uint32_t run_bpf_code(const struct sock_filter *code, size_t count,
+                             const unsigned char *pkt, size_t len, unsigned *steps) {
     uint32_t A = 0, X = 0, M[16] = {0}; size_t pc = 0;
-    while (p && pc < p->len) {
-        struct sock_filter in = p->code[pc];
+    if (steps) *steps = 0;
+    while (code && pc < count) {
+        struct sock_filter in = code[pc];
+        if (steps) ++*steps;
         unsigned cls = BPF_CLASS(in.code), mode = BPF_MODE(in.code), size = BPF_SIZE(in.code);
         unsigned bytes = size == BPF_B ? 1U : size == BPF_H ? 2U : 4U;
         if (cls == BPF_LD) {
+            size_t off = mode == BPF_IND ? (size_t)X + in.k : in.k;
+            if ((mode == BPF_ABS || mode == BPF_IND) &&
+                (off > len || bytes > len - off)) return 0;
             if (mode == BPF_ABS) A = load_n(pkt, len, in.k, bytes);
             else if (mode == BPF_IND) A = load_n(pkt, len, (size_t)X + in.k, bytes);
             else if (mode == BPF_MEM && in.k < 16U) A = M[in.k]; else return 0;
             ++pc; continue;
         }
         if (cls == BPF_LDX) {
+            if (mode == BPF_MSH && in.k >= len) return 0;
             if (mode == BPF_MSH && size == BPF_B) X = 4U * (load_n(pkt, len, in.k, 1U) & 0x0fU);
             else if (mode == BPF_MEM && in.k < 16U) X = M[in.k]; else return 0;
             ++pc; continue;
@@ -49,6 +56,10 @@ static uint32_t run_bpf(const argos_bpf_program_t *p, const unsigned char *pkt, 
         return 0;
     }
     return 0;
+}
+
+static uint32_t run_bpf(const argos_bpf_program_t *p, const unsigned char *pkt, size_t len) {
+    return p ? run_bpf_code(p->code, p->len, pkt, len, NULL) : 0;
 }
 
 static void put16(unsigned char *p, uint16_t v) { p[0] = (unsigned char)(v >> 8); p[1] = (unsigned char)v; }

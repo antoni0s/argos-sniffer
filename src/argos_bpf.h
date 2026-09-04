@@ -2,6 +2,7 @@
 #define ARGOS_BPF_H
 
 #include <stddef.h>
+#include <errno.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -178,15 +179,13 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             if (td_n) {
                 EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
                 for (size_t i = 0; i < td_n; ++i) {
-                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, td[i], 0, 1));
-                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, td[i], UINT8_MAX, 0));
                 }
             }
             if (ts_n) {
                 EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
                 for (size_t i = 0; i < ts_n; ++i) {
-                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ts[i], 0, 1));
-                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ts[i], UINT8_MAX, 0));
                 }
             }
         }
@@ -212,15 +211,13 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         if (ud_n) {
             EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
             for (size_t i = 0; i < ud_n; ++i) {
-                EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ud[i], 0, 1));
-                EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ud[i], UINT8_MAX, 0));
             }
         }
         if (us_n) {
             EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
             for (size_t i = 0; i < us_n; ++i) {
-                EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, us[i], 0, 1));
-                EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, us[i], UINT8_MAX, 0));
             }
         }
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
@@ -249,12 +246,24 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 
 #undef ADD
 #undef EMIT
-    return p->len > 0 && p->len <= ARGOS_BPF_MAX_INSNS;
+    /* Port matches share one ACCEPT target, instead of one RET per port.
+     * UINT8_MAX is a construction-only true-branch marker. With <=256
+     * instructions every real forward offset is <=254. No fixup array,
+     * heap allocation or extra executed packet instruction is needed. */
+    _Static_assert(ARGOS_BPF_MAX_INSNS <= UINT8_MAX + 1U, "BPF fixup offset bound");
+    if (!abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS)) return 0;
+    for (unsigned i = 0; i + 1U < p->len; ++i) {
+        if (p->code[i].code == (BPF_JMP | BPF_JEQ | BPF_K) &&
+            p->code[i].jt == UINT8_MAX)
+            p->code[i].jt = (uint8_t)(p->len - i - 2U);
+    }
+    return 1;
 }
 
 static inline int argos_bpf_attach(int sock, const argos_bpf_config_t *cfg) {
     argos_bpf_program_t built;
-    if (!argos_bpf_build(cfg, &built)) return -1;
+    if (!cfg) { errno = EINVAL; return -1; }
+    if (!argos_bpf_build(cfg, &built)) { errno = EOVERFLOW; return -1; }
     struct sock_fprog prog;
     prog.len = built.len;
     prog.filter = built.code;

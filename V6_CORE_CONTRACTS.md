@@ -247,7 +247,7 @@ a replacement dispatcher. Source under `src/` remains unchanged by this step.
 | ESP | Terminal protocol 50 yields a bounded non-port transport slice, but no runtime engine receives it. | Enable gate before fixed-header extraction; no payload/decryption/tunnel recursion. |
 | PTP | Normalizer can expose native 88f7 or bounded UDP payload. Main native allowlist excludes 88f7 and has no PTP call. UDP 319/320 have no dedicated relevance/BPF entry. | One bit and one parser reached by native and UDP adapters after contracts settle. |
 
-**New priority blocker — BPF capacity:** exhaustive 10-boolean configuration
+**PR #17 baseline blocker — BPF capacity:** exhaustive 10-boolean configuration
 fixtures find 212/1024 builds fail at the existing 256-instruction limit with
 WireGuard port zero. All categories enabled plus WireGuard 51820 also fails
 (e.g. `-a --enterprise`, not `-a` alone). On the applicable fixed-Ethernet capture
@@ -258,6 +258,31 @@ new protocol gates. Evaluate shared return targets/deduplicated checks first;
 any necessary capacity/stack increase requires measured review, not a silent cap
 change. Kernel verifier/attach and fault-policy tests remain required. The current
 fixture deliberately labels this a KNOWN GAP; change its expectations when fixed.
+
+BPF repair candidate from `12166a0b…` (permanent gates pending): four port lists
+use one shared ACCEPT return, with startup-only bounded jump fixups in the existing
+instruction array. No heap/fixup array, capacity increase or per-packet C change.
+All 1024 masks × seven representative WireGuard ports fit: maximum 185 versus
+287 intended legacy instructions. The test-only frozen legacy generator has 512
+slots solely to compare intended policy for configurations that previously failed;
+production remains capped at 256. 7,239,680 frame comparisons preserve exact
+ACCEPT/DROP and executed-instruction counts, including empty TCP ACK/control,
+STUN/TURN exceptions, source/destination ports, non-port IP and encapsulation.
+This restores prefiltering where overflow formerly forced unfiltered capture;
+it does not claim the formerly failing configuration had a working kernel filter.
+
+`tests/test_bpf_capacity.c` exercises actual kernel verifier/attach and filtering
+on local datagram sockets for all 1024 masks with default WireGuard, including
+truncation and a rejected invalid jump. It is not AF_PACKET/hardware throughput.
+The shared test interpreter now rejects out-of-range loads immediately, matching
+the kernel rather than supplying a zero value and continuing. Canary tests protect
+the fixed instruction capacity. Capture mocks verify attachment selection,
+invalid-config and syscall failures, warning/continue compatibility and repeat-safe
+close. Build failure returns a deterministic errno and never attaches partial
+instructions; the existing warn-and-continue capture policy is unchanged.
+Native full/stub text 156233/143694 (+16/+18); BSS 80304/80296 unchanged.
+GCC stack-use reports unchanged attach 2688, capture-open 208, main 84960 bytes;
+these are static frame reports, not total-memory or throughput measurements.
 
 **Proposed API direction, not implemented:** packet normalization owns framing;
 preserve `ip_protocol/l4_offset` terminal semantics for existing consumers. Prefer

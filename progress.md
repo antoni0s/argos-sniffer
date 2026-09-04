@@ -212,9 +212,10 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 **Next:** BPF capacity repair, then first-AH ownership API and non-port/PTP reachability prerequisites;
 VLAN schema decision remains open. No runtime staging integration.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none. PR #17 merged; core 33874404696, L2 33874404652, staging 33874404676 PASS.
-241,362 characterization checks; known BPF capacity failure remains open above. `src/` and native
-full/stub binaries unchanged. Keep reusable `v6-core-gate` until final use. Full C1 remains open.
+**Pending:** compact BPF candidate on reused `v6-core-gate`; permanent gates pending, not complete.
+Local 7,239,680 equivalence cases and 1024 kernel verifier/filter configurations PASS;
+max instructions 287→185, limit stays 256, executed instruction counts unchanged.
+Native text +16/+18 full/stub; BSS and measured startup/main stack unchanged. Full C1 remains open.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
