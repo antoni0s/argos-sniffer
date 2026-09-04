@@ -233,7 +233,72 @@ full/stub and the capture contract fixture were compiled, not hardware-executed.
 - Packet fields contain original frame offsets, not owned payload. Never retain
   these pointers in observation/state after the receive buffer is reused.
 
-### Completion and rate semantics
+### Non-port/AH/PTP design checkpoint (no runtime API freeze)
+
+Exact baseline: `5af8df48ed46b159acb9ef2f014ef6d614e704a2`.
+`tests/test_nonport_contract.c` characterizes existing code; it does not implement
+a replacement dispatcher. Source under `src/` remains unchanged by this step.
+
+| Layer | Verified current behavior | Required change before integration |
+|---|---|---|
+| Capture | Only fixed Ethernet without live userspace filter attaches vector BPF; raw/`any` do not. Attach/build failure warns and continues without it. | Test configuration capacity and explicit failure behavior; never run a partial filter. |
+| BPF | Buildable legacy masks admit untagged IPv4 non-port protocols 2/89/112 only under enterprise. IPv6 is conservative under ipv6; VLAN/QinQ/PPPoE are unconditional fallbacks. | Compile enabled IP-protocol gates, retaining safe fallbacks and disabled userspace rejection. |
+| AH | IPv4 keeps protocol 51/header offset. IPv6 walks AH and keeps terminal protocol/offset only; repeated AH headers lose both offsets. AH→59 rejects the whole view. | Preserve separate bounded AH framing without overwriting terminal transport or rewalking extensions in engines. |
+| ESP | Terminal protocol 50 yields a bounded non-port transport slice, but no runtime engine receives it. | Enable gate before fixed-header extraction; no payload/decryption/tunnel recursion. |
+| PTP | Normalizer can expose native 88f7 or bounded UDP payload. Main native allowlist excludes 88f7 and has no PTP call. UDP 319/320 have no dedicated relevance/BPF entry. | One bit and one parser reached by native and UDP adapters after contracts settle. |
+
+**New priority blocker — BPF capacity:** exhaustive 10-boolean configuration
+fixtures find 212/1024 builds fail at the existing 256-instruction limit with
+WireGuard port zero. All categories enabled plus WireGuard 51820 also fails
+(e.g. `-a --enterprise`, not `-a` alone). On the applicable fixed-Ethernet capture
+path this prevents prefilter attachment; packets still undergo userspace gates.
+No memory overrun was observed: builder bounds reject the partial program.
+Fix compact admission generation and test all masks/custom ports before adding
+new protocol gates. Evaluate shared return targets/deduplicated checks first;
+any necessary capacity/stack increase requires measured review, not a silent cap
+change. Kernel verifier/attach and fault-policy tests remain required. The current
+fixture deliberately labels this a KNOWN GAP; change its expectations when fixed.
+
+**Proposed API direction, not implemented:** packet normalization owns framing;
+preserve `ip_protocol/l4_offset` terminal semantics for existing consumers. Prefer
+an optional caller-owned first-AH offset/length sidecar populated during the same
+bounded IPv6 walk (IPv4 uses the existing header offset). No packet-wide list,
+payload copy, allocation, protocol result fields or new per-flow tracker. Compare
+this against two inline packet-view fields before selecting the final API; measure
+stack/ABI/text and disabled-path specialization on native/ARM64. A null/disabled
+request must not add engine calls or state lookups. No extra traversal per engine.
+
+The future first-AH contract must explicitly state first-only coverage for
+repeated AH, no recursive tunnel inspection, no ports on AH/ESP slices, and no
+usable output on decode failure. Do not recover AH evidence from AH→59 or a later
+malformed extension by using a partially initialized view. Such evidence would
+need a separately reviewed partial-success API. Reject nonfirst fragments; only
+complete bounded headers on admitted first/atomic fragments can supply metadata,
+never authentication verification or reassembly.
+
+AH framing length follows [RFC 4302 §2.2](https://www.rfc-editor.org/rfc/rfc4302.html#section-2.2).
+The legacy IPv6 walker accepts an eight-byte AH, whereas the isolated parser
+requires at least twelve; neither currently enforces IPv6's eight-byte alignment.
+The proposed evidence adapter must validate those bounds without silently changing
+legacy terminal dispatch. Neither SPI/sequence extraction nor a valid length
+proves AH integrity. No ICV/key material may become observation storage.
+
+PTP adapters should supply the same bounded message slice to the existing parser:
+native `[l3_offset,packet_end)` or UDP's declared payload. Use one protocol enable
+bit before parser/state access. A WireGuard custom port of 319 or an unrelated
+enabled port can incidentally admit the tuple today; this is not PTP integration.
+PTP common-header metadata is not full message-specific validity, and its staging
+result's clock/sequence/correction fields are not frozen fingerprint inputs.
+
+Fixtures cover buildable-mask non-port admission, explicit bounded failure masks,
+raw/Ethernet/VLAN/QinQ/PPPoE/SLL compatibility, alignment/truncation/padding,
+AH length fields/mixed chain/header loss/fragments and one isolated PTP parser
+across native/UDP4/UDP6. BPF interpreter checks use complete frames only; its
+out-of-range load behavior is not the kernel's immediate-drop behavior. This is
+not an AF_PACKET throughput test, kernel verifier test or end-to-end emission test.
+Core native/sanitizer/ARM64 gate results pending. ESP/AH/PTP remain runtime-isolated.
+
+### Completion and rate semantics (remaining work)
 
 - TCP application table: 1024 slots, four probes, 60-second idle window,
   eight payload-packet budget. This is not a protocol-specific byte budget or a
