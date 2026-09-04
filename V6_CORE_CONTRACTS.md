@@ -155,6 +155,15 @@ full/stub and the capture contract fixture were compiled, not hardware-executed.
   this specific reachability defect, not the whole packet-view contract.
 - IPv6 AH is traversed as an extension by `argos_packet_ipv6_l4`; its own header
   offset is not retained for a future AH engine. ESP/AH remain on hold.
+- `tests/test_packet_fragments.c` adds decode→transport boundary coverage:
+  all IPv4/IPv6 fragment-field bits, first/nonfirst/atomic behavior, partial TCP/UDP,
+  declared-length/capture truncation and padding, unaligned raw/Ethernet frames,
+  extension length fields and mixed chains. The existing eight-iteration traversal
+  accepts at most seven extensions before a terminal header; eight are rejected.
+  AH length follows the existing formula, not full RFC validation; checksums,
+  reserved bits and extension ordering are not validated by these fixtures.
+  This test-only candidate does not change runtime policy or certify BPF/output
+  reachability, reassembly, AH ownership or the full C1 contract.
 - PTP EtherType `0x88f7` is not admitted by the main non-IP allowlist or native
   untagged BPF path. UDP 319/320 is not wired either. Both must reach one parser.
 - Thread has no raw IEEE 802.15.4 capture contract and remains on hold.

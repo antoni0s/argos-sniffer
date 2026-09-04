@@ -206,8 +206,8 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** C1 fragment/extension-chain boundary fixtures, then link semantics/header-peek reconciliation.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none for this step. PR #12 merged; core 33863897098 (including approved size cap),
-L2 33863897107 and staging 33863896952 PASS.
+**Pending gate:** `v6-fragment-boundary-gate`, test/CI-only change from `f3838507…`;
+local strict + ASan/UBSan PASS. Tick fragment coverage only after permanent CI and merge.
 ARM64 fixtures compile only; real hardware remains open. Branch cleanup awaits deletion access.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
