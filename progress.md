@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `136d772e…` (PR #8).
-**Now:** runtime transport-view adoption. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `181e1ec8…` (PR #9).
+**Now:** remaining capture/context contracts. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -13,7 +13,7 @@ Branch: `version-6`. Verified production checkpoint: `136d772e…` (PR #8).
 - [x] 37 protocol + five enrichment/policy staging modules kept isolated; fixture/isolation gates.
 - [x] STP/RSTP/MSTP normalization repair — PR #7.
 - [x] Core audit, master matrix and persistent progress/update instructions.
-- [x] Bounded transport-view API, equivalence fixtures and native/sanitizer/ARM64 gates — PR #8.
+- [x] Bounded transport API and TCP/UDP runtime adoption; equivalence/frame/sanitizer/native/ARM64 gates — PR #8–9.
 
 ## How to update — mandatory
 
@@ -36,9 +36,7 @@ Branch: `version-6`. Verified production checkpoint: `136d772e…` (PR #8).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Adopt common transport bounds in runtime without duplicate decode, changed gating
-  or wire output; retain UDP relevance-before-length-validation order and benchmark code generation.
-- [ ] Explicit direction/ownership/routed context; raw/cooked/unsupported links; AUX VLAN/timestamp;
+- [ ] **NOW:** Explicit direction/ownership/routed context; raw/cooked/unsupported links; AUX VLAN/timestamp;
   initialization failure/cleanup; remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
@@ -195,12 +193,9 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** runtime transport adoption, then remaining C1 context/reachability coverage.
+**Next:** C1 capture metadata/failure fixtures and explicit direction/ownership context.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending gate:** `v6-transport-adoption-gate`; runtime adoption is not checked until promotion.
-Previous verified gates: PR #8 core/L2/staging PASS. ARM64 fixture coverage is compilation,
-not execution. Current local transport equivalence/frame tests and ASan/UBSan PASS;
-native full text 155521 (-44), BSS 80304 (unchanged); focused mixed benchmark ~1.00x
-enabled/~0.89x disabled, not a full capture-throughput or hardware acceptance claim.
+**Pending PR:** none; #9 merged. Gates: core 33843014442, L2 33843014466,
+staging 33843014452 PASS. ARM64 fixtures compiled, not executed; real hardware remains open.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
