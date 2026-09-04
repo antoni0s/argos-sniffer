@@ -142,19 +142,27 @@ int opt_ext_metrics = 0;         /* Default: Heavy metrics (entropy, RTT, latenc
  * Stateless decrypt returns 0 (not decrypted). Stateful decrypt returns -1
  * (failure); a real stateful implementation uses 0 for reassembly pending and
  * 1 for a complete ClientHello. */
-static int decrypt_quic_sni(const unsigned char *payload, int len, int pos, uint8_t dcid_len,
+typedef struct { uint8_t *fake_tls; } argos_quic_state_t;
+#define ARGOS_QUIC_FAKE_TLS_CAP 8192U
+static int argos_quic_prepare(argos_quic_state_t *state, int heavy) {
+    (void)state; (void)heavy; return 1;
+}
+static void argos_quic_destroy(argos_quic_state_t *state) { (void)state; }
+static int decrypt_quic_sni(argos_quic_state_t *state,
+                            const unsigned char *payload, int len, int pos, uint8_t dcid_len,
                             uint8_t *out, int out_max, int *out_len) {
-    (void)payload; (void)len; (void)pos; (void)dcid_len; (void)out; (void)out_max;
+    (void)state; (void)payload; (void)len; (void)pos; (void)dcid_len; (void)out; (void)out_max;
     if (out_len) *out_len = 0;
     return 0;
 }
-static int decrypt_quic_sni_stateful(const unsigned char *payload, int len, int pos, uint8_t dcid_len,
+static int decrypt_quic_sni_stateful(argos_quic_state_t *state,
+                                     const unsigned char *payload, int len, int pos, uint8_t dcid_len,
                                      uint8_t *out, int out_max, int *out_len) {
-    (void)payload; (void)len; (void)pos; (void)dcid_len; (void)out; (void)out_max;
+    (void)state; (void)payload; (void)len; (void)pos; (void)dcid_len; (void)out; (void)out_max;
     if (out_len) *out_len = 0;
     return -1;
 }
-static void quic_heavy_gc(void) {}
+static void quic_heavy_gc(argos_quic_state_t *state) { (void)state; }
 #endif
 
 #define VERSION "6.0.0-dev"
@@ -182,6 +190,7 @@ static uint64_t hash_bytes(const void *data, size_t len) {
 
 static argos_network_state_t network_state;
 static argos_runtime_state_t runtime_state;
+static argos_quic_state_t quic_state;
 
 
 /**
@@ -497,16 +506,18 @@ static void parse_quic(const unsigned char *payload, int len, const char *mac, c
         if (!quic_initial_span(payload, len, offset, &dcid_pos, &dcid_len, &packet_span, &packet_version)) break;
         saw_initial = 1;
 
-        uint8_t fake_tls_buf[8192];
+        uint8_t *fake_tls_buf = quic_state.fake_tls;
         int fake_tls_len = 0;
         int result;
         if (opt_quic_heavy) {
             /* Stateful result: 1=ready, 0=pending, -1=real failure. */
-            result = decrypt_quic_sni_stateful(payload + offset, packet_span, dcid_pos, dcid_len,
-                                                fake_tls_buf, (int)sizeof(fake_tls_buf), &fake_tls_len);
+            result = decrypt_quic_sni_stateful(&quic_state, payload + offset, packet_span,
+                                                dcid_pos, dcid_len, fake_tls_buf,
+                                                (int)ARGOS_QUIC_FAKE_TLS_CAP, &fake_tls_len);
         } else {
-            result = decrypt_quic_sni(payload + offset, packet_span, dcid_pos, dcid_len,
-                                      fake_tls_buf, (int)sizeof(fake_tls_buf), &fake_tls_len) ? 1 : -1;
+            result = decrypt_quic_sni(&quic_state, payload + offset, packet_span,
+                                      dcid_pos, dcid_len, fake_tls_buf,
+                                      (int)ARGOS_QUIC_FAKE_TLS_CAP, &fake_tls_len) ? 1 : -1;
         }
 
         if (result > 0) {
@@ -1165,6 +1176,12 @@ int main(int argc, char *argv[]) {
         !argos_network_prepare_owners(&network_state, 1, opt_v6))
         fprintf(stderr, "warning: network ownership cache unavailable; routed inference remains fail-open.\n");
 
+    /* Stateless scratch follows TLS/QUIC demand; heavy reassembly state exists
+     * only when -W is also active. Neither allocation is attempted by packets. */
+    if (!filter_mode1.is_active && opt_tls &&
+        !argos_quic_prepare(&quic_state, opt_quic_heavy))
+        fprintf(stderr, "warning: QUIC workspace unavailable; encrypted fallback remains active.\n");
+
     argos_bpf_config_t bpf_cfg = {
         .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
         .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
@@ -1209,7 +1226,7 @@ int main(int argc, char *argv[]) {
         static uint64_t last_gc = 0, last_stats = 0, max_loop_us = 0;
         uint64_t now_us = get_current_usec();
         if (opt_quic_heavy && (now_us - last_gc > 2000000ULL)) {
-            quic_heavy_gc();
+            quic_heavy_gc(&quic_state);
             last_gc = now_us;
         }
         if (now_us - last_stats > 10000000ULL) {
@@ -1942,6 +1959,7 @@ cleanup_state:
     argos_telemetry_close();
     argos_runtime_state_destroy(&runtime_state);
     argos_network_destroy(&network_state);
+    argos_quic_destroy(&quic_state);
     return exit_status;
 }
 #endif
