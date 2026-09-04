@@ -138,7 +138,7 @@ and staging 33893211837 PASS: strict standalone/native full+stub, ASan/UBSan/LSa
 ARM64 full+stub/lifecycle fixture compilation and unchanged size budgets.
 ARM64 fixtures compile only; no new hardware performance claim.
 
-#### Process startup cleanup — candidate, permanent gates pending
+#### Process startup cleanup — PR #21, `7e18fab414b56c73d9991974469a72c06c74d55f`
 
 Main routes CLI/validation/state-preparation errors to shared state/sink cleanup.
 After any capture-open attempt, it first closes the initialized capture owner;
@@ -158,6 +158,11 @@ both metrics allocation failures, capture epoll/list/socket/bind/registration
 failures, optional netlink failures, SIGTERM shutdown, disabled metrics, repeated
 sink close and owned descriptor zero. No raw socket privilege or external traffic.
 The fixture is permanent in native, sanitizer and ARM64 compilation gates.
+The same fixture fails against the prior main with live descriptors remaining.
+Core 33894580958, L2 33894580816 and staging 33894580782 PASS, including
+ASan/UBSan/LSan and ARM64 full/stub/fixture compilation (not hardware execution).
+Native full/stub text is 156309/144022 (-124/+204), BSS unchanged at 80304/80296,
+main stack 84944 (-16). Size budgets are unchanged; no throughput claim.
 
 Remaining C2/C8 work includes enabled-capacity selection, packet-time dedup/network/
 QUIC allocations and lifecycle, sink setup extraction, and complete clock/saturation/
@@ -261,8 +266,8 @@ full/stub and the capture contract fixture were compiled, not hardware-executed.
 - Capture close is repeat-safe after any open attempt; allocation failure releases
   epoll immediately. A zero-interface return still requires close, as main already
   does. Open must not be called on a live owner; arbitrary zeroed state is not an
-  initialized capture owner. The process cleanup candidate above covers the remaining
-  global runtime/sink failure paths; production promotion still requires its gate.
+  initialized capture owner. PR #21 above covers process startup state/sink cleanup;
+  remaining packet-time allocations and full QUIC lifecycle are still open.
 - `test_capture_contract` mocks syscall failures without raw-socket privileges;
   it checks EINTR/EAGAIN, clamping, per-packet versus fixed link/index, malformed
   ancillary extents, partial startup and repeated close. `test_capture` also checks
