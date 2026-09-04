@@ -753,31 +753,30 @@ static void parse_mdns(const unsigned char *payload, int len, const char *mac, c
  * SECTION: Mode 1 - Target Packet Inspector
  * Dumps live captured packets in a tcpdump-like format when Mode 1 is active
  * (-z filter given). This is a read-only, best-effort human-readable printer;
- * it re-parses the packet independently of the main telemetry loop.
+ * it consumes the normalized view, but intentionally is not a strict transport
+ * admission path (nonfirst IPv4 fragments and invalid UDP lengths still print).
  * ============================================================================ */
 #ifndef ARGOS_PORTABLE_TEST
-static void dump_target_packet(const unsigned char *buffer, int len, int l3_offset, uint16_t l3_proto) {
+/* Called only after successful normalization and the main IP/L2 allowlist. */
+static void dump_target_packet(const argos_packet_view_t *v) {
+    const unsigned char *buffer = v->frame;
+    int len = v->captured_len, l3_offset = v->l3_offset;
+    uint16_t l3_proto = v->l3_proto;
     struct timeval tv; gettimeofday(&tv, NULL);
     struct tm *tm_info = localtime(&tv.tv_sec);
     char tmbuf[32]; strftime(tmbuf, sizeof(tmbuf), "%H:%M:%S", tm_info);
 
-    if (l3_proto == 0x0800 && len >= l3_offset + 20) {
-        int ip_available = len - l3_offset, ip_packet_len = 0, ip_header_len = 0;
-        uint16_t ip_total_len = 0;
-        if (!ipv4_header_info(buffer + l3_offset, ip_available, &ip_total_len, &ip_header_len)) return;
-        ip_packet_len = (int)ip_total_len;
-        /* Use aligned local header copies instead of casting the raw,
-         * potentially misaligned packet buffer to protocol header structs. */
-        struct iphdr ip_hdr; memcpy(&ip_hdr, buffer + l3_offset, sizeof(ip_hdr));
-        struct iphdr *ip = &ip_hdr;
+    if (v->ip_version == 4U) {
+        int ip_packet_len = v->packet_end - l3_offset;
+        int l4_offset = v->l4_offset, available = v->packet_end - l4_offset;
         char s_ip[INET_ADDRSTRLEN], d_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &ip->saddr, s_ip, sizeof(s_ip)); inet_ntop(AF_INET, &ip->daddr, d_ip, sizeof(d_ip));
-        int l4_offset = l3_offset + ip_header_len;
+        inet_ntop(AF_INET, v->src_addr, s_ip, sizeof(s_ip)); inet_ntop(AF_INET, v->dst_addr, d_ip, sizeof(d_ip));
 
-        if (ip->protocol == IPPROTO_TCP && l4_offset >= l3_offset && l4_offset + 20 <= l3_offset + ip_packet_len) {
+        if (v->ip_protocol == IPPROTO_TCP && available >= 20) {
+            int header = argos_packet_tcp_header_length(buffer + l4_offset, available);
+            if (!header) return;
             struct tcphdr tcp_hdr; memcpy(&tcp_hdr, buffer + l4_offset, sizeof(tcp_hdr));
             struct tcphdr *tcp = &tcp_hdr;
-            if (tcp->doff < 5 || l4_offset + tcp->doff * 4 > l3_offset + ip_packet_len) return;
             char flags[16] = {0}; int fi = 0;
             if (tcp->syn) flags[fi++] = 'S';
             if (tcp->ack) flags[fi++] = '.';
@@ -787,24 +786,21 @@ static void dump_target_packet(const unsigned char *buffer, int len, int l3_offs
             flags[fi] = '\0';
             printf("%s.%06d IP %s.%u > %s.%u: Flags [%s], seq %u, win %u, length %d\n",
                    tmbuf, (int)tv.tv_usec, s_ip, ntohs(tcp->source), d_ip, ntohs(tcp->dest),
-                   flags[0] ? flags : "none", (uint32_t)ntohl(tcp->seq), ntohs(tcp->window), (int)(l3_offset + ip_packet_len - l4_offset - (tcp->doff * 4)));
-        } else if (ip->protocol == IPPROTO_UDP && l4_offset >= l3_offset && l4_offset + 8 <= l3_offset + ip_packet_len) {
+                   flags[0] ? flags : "none", (uint32_t)ntohl(tcp->seq), ntohs(tcp->window), available - header);
+        } else if (v->ip_protocol == IPPROTO_UDP && available >= 8) {
             struct udphdr udp_hdr; memcpy(&udp_hdr, buffer + l4_offset, sizeof(udp_hdr));
             struct udphdr *udp = &udp_hdr;
             printf("%s.%06d IP %s.%u > %s.%u: UDP, length %u\n", tmbuf, (int)tv.tv_usec, s_ip, ntohs(udp->source), d_ip, ntohs(udp->dest), ntohs(udp->len));
-        } else if (ip->protocol == IPPROTO_ICMP) {
-            printf("%s.%06d IP %s > %s: ICMP, length %d\n", tmbuf, (int)tv.tv_usec, s_ip, d_ip, (int)(l3_offset + ip_packet_len - l4_offset));
+        } else if (v->ip_protocol == IPPROTO_ICMP) {
+            printf("%s.%06d IP %s > %s: ICMP, length %d\n", tmbuf, (int)tv.tv_usec, s_ip, d_ip, available);
         } else {
-            printf("%s.%06d IP %s > %s: proto %u, length %d\n", tmbuf, (int)tv.tv_usec, s_ip, d_ip, ip->protocol, ip_packet_len);
+            printf("%s.%06d IP %s > %s: proto %u, length %d\n", tmbuf, (int)tv.tv_usec, s_ip, d_ip, v->ip_protocol, ip_packet_len);
         }
-    } else if (l3_proto == 0x86dd && len >= l3_offset + 40) {
-        int ip6_packet_len = 0;
-        if (!ipv6_packet_info(buffer + l3_offset, len - l3_offset, &ip6_packet_len)) return;
-        struct ip6_hdr ip6_hdr_local; memcpy(&ip6_hdr_local, buffer + l3_offset, sizeof(ip6_hdr_local));
-        struct ip6_hdr *ip6 = &ip6_hdr_local;
+    } else if (v->ip_version == 6U) {
         char s_ip6[INET6_ADDRSTRLEN], d_ip6[INET6_ADDRSTRLEN];
-        inet_ntop(AF_INET6, &ip6->ip6_src, s_ip6, sizeof(s_ip6)); inet_ntop(AF_INET6, &ip6->ip6_dst, d_ip6, sizeof(d_ip6));
-        printf("%s.%06d IP6 %s > %s: next-hdr %u, length %d\n", tmbuf, (int)tv.tv_usec, s_ip6, d_ip6, ip6->ip6_nxt, ntohs(ip6->ip6_plen));
+        inet_ntop(AF_INET6, v->src_addr, s_ip6, sizeof(s_ip6)); inet_ntop(AF_INET6, v->dst_addr, d_ip6, sizeof(d_ip6));
+        /* Print the base header's next value, not the traversed L4 protocol. */
+        printf("%s.%06d IP6 %s > %s: next-hdr %u, length %d\n", tmbuf, (int)tv.tv_usec, s_ip6, d_ip6, buffer[l3_offset + 6], v->packet_end - l3_offset - 40);
     } else if (l3_proto == 0x0806) {
         printf("%s.%06d ARP, length %d\n", tmbuf, (int)tv.tv_usec, (int)len - l3_offset);
     } else {
@@ -1291,7 +1287,7 @@ int main(int argc, char *argv[]) {
 
             if (filter_mode1.is_active) {
                 if (!argos_filter_match(&filter_mode1, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
-                dump_target_packet(buffer, (int)len, l3_offset, l3_proto);
+                dump_target_packet(&packet_view);
                 packet_count++; if (max_packets > 0 && packet_count >= max_packets) running = 0;
                 continue;
             }
@@ -1300,22 +1296,8 @@ int main(int argc, char *argv[]) {
                 if (is_hard_excluded_mac(src_mac) && is_outbound) continue;
 
                 if (is_router_mac(src_mac)) {
-                    int allow_packet = 0;
-                    if (is_ip_packet && ip_protocol == IPPROTO_UDP && len >= l4_offset + 8) {
-                        struct udphdr udp_hdr; memcpy(&udp_hdr, buffer + l4_offset, sizeof(udp_hdr));
-                        if (ntohs(udp_hdr.source) == 53) allow_packet = 1;
-                    }
-                    /* A forwarded Internet SYNACK appears on br-lan with the
-                     * router as its Ethernet source. Let it reach only the TCP
-                     * correlation path so -E can compute client RTT; the
-                     * legacy SYNACK emitter below remains suppressed. */
-                    if (!is_outbound && is_ip_packet && ip_protocol == IPPROTO_TCP &&
-                        l4_offset + 20 <= l3_packet_end) {
-                        struct tcphdr forwarded_tcp;
-                        memcpy(&forwarded_tcp, buffer + l4_offset, sizeof(forwarded_tcp));
-                        if (forwarded_tcp.syn && forwarded_tcp.ack) allow_packet = 1;
-                    }
-                    if (!allow_packet) continue;
+                    if (!is_ip_packet || !argos_network_router_exception(ip_protocol,
+                            buffer + l4_offset, l3_packet_end - l4_offset, is_outbound)) continue;
                 }
             }
 

@@ -206,8 +206,9 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** C1 debug/router header peeks and encapsulation bounds, then no-port dispatch/AH/PTP reachability.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none. PR #14 merged; core 33865643412, L2 33865643350, staging 33865643383 PASS.
-Full/stub text/BSS unchanged. Keep reusable `v6-core-gate` during core work; retire after final use.
+**Pending gate:** reusable `v6-core-gate`: normalized inspector, shared TCP header bound,
+network-owned router exception bounded by IP end. Local golden/equivalence fixtures;
+main −1491 bytes, native text −160 full/−196 stub, BSS unchanged. Await CI/merge before tick.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

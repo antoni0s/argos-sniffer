@@ -35,6 +35,21 @@
 #define ARGOS_NETWORK_MAX_INTERFACES 8
 #define ARGOS_NETWORK_IFNAME_SIZE 16
 
+/* Cheap router-source admission only, not a transport/parser success result.
+ * Caller supplies the normalized IP L4 span (never capture padding), behind
+ * Ethernet/router-MAC and is_ip gates. Later dispatch still validates framing
+ * and drops nonfirst fragments. No state access or allocation here. */
+static inline int argos_network_router_exception(uint8_t protocol,
+                                                  const unsigned char *l4,
+                                                  int available, int source_side) {
+    if (protocol == 17U)
+        return available >= 8 && l4[0] == 0U && l4[1] == 53U;
+    /* Forwarded SYNACK may reach client RTT correlation, never the legacy
+     * router-source SYNACK emitter. Keep the existing minimum header gate. */
+    return !source_side && protocol == 6U && available >= 20 &&
+           (l4[13] & 0x12U) == 0x12U;
+}
+
 typedef struct {
     uint32_t ip;
     uint8_t mac[6];
