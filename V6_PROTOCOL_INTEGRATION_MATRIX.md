@@ -226,10 +226,33 @@ For every protocol with possible bulk traffic, the final runtime integration mus
 
 ## Final audit columns to fill at integration time
 
+### Exact-source checkpoint, 2026-09-04
+
+Baseline `0b704b8e2d0288702cc91b86c2f66914fa6eaaab`; capture extraction does not
+alter these parser/dispatch facts. See `V6_CORE_CONTRACTS.md` for open gates.
+This verifies individual fields only, **not whole-row integration readiness**.
+
+| Protocol | Verified owner / entry | Current gate and wire fact | Still unverified / blocked |
+|---|---|---|---|
+| TLS / DoT | `src/argos_tls.h`: `argos_tls_client_parse`, `argos_tls_server_parse`; main owns serialization | `opt_tls`; TCP 443/465/853/993/995/8443/8883; `TLS`, additive `DOT` on destination 853, `TLSSRV` for server evidence | Canonical cli_bit, normalized observation fields, byte budgets, collector mapping; enrichment remains staging |
+| LLDP-MED | `src/argos_l2.h`: `argos_lldp_med_parse` | Enterprise gate, EtherType 0x88cc, legacy `ENT|...|LLDP-MED|...` | Standalone staging reconciliation, canonical bit/vector and collector mapping |
+| LACP | `src/argos_l2.h`: `argos_lacp_parse` | Enterprise gate, EtherType 0x8809, legacy `ENT|...|LACP|...` | Standalone staging reconciliation and complete per-row audit |
+| STP family | `src/argos_l2.h`: `argos_stp_parse`, `argos_rstp_parse`, `argos_mstp_parse` | Parser and main branches exist; normal LLC 42/42/03 is rejected by current normalization | End-to-end reachability is NOT verified; fix/test before promotion or production-complete claim |
+| PTP | Isolated `src/argos_ptp.h`, no runtime call from main | Native 0x88f7 and UDP319/320 are not wired | Both paths to one engine, BPF, cli_bit, observation/state/collector contracts |
+| ESP / AH | Isolated `src/argos_esp.h` / `src/argos_ah.h`, no runtime calls | IPv6 normalization skips AH and retains only the following header offset | Hold: non-port dispatch/BPF plus AH header ownership |
+| Thread | Isolated `src/argos_thread.h`, no runtime call | No raw IEEE802.15.4 link type in current capture contract | Hold: capture/link-type semantics |
+
+Canonical `cli_bit` is not implemented for these rows. Existing category flags
+must not be written into that column as though they were independent protocol bits.
+Membership remains specified by the canonical taxonomy, not runtime-verified masks.
+No collector mapping was verified by this checkpoint.
+
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 
 ```text
 cli_bit=
+group_membership=
+super_group_membership=
 owner_file=
 entry_function=
 trigger=

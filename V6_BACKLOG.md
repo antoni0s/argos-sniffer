@@ -36,6 +36,9 @@ cryptographic keys.
   remains event-driven and ownership evidence remains lazily allocated.
 - Bounded TCP/UDP inspection state, optional SYN/DNS metrics and telemetry dedup now have one
   lifecycle owner while retaining independent keys, probes, TTLs and allocation policies.
+- Capture socket/epoll setup, bounded receive metadata and drop statistics now have a
+  cohesive lifecycle owner in `argos_capture.h`; packet normalization, filters and BPF
+  construction remain separate. This extraction does not freeze the full packet contract.
 - Thirty-seven standalone protocol headers are present as **runtime-isolated staging parsers**.
   They are test inputs, not permission to add 37 permanent public engine boundaries.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
@@ -122,6 +125,27 @@ integration, CLI bitmap wiring or telemetry-schema cutover without re-reading th
 
 ## Ordered delivery plan
 
+### Core-contract prerequisite queue (2026-09-04)
+
+Finish these in dependency order before any mass protocol or TLS-enrichment
+runtime integration. `V6_CORE_CONTRACTS.md` records exact-source gaps; existing
+completed extraction checkboxes do not mean the full contracts are frozen.
+
+1. Packet/capture/normalization ownership and end-to-end reachability.
+2. Bounded state lifecycle, including removal of packet-time allocation.
+3. Config/enable bitmap and canonical membership/precedence.
+4. Cheap dispatch and protocol/BPF gates.
+5. Suppression, dedup and explicit fast-complete/drop semantics.
+6. JIT activation, bounded scheduling and feed-state design.
+7. Normalized observation/output/JSONL streaming contract.
+8. Telemetry transport and lifecycle ownership.
+9. Helper/API cleanup after their consumers' contracts settle.
+10. Complete regression matrix and integration-readiness exit review.
+
+`V6_HELP_BACKLOG.md` owns help design; `V6_SENSOR_ENRICHMENT_BACKLOG.md` remains
+planning/staging. `V6_PROTOCOL_INTEGRATION_MATRIX.md` is the master integration
+blueprint. Preserve all special holds and all privacy rules above.
+
 ### Phase 1 — Finish the engine architecture
 
 - [x] Extract the compile-once userspace filter engine; retain fixed-stack inline matching.
@@ -129,7 +153,7 @@ integration, CLI bitmap wiring or telemetry-schema cutover without re-reading th
   bounded IPv4/IPv6 ownership and network visibility helpers.
 - [x] Consolidate bounded flow tracking, UDP suppression and dedup ownership behind a state
   subsystem without merging unrelated lifetimes or keys.
-- [ ] Consolidate the capture plane only where ownership is real: packet normalization,
+- [x] Consolidate the capture plane only where ownership is real: packet normalization,
   userspace filters and kernel BPF construction remain distinct internal sections.
 - [ ] Merge compatibility-only helpers into their owning engines:
   `tls_ports -> tls`, `enterprise_ports -> enterprise`, `raw_identity -> identity`.
