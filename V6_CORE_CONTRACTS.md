@@ -56,6 +56,31 @@ size measurements, not proof of zero runtime performance overhead.
 
 ## Concrete blockers, not hypothetical architecture work
 
+### Pending network context candidate (not production)
+
+Baseline `b44ad2866979aec430c88e18004e79ca1918d3cb`. Runtime adoption preserves
+filter/router/raw-identity/device selection and cheap TCP/UDP owner-cache gating.
+Source/destination policy lives in the network API, not borrowed packet storage.
+Routing classification merges repeated learned-prefix scans into one bounded scan;
+a later direct prefix overrides an earlier routed candidate. Destination membership
+is skipped when source-side evidence already admits the packet. No state/heap additions.
+
+132600 IPv4/IPv6 endpoint/interface/capacity equivalence cases use test-only baseline
+routing predicates; reject/reset and unchanged-state checks included. Local focused
+benchmark (0/32/64 learned prefixes) ratios 0.57–0.83 versus baseline; this is not
+capture throughput or hardware acceptance. Native full text 156441 versus 155629
+(+812 bytes, ~0.52%), BSS 80304 unchanged. Earlier narrower extraction variants
+still exceeded the text cap and did not consistently improve the focused benchmark.
+The single-scan candidate merits review for reduced repeated work and testable policy
+ownership, not merely shorter source. Existing 155677-byte cap remains unchanged;
+CI executes correctness/sanitizer/ARM64 checks before reporting budget rejection.
+Do not promote until the tradeoff is accepted and all required gates pass.
+
+Repository hygiene audit: remote heads for merged PRs #1–11 matched their PR heads.
+`main` and `version-6` are retained. No deletion occurred: git write authentication
+was unavailable, and the connected GitHub API exposes no branch-delete operation.
+Re-read exact heads before any later deletion; retain merged PR/commit recovery references.
+
 ### Allocation and lifecycle
 
 - `argos_dedup_should_suppress_at` allocates its table on first emitted evidence.
