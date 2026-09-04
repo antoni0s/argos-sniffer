@@ -25,9 +25,18 @@ jobs:
           # Capture baseline text=155549; bounded STP reachability repair.
           test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 155677
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304
-      - name: ARM64 full/stub
+      - name: Packet and transport bounds sanitizers
+        run: |
+          set -eu
+          for source in tests/test_packet.c tests/test_transport.c; do
+            binary="/tmp/$(basename "$source" .c)-san"
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -o "$binary"
+            ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$binary"
+          done
+      - name: ARM64 full/stub and transport fixture compile
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/arm-full
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/arm-stub
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_transport.c -o /tmp/arm-transport
