@@ -1,6 +1,4 @@
-/* Characterize CURRENT reachability, not a proposed runtime dispatcher.
- * Reuse the BPF interpreter only for complete frames: its load_n() does not
- * model the kernel's immediate rejection on out-of-bounds loads. */
+/* Characterize CURRENT reachability, not a proposed runtime dispatcher. */
 #define main argos_bpf_fixture_main
 #include "test_dynamic_bpf.c"
 #undef main
@@ -14,7 +12,6 @@ static unsigned long cases;
 
 static void bpf_matrix(void) {
     unsigned char p[256];
-    unsigned capacity_failures = 0;
     for (unsigned mask = 0; mask < 1024U; ++mask) {
         argos_bpf_config_t c = {0}; argos_bpf_program_t b;
         c.syn = mask & 1U; c.multi = (mask >> 1) & 1U;
@@ -22,12 +19,7 @@ static void bpf_matrix(void) {
         c.dns = (mask >> 4) & 1U; c.http = (mask >> 5) & 1U;
         c.tls = (mask >> 6) & 1U; c.l2 = (mask >> 7) & 1U;
         c.ipv6 = (mask >> 8) & 1U; c.enterprise = (mask >> 9) & 1U;
-        if (!argos_bpf_build(&c, &b)) {
-            CHECK(b.len == ARGOS_BPF_MAX_INSNS && c.enterprise && c.tls,
-                  "known bounded BPF capacity failure, never execute partial program");
-            ++capacity_failures;
-            continue;
-        }
+        CHECK(argos_bpf_build(&c, &b), "all legacy flag combinations fit BPF capacity");
         for (unsigned proto = 0; proto < 256U; ++proto) {
             if (proto == 6U || proto == 17U) continue;
             size_t n = proto4(p, (uint8_t)proto);
@@ -48,8 +40,6 @@ static void bpf_matrix(void) {
             CHECK(pass(&b, p, n), "encapsulation admission is not protocol enablement");
         }
     }
-    CHECK(capacity_failures == 212U, "KNOWN GAP: 212 legacy flag combinations exceed BPF capacity");
-    printf("Known BPF capacity gap: %u/1024 configurations (WireGuard port=0)\n", capacity_failures);
     /* Coincident configuration is admission, NOT a PTP parser/CLI bit. */
     argos_bpf_config_t c = {0}; argos_bpf_program_t b;
     c.enterprise = 1; c.wireguard_port = 319;
@@ -58,7 +48,7 @@ static void bpf_matrix(void) {
     CHECK(pass(&b, p, n), "custom WireGuard port can coincide with PTP");
     c.syn = c.multi = c.dhcp = c.netbios = c.dns = c.http = c.tls = c.l2 = c.ipv6 = 1;
     c.wireguard_port = 51820;
-    CHECK(!argos_bpf_build(&c, &b), "KNOWN GAP: all-enabled plus default WireGuard exceeds capacity");
+    CHECK(argos_bpf_build(&c, &b), "all-enabled plus default WireGuard fits capacity");
 }
 
 /* Fixture construction records offsets; never scan the packet again to find AH.
