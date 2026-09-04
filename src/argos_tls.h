@@ -40,8 +40,6 @@ static inline void atc_sanitize_field(const unsigned char *src, int len, char *d
  * cipher and extension string hashing.
  * ============================================================================ */
 #define ATC_LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
-#define ATC_MD5_STACK_BUF 8192 /* JA4 inputs here are bounded (cipher_hex<4096, ext_hex<2048) */
-
 /**
  * Computes the MD5 hash of an input message and outputs it as a lowercase hex string.
  *
@@ -65,49 +63,19 @@ static const uint32_t ATC_MD5_K[64] = {
 };
 static const uint32_t ATC_MD5_S[16] = {7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21};
 
-static inline void atc_md5_hash(const uint8_t *initial_msg, size_t initial_len, char *out_hex) {
-    uint32_t h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476;
-    /* Pad message: 1 marker bit (0x80 byte) + zero padding so length % 64 == 56,
-     * then 8 more bytes for the 64-bit original-length-in-bits field. */
-    size_t new_len = ((((initial_len + 8) / 64) + 1) * 64) - 8;
-    size_t total_len = new_len + 64;
-
-    uint8_t stackbuf[ATC_MD5_STACK_BUF];
-    uint8_t *heapbuf = NULL;
-    uint8_t *msg = stackbuf;
-    if (total_len > sizeof(stackbuf)) {
-        heapbuf = calloc(total_len, 1);
-        if (!heapbuf) {
-            strcpy(out_hex, "00000000000000000000000000000000");
-            return;
-        }
-        msg = heapbuf;
-    } else {
-        memset(stackbuf, 0, total_len);
-    }
-    memcpy(msg, initial_msg, initial_len);
-    msg[initial_len] = 128; /* append the single '1' padding bit (0x80 = 1000 0000) */
-
-    /* Write the 64-bit "message length in bits" field explicitly as
-     * little-endian bytes. JA4 inputs here are always well under 2^32 bits,
-     * so the upper 4 bytes stay zero (already zeroed by memset/calloc above). */
-    uint32_t bits_len = 8 * (uint32_t)initial_len;
-    msg[new_len + 0] = (uint8_t)(bits_len);
-    msg[new_len + 1] = (uint8_t)(bits_len >> 8);
-    msg[new_len + 2] = (uint8_t)(bits_len >> 16);
-    msg[new_len + 3] = (uint8_t)(bits_len >> 24);
-
-    /* Process the padded message in 64-byte (16 x 32-bit word) blocks. */
-    for (size_t offset = 0; offset < new_len + 8; offset += 64) {
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+static void atc_md5_compress(uint32_t state[4], const uint8_t block[64]) {
         /* Load this block's 16 words explicitly as little-endian, byte by
          * byte -- portable across host endianness and avoids casting a raw
          * byte pointer to uint32_t* (alignment/strict-aliasing safe). */
         uint32_t w[16];
         for (int wi = 0; wi < 16; wi++) {
-            const uint8_t *b = msg + offset + (size_t)wi * 4;
+            const uint8_t *b = block + (size_t)wi * 4U;
             w[wi] = (uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
         }
-        uint32_t a = h0, b = h1, c = h2, d = h3;
+        uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
         for (uint32_t i = 0; i < 64; i++) {
             uint32_t f, g;
             if (i < 16)      { f = (b & c) | ((~b) & d); g = i; }
@@ -121,9 +89,35 @@ static inline void atc_md5_hash(const uint8_t *initial_msg, size_t initial_len, 
             b = b + ATC_LEFTROTATE((a + f + ATC_MD5_K[i] + w[g]), ATC_MD5_S[(i/16)*4 + (i%4)]);
             a = temp;
         }
-        h0 += a; h1 += b; h2 += c; h3 += d;
+        state[0] += a; state[1] += b; state[2] += c; state[3] += d;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+static void atc_md5_hash(const uint8_t *initial_msg, size_t initial_len, char *out_hex) {
+    uint32_t state[4] = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
+    size_t offset = 0U;
+
+    /* Stream complete input blocks directly. Only the final one or two padded
+     * blocks need scratch, so JA4 hashing has fixed stack work and no allocator. */
+    while (initial_len - offset >= 64U) {
+        atc_md5_compress(state, initial_msg + offset);
+        offset += 64U;
     }
-    if (heapbuf) free(heapbuf);
+
+    uint8_t tail[128] = {0};
+    size_t remain = initial_len - offset;
+    if (remain != 0U) memcpy(tail, initial_msg + offset, remain);
+    tail[remain] = 0x80U;
+    size_t padded = remain < 56U ? 64U : 128U;
+    uint64_t bits_len = (uint64_t)initial_len * UINT64_C(8);
+    for (unsigned i = 0; i < 8U; ++i)
+        tail[padded - 8U + i] = (uint8_t)(bits_len >> (8U * i));
+    atc_md5_compress(state, tail);
+    if (padded == 128U) atc_md5_compress(state, tail + 64U);
+
+    uint32_t h0 = state[0], h1 = state[1], h2 = state[2], h3 = state[3];
     snprintf(out_hex, 33, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
         h0&0xff, (h0>>8)&0xff, (h0>>16)&0xff, (h0>>24)&0xff,
         h1&0xff, (h1>>8)&0xff, (h1>>16)&0xff, (h1>>24)&0xff,
