@@ -1497,7 +1497,7 @@ int main(int argc, char *argv[]) {
 
                     if (tcp->syn && !tcp->ack) {
                         if (opt_ext_metrics) {
-                            argos_syn_track_t *tracked = argos_syn_track_find(src_mac, sport, dport, flow_ip_version,
+                            argos_syn_track_t *tracked = argos_syn_track_find(&runtime_state, src_mac, sport, dport, flow_ip_version,
                                                                   flow_src_addr, flow_dst_addr, now_usec, 1);
                             if (tracked && tracked->ts_usec == 0) {
                                 tracked->ts_usec = now_usec;
@@ -1507,7 +1507,7 @@ int main(int argc, char *argv[]) {
                     }
                     else if (tcp->syn && tcp->ack) {
                         if (opt_ext_metrics) {
-                            argos_syn_track_t *tracked = argos_syn_track_find(dst_mac, dport, sport, flow_ip_version,
+                            argos_syn_track_t *tracked = argos_syn_track_find(&runtime_state, dst_mac, dport, sport, flow_ip_version,
                                                                   flow_dst_addr, flow_src_addr, now_usec, 0);
                             if (tracked) {
                                 if (tracked->ts_usec > 0 && now_usec > tracked->ts_usec) {
@@ -1535,14 +1535,14 @@ int main(int argc, char *argv[]) {
                             const char *server_ip = NULL;
                             uint16_t server_port = 0;
 
-                            tracked = argos_syn_track_find(src_mac, sport, dport, flow_ip_version,
+                            tracked = argos_syn_track_find(&runtime_state, src_mac, sport, dport, flow_ip_version,
                                                      flow_src_addr, flow_dst_addr, now_usec, 0);
                             if (tracked) {
                                 client_ip = src_ip_str;
                                 server_ip = dst_ip_str;
                                 server_port = dport;
                             } else {
-                                tracked = argos_syn_track_find(dst_mac, dport, sport, flow_ip_version,
+                                tracked = argos_syn_track_find(&runtime_state, dst_mac, dport, sport, flow_ip_version,
                                                          flow_dst_addr, flow_src_addr, now_usec, 0);
                                 if (tracked) {
                                     client_ip = dst_ip_str;

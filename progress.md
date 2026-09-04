@@ -212,7 +212,10 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 **Next:** repeat-safe SYN/DNS lifecycle, then enabled-only dedup/network/QUIC allocation
 outside packet handling. C1 non-port/PTP depends on C3/C4; VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate. C2 implementation has not started; source gaps identified.
+**Pending:** SYN/DNS owner lifecycle candidate on reused `v6-core-gate`; gates pending.
+Local failure/retry/repeated-destroy/multi-owner and hot-path allocation traps PASS.
+Native full/stub text 156433/143818 (+200/+124), within unchanged budgets;
+BSS/main stack unchanged; normalized native SYN lookup instructions unchanged.
 PR #19: core 33891626373, L2 33891626349, staging 33891626357 PASS;
 17,884,886 framing/equivalence checks, CI disabled/frozen decoder ratio 0.999.
 Native full/stub text 156233/143694; BSS and measured startup/main stack unchanged.

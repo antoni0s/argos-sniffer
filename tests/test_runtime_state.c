@@ -9,7 +9,7 @@ int main(void) {
     argos_runtime_state_t state;
     memset(&state, 0, sizeof(state));
     assert(state.dns_track == NULL && state.dedup.table == NULL);
-    assert(argos_syn_track_table == NULL);
+    assert(state.syn_track == NULL);
 
     const uint8_t a[16] = {10,0,0,1};
     const uint8_t b[16] = {10,0,0,2};
@@ -23,13 +23,13 @@ int main(void) {
     assert(state.dns_track == NULL && state.dedup.table == NULL);
 
     assert(argos_runtime_state_enable_extended_metrics(&state));
-    assert(argos_syn_track_table != NULL && state.dns_track != NULL);
-    argos_syn_track_t *syn = argos_syn_track_find(mac, 50000, 443, 4,
+    assert(state.syn_track != NULL && state.dns_track != NULL);
+    argos_syn_track_t *syn = argos_syn_track_find(&state, mac, 50000, 443, 4,
                                                    a, b, 1000, 1);
     assert(syn != NULL && syn->valid);
     syn->ts_usec = 1000;
-    assert(argos_syn_track_find(mac, 50000, 443, 4, a, b, 1001, 0) == syn);
-    assert(argos_syn_track_find(mac, 50000, 443, 4, a, b,
+    assert(argos_syn_track_find(&state, mac, 50000, 443, 4, a, b, 1001, 0) == syn);
+    assert(argos_syn_track_find(&state, mac, 50000, 443, 4, a, b,
                                 1000 + ARGOS_SYN_TRACK_TTL_USEC + 1, 0) == NULL);
 
     assert(!argos_dedup_should_suppress_at(&state.dedup, "aa", "TLS", "x",
