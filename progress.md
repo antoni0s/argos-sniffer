@@ -1,172 +1,200 @@
-# Argos Sniffer v6 progress
+# Argos Sniffer v6 — progress
 
-Repository: `antoni0s/argos-sniffer`; delivery branch: `version-6`.
-Last verified implementation checkpoint: `f0418a241b8e5ce9112509bc7b72e7d1db44375e` (PR #7).
-Last updated: 2026-09-04. Core contracts are **not frozen**.
+Branch: `version-6`. Verified checkpoint: `edc956ea…` (PR #7).
+**Now:** packet/transport contract. **Not yet:** full core freeze or staging runtime integration.
 
-## Update rules — mandatory for every task/handoff
+## Done — high-level history
 
-1. Fetch/exact-check current remote HEAD and reread affected source and all six
-   documents named in `AGENTS.md`. This checkpoint is historical, not permission
-   to assume the branch has not changed.
-2. `[x]` means delivered and verified for the stated scope. `[ ]` includes pending,
-   active, blocked and partially implemented tasks; state which in the text.
-3. Before work, identify the active task and dependencies. On completion, update
-   its box, evidence/commit or PR, tests, remaining limitations and next action.
-4. A code task closes only after fixtures (including malformed/truncated input),
-   relevant sanitizers, strict native full/stub and ARM64 validation, production
-   promotion and staging cleanup where applicable. Record what actually ran.
-5. Do not invent the hash of the commit containing this update. Reference its
-   verified parent, implementation commit or PR; obtain current HEAD from Git.
-6. Preserve unfinished tasks. Split partially finished items; never mark an entire
-   contract frozen because an extraction subtask completed. Add newly found bugs
-   at the earliest dependency-safe position and mark regressions reopened.
-7. Reconcile with the detailed backlogs/matrix after each step. This is the status
-   index; those documents retain every detailed acceptance criterion. Do not
-   silently delete/override their requirements or planned/hold status.
-8. Before handoff, record exact source/test status, uncommitted/unmerged work,
-   known blockers and one concrete next step. Never claim hardware or collector
-   acceptance from compiler or standalone parser results.
+- [x] TLS/QUIC consolidation and enterprise/L2 fingerprint foundations.
+- [x] Observed identity, hash/raw modes and RDP/NTLM privacy hardening.
+- [x] Discovery, compile-once filters and network/prefix/netlink extraction.
+- [x] TCP DONE/UDP suppression/dedup modules and SYN/DNS lifecycle facade.
+- [x] Capture lifecycle extraction and permanent native/ARM64 gates — PR #6.
+- [x] 37 protocol + five enrichment/policy staging modules kept isolated; fixture/isolation gates.
+- [x] STP/RSTP/MSTP normalization repair — PR #7.
+- [x] Core audit, master matrix and persistent progress/update instructions.
 
-## Completed foundations (scope-limited, not full contract freeze)
+## How to update — mandatory
 
-- [x] Cohesive TLS and consolidated QUIC engines; heavy QUIC stays opt-in.
-- [x] Enterprise and canonical L2 parser coverage; end-to-end gaps remain below.
-- [x] Observed identity framework and RDP/NTLM privacy hardening.
-- [x] Identity hash/raw modes and legacy alias.
-- [x] TCP DONE state extraction and UDP suppression consolidation.
-- [x] Dedup module and initial config foundation.
-- [x] Discovery engine and permanent regression gate.
-- [x] Compile-once bounded userspace filter engine.
-- [x] Network context/prefix/netlink ownership extraction.
-- [x] SYN/DNS/dedup lifecycle facade with independent keys/TTLs.
-- [x] Capture lifecycle extraction — PR #6, `aacdf45d…`; cleanup `91a1d6bd…`.
-  Native/ARM64 full+stub, standalone matrix and relevant sanitizers passed.
-- [x] Preserve 37 isolated protocol headers and five enrichment/policy headers.
-- [x] Correct synthetic TLS enrichment fixture lengths; permanent sanitizer and
-  transitive runtime-isolation CI coverage — PR #6.
-- [x] Exact-source interim core audit and matrix checkpoints — `91a1d6bd…`.
-- [x] Add this progress index and repository instructions for future updates.
+- Exact-check remote HEAD; read affected source and all documents in `AGENTS.md`.
+- Work in dependency order below. Mark only the active item **NOW**.
+- Tick only delivered, verified scope: fixtures/malformed/truncation → sanitizers →
+  native full/stub + ARM64 → production → cleanup. Record actual evidence, not assumed tests.
+- On completion, move/summarize the item in **Done**: one short outcome + PR/commit.
+  Remove transient logs, failed attempts and repeated implementation notes from this file;
+  preserve evidence in Git/PR/tests and unresolved requirements in open tasks.
+- Split partial tasks; do not tick an entire group until every named requirement is satisfied.
+  Carry residual work forward explicitly, then proceed to the next dependency-safe task.
+- Reconcile all four backlogs/matrix plus the core audit after each step. Every new
+  requirement must join a named open item here; no silent removal, forgotten holds or
+  promotion of planned values to facts. When source specs change, review their diff.
+- Before handoff, update **Now / Next / Blocked**, actual production checkpoint and pending PRs.
+  Do not invent the containing commit's SHA. Reopen regressions. No automatic background work implied.
 
-## Core delivery queue — complete before runtime staging integration
+## Core work — in dependency order
 
-### 1. Packet / capture / normalization
+### C1. Packet / capture / normalization
 
-- [x] STP/RSTP/MSTP frame→BPF→normalization→canonical-parser regression
-  and repair of rejected LLC 42/42/03. Bound BPDU input by declared 802.3 length.
-  PR #7: red→green test, native/VLAN/QinQ, malformed/truncated/padding cases;
-  native and ARM64 full/stub, standalone matrix, L2 ASan/UBSan and isolation pass.
-  Optimized native text +16 bytes; BSS unchanged; no new allocation/state/parser.
-- [ ] **NEXT:** Common bounded transport/payload view; no observations stored in packet view.
-- [ ] Capture ancillary VLAN/timestamp, raw/cooked/unsupported and failure cleanup tests.
-- [ ] Non-port IPv4/IPv6 dispatch contract, including AH header ownership.
-- [ ] Native EtherType and UDP PTP reachability to one engine.
-- [ ] Freeze packet/capture ownership after end-to-end evidence.
+- [ ] **NOW:** Bounded transport/payload API and tests: borrowed frame/L2/L3/L4/payload
+  ranges, EtherType, IP version/protocol, MAC/IP endpoints, optional ports; no observations.
+- [ ] Adopt common transport bounds in runtime without duplicate decode, changed gating or wire output.
+- [ ] Explicit direction/ownership/routed context; raw/cooked/unsupported links; AUX VLAN/timestamp;
+  initialization failure/cleanup; VLAN/QinQ/PPPoE and fragment/extension-chain boundary tests.
+- [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
+  reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
+- [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
 
-### 2. Bounded state ownership / lifecycle
+### C2. Bounded state / lifecycle
 
-- [ ] Remove packet-time dedup and network-owner allocations.
-- [ ] Replace QUIC per-packet scratch allocations with bounded owned workspace.
-- [ ] Prepare enabled heavy QUIC capacity outside packet processing; disabled stays cheap.
-- [ ] Partial-init failure, repeated destruction and explicit state ownership tests.
-- [ ] Per-protocol packet/byte/state ceilings, expiry, collision/eviction and clock policy.
-- [ ] Allocation trap covering first evidence, success and malformed packets.
+- [ ] Remove packet-time dedup/network-owner allocations and QUIC scratch allocations;
+  prepare only enabled capacity outside packet handling; heavy QUIC remains opt-in/default cheap.
+- [ ] Explicit owner/init/destroy, partial-init failure, repeated shutdown, optional SYN/DNS
+  lifecycle; no extra generic tracker. Test first evidence and success/failure with allocation trap.
+- [ ] Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
+  measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
 
-### 3. Config / enable bitmap
+### C3. Config / bitmap / help
 
-- [ ] One bit per protocol; shared PROFILE → SUPER GROUP → GROUP → PROTOCOL tables.
-- [ ] Exact core/standard/full/home/enterprise/sensor profile membership.
-- [ ] Enable/unrated masks and explicit precedence/legacy compatibility window.
-- [ ] Resolve identity-group selector without redefining `--identity[=hash|raw]`.
-- [ ] Keep sensor deployment mode separate from sensor profile.
-- [ ] Compile selections once; no packet-time CLI string processing.
-- [ ] Compact base help and all thematic screens in `V6_HELP_BACKLOG.md`.
-- [ ] Generate help from canonical tables; no `--help-protocols`; no runtime init on help.
+- [ ] Single protocol bits and shared PROFILE → SUPER GROUP → GROUP → PROTOCOL tables.
+  Profiles: core/standard/full/home/enterprise/sensor. Super-groups:
+  network/application/enterprise/industrial/iot/vpn. All canonical groups/protocols in the matrix;
+  duplicate NFS/NTLM membership must not duplicate parsing/emission.
+- [ ] Exact profile contents, enable/unrated masks, precedence/conflicts, legacy short-flag window;
+  lowercase normal/UPPERCASE unrated; validate `--no-rate-limit=<all|super-group|group>`.
+  Compile once, no per-packet string lookups.
+- [ ] Resolve identity-group selector while preserving `--identity[=hash|raw]`/legacy alias;
+  separate sensor profile from deployment mode; no implicit raw identity or staged protocol activation.
+- [ ] One-screen base help with measured line/byte budget; no `--help-protocols`.
+  Generate `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
+  `--help-industrial`, `--help-iot`, `--help-vpn` from the same runtime tables.
+- [ ] Operational help: `--help-capture` (interfaces, -r/-R, promisc/count, sensor/filter/encapsulation);
+  `--help-output` (Unix/UDP/stdout fan-out, approved grammar/JSONL/compatibility);
+  `--help-rate` (actual compiled -f default, dedup/unrated);
+  `--help-identity` (modes/allowed fields/prohibited secrets);
+  `--help-performance` (-E/-W, defaults/allocation costs, promoted flow-shape only).
+- [ ] Help tests: exact per-screen/profile membership; valid case-sensitive examples and no drift;
+  real defaults; generated/removed staging * markers; bounded unknown-option error; native/ARM64
+  output parity; cheap `--version`; help/version never initialize capture/BPF/state/sinks.
 
-### 4. Cheap dispatch / protocol gating
+### C4. Cheap dispatch / gates
 
-- [ ] Startup-derived L2/L3/L4 dispatch and BPF plans.
-- [ ] Gate disabled protocols before parser/state access; call-counter proof.
-- [ ] Legacy selection equivalence and VLAN/QinQ/PPPoE/IPv6 fallback tests.
-- [ ] Connect existing production engines to bitmap without changing wire output.
-- [ ] Packet-rate, loop-latency, text-size and capture-drop comparisons.
+- [ ] Startup L2/L3/L4/BPF plans; disabled engine skips parsing AND state lookup (call-counter tests);
+  safe VLAN/QinQ/PPPoE/IPv6 fallbacks; legacy selection equivalence.
+- [ ] Wire existing production engines to bitmap: network/addressing/discovery; TLS/DoT/QUIC/HTTP;
+  L2/routing/redundancy; enterprise/storage/database/identity/management; industrial/IoT/VPN.
+  Golden output unchanged; kernel early-drop preserved.
+- [ ] Benchmark packets/sec, loop latency, text size, disabled-feature cost and AF_PACKET drops.
 
-### 5. Suppression / dedup / completion
+### C5. Suppression / dedup / fast-complete
 
-- [ ] Explicit per-protocol complete/drop/budget policy and bulk-tail tests.
-- [ ] Preserve directional DONE, SYN generation reset and completing-packet emission.
-- [ ] Preserve UDP fixed epoch versus sliding/fixed emission dedup semantics.
-- [ ] Unrated output must not disable parser safety limits.
-- [ ] Remove duplicate TLS completion parsing; preserve later identity evidence.
+- [ ] Audit all production/staged protocols for elephant exposure and unnecessary continued parsing.
+  Matrix: trigger/evidence packets, completion/drop reasons, packet/byte/state ceilings, timeout,
+  identity value and privacy. Include TLS/DoT/QUIC/HTTP/SMB/NTLM/RPC/NFS/RDP/SSH/databases/
+  LDAP/media/exporters/industrial/VPN.
+- [ ] Preserve directional DONE/SYN reset, completion packet emission, later identity evidence;
+  UDP fixed epochs versus fixed/sliding emission dedup. Unrated output never removes safety budgets.
+- [ ] Remove repeated TLS completion parsing; reconcile fast-complete staging with existing owner.
+  Bulk-tail invariance and long-elephant benchmarks; policy debug uses aggregates, not per-flow spam.
 
-### 6. JIT / scheduling / feed-state design
+### C6. JIT / scheduling / feed state
 
-- [ ] Define demand activation outside packet processing, immutable config epoch.
-- [ ] Bounded maintenance/GC quotas, feed-state lifecycle and overload policy.
-- [ ] No new generic tracker or runtime code generation implied by JIT.
+- [ ] Define demand activation outside packet handling, immutable config epoch, feed-state lifecycle,
+  bounded GC/maintenance quotas and overload behavior. No implied runtime code generation/new tracker.
 
-### 7. Observation / output / JSONL
+### C7. Observation / schema / JSONL / collector
 
-- [ ] Bounded normalized evidence lifetime independent of borrowed packet buffers.
-- [ ] Vector names, required/optional fields, privacy, escaping and truncation rules.
-- [ ] JSONL newline/partial-write/backpressure policy and golden corpus.
-- [ ] Collector accepts legacy and canonical records with equivalent mapping.
-- [ ] Compatibility mode/window before canonical schema cutover; no duplicate evidence.
+- [ ] Inventory cross-protocol semantic fields and inconsistent names; canonical protocol/role/phase/
+  capabilities/identity/product/fingerprint/completion, while preserving protocol-private evidence.
+  Map collector needs to minimum sensor fields; observations own bounded data, not packet pointers.
+- [ ] Freeze vector names (SMB2→SMB, SMB2-NTLM→NTLM, ORACLE-TNS→ORACLE, SNMPV3-USM→SNMP);
+  exact required/optional fields for every candidate vector in the master matrix; ordering,
+  escaping/missing values/string-list caps and per-vector privacy. No current wire cutover yet.
+- [ ] JSONL/streaming: valid escaping/control-byte handling, truncation/newline guarantees,
+  partial-write/EAGAIN/slow or closed stdout tests; bounded backpressure policy.
+- [ ] Collector-first dual legacy/canonical acceptance, equivalent normalized inventory records,
+  every-vector mapping fixture and unknown-field compatibility; sniffer legacy ENT mode without
+  duplicate evidence. Verify deployed collector before cutover; one-release window, remove old
+  parser only in a major schema transition.
 
-### 8. Telemetry ownership
+### C8. Telemetry boundaries
 
-- [ ] Move sink setup/close behind telemetry API; no transport ownership in engines.
-- [ ] Explicit stdout blocking/drop policy, bounded buffering and sink counters.
-- [ ] Fan-out, slow/closed sink, EAGAIN and feedback-loop regression tests.
+- [ ] Sink setup/close API owns Unix/UDP/stdout transports; engines never own transport/queues.
+  Explicit stdout blocking/drop policy, bounded buffering/counters, fan-out and feedback-loop tests.
 
-### 9. Helper/API cleanup
+### C9. Helper/API cleanup
 
-- [ ] Reconcile tls_ports→TLS, enterprise_ports→enterprise, raw_identity→identity
-  after config/dispatch settle; keep BPF independent of parsing implementations.
-- [ ] Main becomes capture→normalize→gate/dispatch→engine→observation→identity/telemetry.
-- [ ] Final packet-loop, allocations, cache locality, state-size and privacy audit.
+- [ ] Fold tls_ports/enterprise_ports/raw_identity into justified owners after consumers settle;
+  BPF must not import parsing implementations. Common types/utilities only for truly shared concepts.
+- [ ] Main becomes capture→normalize→gate/dispatch→bounded engine→observation→identity/telemetry.
+  Cohesive engines, no one-header-per-protocol; final packet-loop/allocation/cache/memory/privacy audit.
 
-### 10. Test matrix and final integration-readiness review
+### C10. Acceptance and final readiness review
 
-- [ ] Native full/stub + sanitizer + ARM64 matrix for each architecture step.
-- [ ] End-to-end reachability, disabled-cost, allocation and bounded-state gates.
-- [ ] Exact per-protocol matrix fields, including membership and collector mapping.
-- [ ] Final eight-part review: frozen contracts; source/API changes; ready parsers;
-  adaptations; holds; integration order; verified matrix entries; missing tests.
+- [ ] Per-step native full/stub, ASan/UBSan, ARM64, malformed corpus, performance/size and isolation gates;
+  end-to-end reachability, disabled-cost, allocation, lifecycle/saturation/expiry and golden output tests.
+- [ ] For EVERY production or staged protocol verify: cli_bit, group_membership, super_group_membership,
+  owner_file, entry_function, trigger, bpf_gate, state_owner, vector, required_fields, optional_fields,
+  fingerprint_inputs, max_packets, max_bytes, state_bytes, timeout_ms, complete_when, drop_when,
+  privacy_assertions, fixtures, collector_mapping. No planned owners/triggers treated as facts.
+- [ ] Eight-part exit review: frozen contracts; exact source/API changes; immediately ready parsers;
+  adaptations; holds; safe order; newly exact matrix entries; missing tests. No mass integration before this.
 
-## Post-freeze integration queue — all currently blocked by core readiness
+## After core freeze — integration order
 
-- [ ] Reconcile LLDP-MED/LACP/STP staging with canonical L2; no duplicate parsers.
-- [ ] RIP/PTP control-plane integration (PTP requires both reachability paths).
-- [ ] Syslog, NetFlow, IPFIX, sFlow.
-- [ ] HTTP proxy, Telnet, VNC, WinRM, LPD.
-- [ ] RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
-- [ ] FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
-- [ ] KNXnet/IP, S7comm, OPC UA, DNP3.
-- [ ] Matter; **Thread HOLD** until raw IEEE802.15.4/6LoWPAN capture is defined.
-- [ ] OpenVPN/IKE; **ESP/AH HOLD** until non-port dispatch/BPF is proven.
-- [ ] TLS client/server enrichment after TLS/public-observation freeze: reuse parsers,
-  realistic HRR/PSK/ECH/early-data visibility tests; JA4S decision remains open.
-- [ ] Certificate framing/X.509 leaf metadata: bounds/privacy/visibility and collector fixtures.
-- [ ] Flow-shape design experiment only after state freeze; no new tracker now.
-- [ ] Active enrichment hook remains post-v6, optional/default OFF.
+Each item requires ALL C10 row fields, CLI/help/BPF, budgets/fast-drop/privacy, collector/vector
+fixtures and gates; fold/remove temporary staging headers only after canonical ownership is proven.
 
-## Release acceptance
+- [ ] Reconcile LLDP-MED/LACP/STP fixture-by-fixture with canonical L2; one runtime parser, old wire preserved.
+- [ ] RIP/PTP (PTP dual-path prerequisite).
+- [ ] Syslog/NetFlow/IPFIX/sFlow.
+- [ ] HTTP proxy/Telnet/VNC/WinRM/LPD.
+- [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
+- [ ] FTP/NVMe-TCP/MongoDB/Redis/TACACS+/LDAP/LDAPS.
+- [ ] KNXnet-IP/S7comm/OPC-UA/DNP3.
+- [ ] Matter; Thread HOLD on capture semantics.
+- [ ] OpenVPN/IKE; ESP/AH HOLD on no-port dispatch/BPF.
 
-- [ ] Sanitized real-PCAP and legacy/canonical golden output corpus.
-- [ ] Native Linux gateway and Linux SPAN/TAP VLAN/QinQ acceptance.
-- [ ] Actual OpenWrt ARM64 constrained-hardware acceptance.
-- [ ] Long-run memory/expiry and burst/drop comparison to baseline.
-- [ ] Documentation, changelog, compatibility matrix and 6.0.0-rc1 checklist.
+## Enrichment — explicit dependencies and acceptance
 
-## Current handoff
+- [ ] After TLS/public-observation freeze: audit current coverage, reuse ClientHello/ServerHello parser;
+  decide official JA4S-compatible vs Argos-native (not frozen), raw component order/GREASE rules.
+  Client version/JA4/ALPN/SNI + ECH/PSK/modes/early_data/versions; server version/cipher/ext_count
+  + visible ALPN/HRR/PSK/early_data/ECH/extensions. Distinguish offers from negotiated/visible facts.
+- [ ] Realistic sanitized TLS1.2/1.3, HRR/ECH/resumption-PSK/0-RTT fixtures; per-direction packet/byte
+  caps and exact completion; preserve JA4/privacy; text-size and hot-path benchmark before promotion.
+- [ ] Certificate-lite: framing present/chain_count/leaf_len/truncated; leaf CN/issuer/self-signed hint,
+  bounded SAN/count/truncation, validity, optional approved leaf hash. Decide vector ownership;
+  realistic visibility/full positive DER fixtures; never retain/emit certificate chains or key blobs.
+- [ ] All enrichment outputs: vector owner, required/optional field caps, deterministic fingerprint
+  ordering/noise exclusion; stability under irrelevant changes and discrimination under meaningful
+  changes; privacy/completion/malformed/collector fixtures; native/sanitizer/ARM64/performance gates.
+  Exclude SNI/session IDs/SPIs/sequence/timestamps/random/hostnames from implementation fingerprints
+  unless explicitly relationship evidence; textual certificate tuples are not cryptographic identity.
+- [ ] Flow-shape EXPERIMENT only after state freeze: reuse ownership without coupled lifetimes;
+  costs for 128/256/512/1024 flows and 2/4/8 samples/direction; saturation/truncation/expiry,
+  deterministic direction-size fixtures, bounded counts/bytes/transitions/coarse timing.
+  No payload/high-resolution traces/ML/new tracker; default OFF; benchmark enabled/disabled;
+  reject if disabled cost measurable or enabled cost disproportionate. Collector owns correlation.
+- [ ] Active enrichment POST-v6/default OFF: request/result contract and separate owner/process decision;
+  passive confidence→wait/targeted-probe policy; narrowly scoped IPP/HTTP HEAD/UPnP/SNMP metadata
+  only with external credential policy; explicit opt-in/rate/safety limits. No generic scan/cloud/
+  write operations in packet path; no credentials/arbitrary bodies or silent overwrite of passive evidence.
 
-Delivered: progress index/instructions and STP path repair in PR #7. All three
-PR gates passed. No temporary staging workflow/patch was introduced; the core
-regression workflow is permanent. No staging parser was runtime-integrated.
-Next: define/test the common bounded transport/payload view, retaining no-port IP
-protocols and borrowed-buffer lifetime. The full packet contract remains open.
-Known larger blockers: packet-time allocations, incomplete bitmap/dispatch,
-streaming/backpressure, collector compatibility. No full core contract is frozen.
-Mandatory invariant: bounded work/state; no regex/full DPI/full stream storage;
-no secrets or bulk payload emission; no mass staging runtime integration.
+## Release gates
+
+- [ ] Legacy/canonical golden corpus and sanitized real-PCAP optional/vendor-field acceptance.
+- [ ] Native Linux gateway; SPAN/TAP including VLAN/QinQ/unnumbered NIC; real constrained OpenWrt ARM64.
+- [ ] Long-run bounded memory/expiry and burst/drop comparison to pre-architecture baseline.
+- [ ] Documentation/changelog/compatibility matrix and 6.0.0-rc1 checklist.
+
+## Coverage / handoff
+
+Coverage map: V6_BACKLOG phases 1–5→C1–C5/C9; phase 6→C7; phases 7–8→integration;
+phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/enrichment.
+V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
+Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
+
+**Next:** transport API/fixtures, then runtime adoption. **Blocked:** full freeze; collector compatibility;
+Thread, ESP/AH and TLS enrichment as above. **Pending PR:** none at this checkpoint.
+Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
+disabled features effectively zero cost; protocol engines do not own telemetry transport.

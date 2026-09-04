@@ -37,8 +37,56 @@ typedef struct {
     uint8_t dst_addr[16];
 } argos_packet_view_t;
 
+/* Borrowed transport slice; offsets refer to packet.frame and expire when that
+ * capture buffer is reused. No payload/observation storage or protocol state.
+ * Non-port IP protocols expose the whole L4 span, not invented port numbers. */
+typedef struct {
+    int payload_offset;
+    int payload_len;
+    int header_len;
+    uint16_t sport;
+    uint16_t dport;
+    uint8_t has_ports;
+} argos_transport_view_t;
+
 static inline uint16_t read_be16(const unsigned char *p) {
     return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+
+/* Invoke only when a transport view is needed, not for every disabled engine.
+ * Success validates framing/bounds, not checksums or application semantics.
+ * First fragments retain legacy behavior if a complete transport header fits;
+ * non-first fragments cannot expose transport. IPv6 AH traversal is unchanged:
+ * this API describes the final normalized L4 span, not skipped AH headers. */
+static inline int argos_packet_transport(const argos_packet_view_t *v,
+                                          argos_transport_view_t *out) {
+    if (!out) return 0;
+    memset(out, 0, sizeof(*out));
+    if (!v || !v->frame || !v->is_ip || v->nonfirst_fragment ||
+        v->l3_offset < 0 || v->l4_offset < v->l3_offset ||
+        v->packet_end < v->l4_offset || v->packet_end > v->captured_len) return 0;
+    int available = v->packet_end - v->l4_offset;
+    int header = 0, length = available;
+    const unsigned char *p = v->frame + v->l4_offset;
+    if (v->ip_protocol == 6U) {
+        if (available < 20) return 0;
+        header = (int)(p[12] >> 4) * 4;
+        if (header < 20 || header > available) return 0;
+    } else if (v->ip_protocol == 17U) {
+        if (available < 8) return 0;
+        length = (int)read_be16(p + 4);
+        if (length < 8 || length > available) return 0;
+        header = 8;
+    }
+    if (header) {
+        out->sport = read_be16(p);
+        out->dport = read_be16(p + 2);
+        out->has_ports = 1U;
+    }
+    out->header_len = header;
+    out->payload_offset = v->l4_offset + header;
+    out->payload_len = length - header;
+    return 1;
 }
 
 static inline int ipv4_header_info(const unsigned char *buffer, int available,

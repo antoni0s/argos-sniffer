@@ -8,6 +8,12 @@ are not evidence of runtime reachability or collector compatibility.
 
 ## Current source facts and remaining freeze gates
 
+Transport API addition: `argos_packet_transport()` returns borrowed bounded offsets,
+TCP/UDP ports only when applicable, and rejects malformed lengths/nonfirst fragments.
+`tests/test_transport.c` checks equivalence with the existing main-loop predicates.
+Main adoption remains pending: no runtime dispatch, AH handling, output, or state
+ownership changes are implied by adding this currently unused inline API.
+
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
 | 1 | Capture / normalization | Capture extraction owns AF_PACKET setup/receive/stats/close. `argos_packet.h` owns a borrowed frame view; main still validates TCP/UDP and derives payload bounds. | Common bounded transport view, explicit no-port transport semantics, L2 reachability fixtures, ancillary metadata and failure-path coverage. |
@@ -108,8 +114,8 @@ size measurements, not proof of zero runtime performance overhead.
 ## Preliminary integration readiness (not the final post-freeze review)
 
 1. **Immediately runtime-ready staging parsers: none.** Core gates remain open.
-2. LLDP-MED/LACP/STP require reconciliation with the canonical L2 engine; STP also
-   requires normalization repair. Keep exactly one runtime parser per protocol.
+2. LLDP-MED/LACP/STP require reconciliation with the canonical L2 engine. STP
+   normalization was repaired in PR #7; keep exactly one runtime parser per protocol.
 3. TLS client/server enrichment must become fields of the existing parse result,
    not a second ClientHello/ServerHello parse. ATS1 remains the current server
    fingerprint. JA4S choice, ordering and naming are not frozen.
