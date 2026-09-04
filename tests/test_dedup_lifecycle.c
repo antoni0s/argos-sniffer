@@ -43,9 +43,10 @@ int main(void) {
     argos_dedup_destroy(&a); argos_dedup_destroy(&a);
     argos_dedup_destroy(&b); assert(!live);
 
-    /* Every decision and every stored byte must match the prior algorithm.
-     * Saturation/collisions, fixed/sliding TTL, unrated, zero TTL, changed
-     * keys, duplicate bursts and bounded backward clock steps are included. */
+    /* Every decision and every stored byte must match the prior algorithm for
+     * monotonic time. Saturation/collisions, fixed/sliding TTL, unrated, zero
+     * TTL, changed keys and duplicate bursts are included. Clock rollback is
+     * intentionally fail-open now and has a dedicated contract fixture. */
     reference_dedup_state_t old = {0};
     assert(argos_dedup_prepare(&a));
     (void)reference_dedup_should_suppress_at(&old, "seed", "seed", "", 1, 1, 0, 0);
@@ -56,7 +57,7 @@ int main(void) {
         snprintf(mac, sizeof(mac), "device-%u", i / 3U % 4096U);
         snprintf(payload, sizeof(payload), "evidence-%u", i / 7U % 4096U);
         int ttl = i % 97U ? 35 : 0, sliding = (i / 500U) & 1U, enabled = i % 101U != 0;
-        time_t now = 1000 + i / 3U - (i % 13U == 0 ? 20 : 0);
+        time_t now = 1000 + i / 3U;
         int expected = reference_dedup_should_suppress_at(&old, mac, "TLS", payload,
                                                           enabled, ttl, sliding, now);
         assert(argos_dedup_should_suppress_at(&a, mac, "TLS", payload,

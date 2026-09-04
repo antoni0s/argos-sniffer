@@ -29,6 +29,9 @@ int main(void) {
     assert(syn != NULL && syn->valid);
     syn->ts_usec = 1000;
     assert(argos_syn_track_find(&state, mac, 50000, 443, 4, a, b, 1001, 0) == syn);
+    assert(argos_syn_track_find(&state, mac, 50000, 443, 4, a, b, 999, 0) == NULL);
+    syn = argos_syn_track_find(&state, mac, 50000, 443, 4, a, b, 1000, 1);
+    assert(syn != NULL); syn->ts_usec = 1000;
     assert(argos_syn_track_find(&state, mac, 50000, 443, 4, a, b,
                                 1000 + ARGOS_SYN_TRACK_TTL_USEC + 1, 0) == NULL);
 

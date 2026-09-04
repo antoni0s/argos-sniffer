@@ -255,16 +255,25 @@ static const uint8_t ARGOS_QUIC_V2_SALT[20] = { 0x0d,0xed,0xe3,0xde,0xf7,0x00,0x
 #define ARGOS_QUIC_FAKE_TLS_HEADER 5U
 #define ARGOS_QUIC_FAKE_TLS_CAP 8192U
 #define ARGOS_QUIC_MAX_PACKET 65535U
+#define ARGOS_QUIC_SUCCESS_SLOTS 64U
+#define ARGOS_QUIC_SUCCESS_TTL_SECS 15
 #define ARGOS_QUIC_WORKSPACE_BYTES \
     (ARGOS_QUIC_MAX_PACKET + ARGOS_QUIC_MAX_CRYPTO + ARGOS_QUIC_FAKE_TLS_CAP)
 
 typedef struct quic_session quic_session_t;
+typedef struct {
+    uint64_t key;
+    time_t last_seen;
+    uint8_t valid;
+} argos_quic_success_entry_t;
+
 typedef struct {
     uint8_t *workspace;
     uint8_t *packet_scratch;
     uint8_t *present;
     uint8_t *fake_tls;
     quic_session_t *sessions;
+    argos_quic_success_entry_t success[ARGOS_QUIC_SUCCESS_SLOTS];
 } argos_quic_state_t;
 
 typedef struct {
@@ -523,6 +532,40 @@ static inline void argos_quic_destroy(argos_quic_state_t *state) {
     memset(state, 0, sizeof(*state));
 }
 
+/* Direct-slot post-success suppression is intentionally independent from
+ * Initial reassembly. Collisions replace one slot; rollback/expiry fail open. */
+static inline int argos_quic_success_recent_at(argos_quic_state_t *state,
+                                               uint64_t key, time_t now) {
+    if (!state) return 0;
+    argos_quic_success_entry_t *e =
+        &state->success[(size_t)(key & (ARGOS_QUIC_SUCCESS_SLOTS - 1U))];
+    if (!e->valid || e->key != key) return 0;
+    if (now < e->last_seen ||
+        (now - e->last_seen) > ARGOS_QUIC_SUCCESS_TTL_SECS) {
+        e->valid = 0U;
+        return 0;
+    }
+    return 1;
+}
+
+static inline int argos_quic_success_recent(argos_quic_state_t *state, uint64_t key) {
+    return argos_quic_success_recent_at(state, key, time(NULL));
+}
+
+static inline void argos_quic_mark_success_at(argos_quic_state_t *state,
+                                              uint64_t key, time_t now) {
+    if (!state) return;
+    argos_quic_success_entry_t *e =
+        &state->success[(size_t)(key & (ARGOS_QUIC_SUCCESS_SLOTS - 1U))];
+    e->key = key;
+    e->last_seen = now;
+    e->valid = 1U;
+}
+
+static inline void argos_quic_mark_success(argos_quic_state_t *state, uint64_t key) {
+    argos_quic_mark_success_at(state, key, time(NULL));
+}
+
 
 /* Presence is tracked as one bit per CRYPTO byte instead of one byte per
  * CRYPTO byte. This cuts the reassembly table by almost half while preserving
@@ -538,14 +581,19 @@ static inline int quic_present_test(const quic_session_t *s, size_t off) {
     return (s->present[off >> 3] & (uint8_t)(1U << (off & 7U))) != 0U;
 }
 
-static inline void quic_heavy_gc(argos_quic_state_t *state) {
+static inline void quic_heavy_gc_at(argos_quic_state_t *state, time_t now) {
     if (!state || !state->sessions) return;
-    time_t now = time(NULL);
     for (int i=0; i<QUIC_STATE_SLOTS; i++) {
-        if (state->sessions[i].used && (now - state->sessions[i].last_seen) > QUIC_STATE_TTL) {
+        if (state->sessions[i].used &&
+            (now < state->sessions[i].last_seen ||
+             (now - state->sessions[i].last_seen) > QUIC_STATE_TTL)) {
             memset(&state->sessions[i], 0, sizeof(state->sessions[i])); /* Evict stale state */
         }
     }
+}
+
+static inline void quic_heavy_gc(argos_quic_state_t *state) {
+    quic_heavy_gc_at(state, time(NULL));
 }
 
 static int quic_heavy_find_session(argos_quic_state_t *state,

@@ -37,6 +37,12 @@ int main(void) {
     assert(argos_network_prepare_owners(&state, 0, 1));
     argos_network_owner6_note(&state, &host6, mac_a);
     assert(argos_network_owner6_mismatch(&state, &host6, mac_b) == 1);
+    size_t owner6_slot = (size_t)(argos_network_hash(host6.s6_addr, 16) &
+                                  (ARGOS_NETWORK_OWNER6_SLOTS - 1U));
+    assert(state.owner6[owner6_slot].valid);
+    state.owner6[owner6_slot].last_seen = time(NULL) + 60;
+    assert(argos_network_owner6_mismatch(&state, &host6, mac_b) == 0);
+    assert(!state.owner6[owner6_slot].valid);
 
     assert(argos_network_add_inside(&state, "192.0.2.0/24"));
     assert(argos_network_add_inside(&state, "2001:db8:99::/48"));

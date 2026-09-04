@@ -136,7 +136,8 @@ static inline void argos_network_owner4_note(argos_network_state_t *state,
     for (size_t p = 0; p < ARGOS_NETWORK_OWNER_PROBES; ++p) {
         size_t slot = (base + p) & (ARGOS_NETWORK_OWNER4_SLOTS - 1U);
         argos_network_owner4_entry_t *e = &state->owner4[slot];
-        if (!e->valid || (now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS || e->ip == ip) {
+        if (!e->valid || now < e->last_seen ||
+            (now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS || e->ip == ip) {
             e->ip = ip; memcpy(e->mac, mac, 6); e->last_seen = now; e->valid = 1; return;
         }
         if (e->last_seen < oldest) { oldest = e->last_seen; repl = slot; }
@@ -155,7 +156,8 @@ static inline int argos_network_owner4_mismatch(argos_network_state_t *state,
         argos_network_owner4_entry_t *e =
             &state->owner4[(base + p) & (ARGOS_NETWORK_OWNER4_SLOTS - 1U)];
         if (!e->valid) continue;
-        if ((now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS) { e->valid = 0; continue; }
+        if (now < e->last_seen ||
+            (now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS) { e->valid = 0; continue; }
         if (e->ip == ip) return memcmp(e->mac, mac, 6) != 0;
     }
     return 0;
@@ -173,7 +175,8 @@ static inline void argos_network_owner6_note(argos_network_state_t *state,
     for (size_t p = 0; p < ARGOS_NETWORK_OWNER_PROBES; ++p) {
         size_t slot = (base + p) & (ARGOS_NETWORK_OWNER6_SLOTS - 1U);
         argos_network_owner6_entry_t *e = &state->owner6[slot];
-        if (!e->valid || (now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS ||
+        if (!e->valid || now < e->last_seen ||
+            (now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS ||
             IN6_ARE_ADDR_EQUAL(&e->ip, ip)) {
             e->ip = *ip; memcpy(e->mac, mac, 6); e->last_seen = now; e->valid = 1; return;
         }
@@ -195,7 +198,8 @@ static inline int argos_network_owner6_mismatch(argos_network_state_t *state,
         argos_network_owner6_entry_t *e =
             &state->owner6[(base + p) & (ARGOS_NETWORK_OWNER6_SLOTS - 1U)];
         if (!e->valid) continue;
-        if ((now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS) { e->valid = 0; continue; }
+        if (now < e->last_seen ||
+            (now - e->last_seen) > ARGOS_NETWORK_OWNER_TTL_SECS) { e->valid = 0; continue; }
         if (IN6_ARE_ADDR_EQUAL(&e->ip, ip)) return memcmp(e->mac, mac, 6) != 0;
     }
     return 0;

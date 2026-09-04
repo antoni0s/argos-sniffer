@@ -163,6 +163,12 @@ static int decrypt_quic_sni_stateful(argos_quic_state_t *state,
     return -1;
 }
 static void quic_heavy_gc(argos_quic_state_t *state) { (void)state; }
+static int argos_quic_success_recent(argos_quic_state_t *state, uint64_t key) {
+    (void)state; (void)key; return 0;
+}
+static void argos_quic_mark_success(argos_quic_state_t *state, uint64_t key) {
+    (void)state; (void)key;
+}
 #endif
 
 #define VERSION "6.0.0-dev"
@@ -456,33 +462,12 @@ static int quic_initial_span(const unsigned char *payload, int len, int offset,
 }
 
 
-#define QUIC_SUCCESS_SLOTS 64U
-#define QUIC_SUCCESS_TTL_SECS 15
-typedef struct { uint64_t key; time_t last_seen; uint8_t valid; } quic_success_entry_t;
-static quic_success_entry_t quic_success_cache[QUIC_SUCCESS_SLOTS];
-
 static uint64_t quic_flow_key(const char *mac, const char *src_ip, const char *dst_ip, uint16_t dport) {
     char keybuf[160];
     int n = snprintf(keybuf, sizeof(keybuf), "%s|%s|%s|%u", mac, src_ip, dst_ip, (unsigned)dport);
     if (n < 0) return 0;
     if (n >= (int)sizeof(keybuf)) n = (int)sizeof(keybuf) - 1;
     return hash_bytes(keybuf, (size_t)n);
-}
-
-static int quic_success_recent(uint64_t key) {
-    size_t slot = (size_t)(key & (QUIC_SUCCESS_SLOTS - 1U));
-    quic_success_entry_t *e = &quic_success_cache[slot];
-    time_t now = time(NULL);
-    if (!e->valid || e->key != key) return 0;
-    if ((now - e->last_seen) > QUIC_SUCCESS_TTL_SECS) { e->valid = 0; return 0; }
-    return 1;
-}
-
-static void quic_mark_success(uint64_t key) {
-    size_t slot = (size_t)(key & (QUIC_SUCCESS_SLOTS - 1U));
-    quic_success_cache[slot].key = key;
-    quic_success_cache[slot].last_seen = time(NULL);
-    quic_success_cache[slot].valid = 1;
 }
 
 /**
@@ -522,7 +507,7 @@ static void parse_quic(const unsigned char *payload, int len, const char *mac, c
 
         if (result > 0) {
             parse_tls_sni(fake_tls_buf, fake_tls_len, mac, src_ip, dst_ip, dport, routed_str, rl_enabled);
-            quic_mark_success(success_key);
+                argos_quic_mark_success(&quic_state, success_key);
             return;
         }
         if (result < 0) { saw_failure = 1; failure_version = packet_version; }
@@ -530,7 +515,7 @@ static void parse_quic(const unsigned char *payload, int len, const char *mac, c
         offset += packet_span;
     }
 
-    if (saw_initial && saw_failure && !quic_success_recent(success_key)) {
+    if (saw_initial && saw_failure && !argos_quic_success_recent(&quic_state, success_key)) {
         /* Failure fallback is intentionally coarse and rate-limited per device
          * and QUIC version, so repeated Initial packets cannot spam telemetry. */
         const char *version_label = failure_version == 0x6b3343cfU ? "v2" : "v1";

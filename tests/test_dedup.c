@@ -21,6 +21,9 @@ int main(void){
  check(argos_dedup_should_suppress_at(&s,"aa","ARP","stable",1,30,0,231)==0,"fixed does not slide");
  check(argos_dedup_should_suppress_at(&s,"aa","ARP","changed",1,30,0,232)==0,"changed payload emits");
  check(argos_dedup_should_suppress_at(&s,"bb","ARP","changed",1,30,0,233)==0,"changed identity emits");
+ check(argos_dedup_should_suppress_at(&s,"cc","TLS","clock",1,30,1,300)==0,"clock seed emits");
+ check(argos_dedup_should_suppress_at(&s,"cc","TLS","clock",1,30,1,299)==0,"rollback starts fail-open epoch");
+ check(argos_dedup_should_suppress_at(&s,"cc","TLS","clock",1,30,1,299)==1,"new epoch suppresses duplicate");
  argos_dedup_destroy(&s);
  puts("Dedup module fixtures: PASS");return 0;
 }
