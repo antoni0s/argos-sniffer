@@ -86,7 +86,10 @@ static inline int argos_capture_open(argos_capture_state_t *state,
     state->epoll_fd = epoll_create1(0);
     if (state->epoll_fd < 0) return -1;
     char *list = strdup(interface_list);
-    if (!list) { errno = ENOMEM; return -1; }
+    if (!list) {
+        close(state->epoll_fd); state->epoll_fd = -1;
+        errno = ENOMEM; return -1;
+    }
 
     for (char *token = strtok(list, ","); token && state->count < ARGOS_CAPTURE_MAX_INTERFACES;
          token = strtok(NULL, ",")) {
@@ -156,18 +159,26 @@ static inline int argos_capture_receive(argos_capture_iface_t *iface,
                                         argos_capture_packet_t *packet) {
     struct sockaddr_ll from; memset(&from, 0, sizeof(from));
     struct iovec iov = {.iov_base = buffer, .iov_len = capacity};
-    char control[CMSG_SPACE(sizeof(struct tpacket_auxdata)) + CMSG_SPACE(sizeof(struct timespec))];
+    union {
+        struct cmsghdr align;
+        unsigned char bytes[CMSG_SPACE(sizeof(struct tpacket_auxdata)) + CMSG_SPACE(sizeof(struct timespec))];
+    } control;
     struct msghdr msg; memset(&msg, 0, sizeof(msg));
     msg.msg_name = &from; msg.msg_namelen = sizeof(from);
     msg.msg_iov = &iov; msg.msg_iovlen = 1;
-    msg.msg_control = control; msg.msg_controllen = sizeof(control);
+    msg.msg_control = control.bytes; msg.msg_controllen = sizeof(control.bytes);
     ssize_t len = recvmsg(iface->fd, &msg, MSG_TRUNC);
     if (len <= 0) return 0;
     if ((size_t)len > capacity) len = (ssize_t)capacity;
     memset(packet, 0, sizeof(*packet)); packet->len = len;
     for (struct cmsghdr *c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
+        /* Only complete ancillary records are evidence. MSG_CTRUNC may leave a
+         * valid prefix; retain it but never read beyond the returned extent. */
+        size_t remaining = msg.msg_controllen - (size_t)((unsigned char *)c - control.bytes);
+        if (c->cmsg_len < CMSG_LEN(0) || c->cmsg_len > remaining) break;
 #ifdef SO_TIMESTAMPNS
-        if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPNS) {
+        if (c->cmsg_level == SOL_SOCKET && c->cmsg_type == SO_TIMESTAMPNS &&
+            c->cmsg_len >= CMSG_LEN(sizeof(struct timespec))) {
             struct timespec ts; memcpy(&ts, CMSG_DATA(c), sizeof(ts));
             packet->timestamp_usec = (uint64_t)ts.tv_sec * 1000000ULL +
                                      (uint64_t)ts.tv_nsec / 1000ULL;
@@ -209,8 +220,13 @@ static inline void argos_capture_report_stats(argos_capture_state_t *state,
     }
 }
 
+/* Valid after any open attempt, including failure; repeat close is a no-op.
+ * An uninitialized/merely zeroed state is not an opened capture owner. */
 static inline void argos_capture_close(argos_capture_state_t *state) {
-    for (int i = 0; i < state->count; ++i) close(state->ifaces[i].fd);
+    for (int i = 0; i < state->count; ++i) {
+        close(state->ifaces[i].fd); state->ifaces[i].fd = -1;
+    }
+    state->count = 0;
     if (state->epoll_fd >= 0) close(state->epoll_fd);
     state->epoll_fd = -1;
 }

@@ -36,8 +36,9 @@ Branch: `version-6`. Verified production checkpoint: `181e1ec8…` (PR #9).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Explicit direction/ownership/routed context; raw/cooked/unsupported links; AUX VLAN/timestamp;
-  initialization failure/cleanup; remaining fragment/extension-chain boundary tests;
+- [ ] **NOW:** Capture ancillary bounds and partial-init/repeated-close contract; fixtures and promotion.
+- [ ] Explicit direction/ownership/routed context; raw/cooked/unsupported link semantics;
+  AUX VLAN-to-observation reconciliation; remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
@@ -195,7 +196,7 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** C1 capture metadata/failure fixtures and explicit direction/ownership context.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none; #9 merged. Gates: core 33843014442, L2 33843014466,
-staging 33843014452 PASS. ARM64 fixtures compiled, not executed; real hardware remains open.
+**Pending gate:** `v6-capture-contract-gate`; ancillary/lifecycle local red→green and sanitizers PASS.
+Previous production #9 gates passed. ARM64 fixtures compile only; real hardware remains open.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
