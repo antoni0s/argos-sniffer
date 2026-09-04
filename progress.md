@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `0d5d783a…` (PR #12).
-**Now:** fragment / extension-chain boundary fixtures. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `986fb010…` (PR #13).
+**Now:** link semantics / header-peek reconciliation. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -17,6 +17,7 @@ Branch: `version-6`. Verified production checkpoint: `0d5d783a…` (PR #12).
 - [x] Capture ancillary bounds, startup failure cleanup and repeat-safe close — PR #10.
 - [x] Sink-owned legacy VLAN/OBS context — PR #11.
 - [x] Runtime network policy ownership and single-scan routing; reviewed size tradeoff and all gates — PR #12.
+- [x] IPv4/IPv6 fragment and extension-chain decode→transport boundary matrix; permanent sanitizer/ARM64 gates — PR #13.
 
 ## How to update — mandatory
 
@@ -42,9 +43,7 @@ Branch: `version-6`. Verified production checkpoint: `0d5d783a…` (PR #12).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** IPv4/IPv6 fragment and extension-chain boundary fixtures: first/non-first/atomic
-  fragments, truncated and maximum-depth chains, transport reachability and padding exclusion.
-- [ ] Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
+- [ ] **NOW:** Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
@@ -189,8 +188,8 @@ fixtures and gates; fold/remove temporary staging headers only after canonical o
 ## Release gates
 
 - [ ] Repository hygiene: delete obsolete merged branches; retain `main` and active `version-6`.
-  PR #1–12 are merged; re-check exact heads and open PRs before deleting any reused branch.
-  Other deletions await authenticated branch-delete access; none deleted.
+  PR #1–13 are merged; re-check exact heads and open PRs before deleting any reused branch.
+  Manual GitHub cleanup requested from user; no branches deleted by this agent.
   Final `version-6` → `main` only after release gates.
 - [ ] Legacy/canonical golden corpus and sanitized real-PCAP optional/vendor-field acceptance.
 - [ ] Native Linux gateway; SPAN/TAP including VLAN/QinQ/unnumbered NIC; real constrained OpenWrt ARM64.
@@ -204,10 +203,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 fragment/extension-chain boundary fixtures, then link semantics/header-peek reconciliation.
+**Next:** C1 link semantics/header-peek reconciliation, then no-port dispatch/AH/PTP reachability.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending gate:** `v6-fragment-boundary-gate`, test/CI-only change from `f3838507…`;
-local strict + ASan/UBSan PASS. Tick fragment coverage only after permanent CI and merge.
+**Pending PR:** none. PR #13 merged; core 33864797588, L2 33864797374 and staging 33864797402 PASS.
+Test/CI-only step: production source and size cap unchanged; no staging runtime integration.
 ARM64 fixtures compile only; real hardware remains open. Branch cleanup awaits deletion access.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

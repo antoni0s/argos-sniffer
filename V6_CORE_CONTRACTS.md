@@ -79,10 +79,13 @@ Focused 0/32/64-prefix benchmark on the original source candidate had CI ratios
 throughput or hardware acceptance. ARM64 fixtures compile only. Full core freeze
 and staging integration remain blocked by the remaining contracts below.
 
-Repository hygiene audit: remote heads for merged PRs #1–11 matched their PR heads.
+Repository hygiene audit: 11 obsolete remote heads matched their latest merged
+PRs #1–12, including the reused network branch's PR #12 head (not old PR #4).
 `main` and `version-6` are retained. No deletion occurred: git write authentication
 was unavailable, and the connected GitHub API exposes no branch-delete operation.
-The old PR #4 branch was reused for PR #12, which is now merged.
+User was given the exact safe branch list for manual cleanup. The separate
+`v6-fragment-boundary-gate` is now merged as PR #13 and can also be retired
+if its head remains `60ca6efba59acf2fcd8f5500de3844491c377cc2`.
 Re-read exact heads before any later deletion; retain merged PR/commit recovery references.
 
 ### Allocation and lifecycle
@@ -162,7 +165,10 @@ full/stub and the capture contract fixture were compiled, not hardware-executed.
   accepts at most seven extensions before a terminal header; eight are rejected.
   AH length follows the existing formula, not full RFC validation; checksums,
   reserved bits and extension ordering are not validated by these fixtures.
-  This test-only candidate does not change runtime policy or certify BPF/output
+  PR #13 merged as `986fb010089c5d38289e312994ce40ea9dc10145` after core
+  33864797588, L2 33864797374 and staging 33864797402 PASS. Native strict/full/stub
+  and ASan/UBSan ran; ARM64 full/stub and fixtures compiled, not executed.
+  This test-only step does not change runtime policy or certify BPF/output
   reachability, reassembly, AH ownership or the full C1 contract.
 - PTP EtherType `0x88f7` is not admitted by the main non-IP allowlist or native
   untagged BPF path. UDP 319/320 is not wired either. Both must reach one parser.
