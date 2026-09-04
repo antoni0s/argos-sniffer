@@ -79,14 +79,10 @@ Focused 0/32/64-prefix benchmark on the original source candidate had CI ratios
 throughput or hardware acceptance. ARM64 fixtures compile only. Full core freeze
 and staging integration remain blocked by the remaining contracts below.
 
-Repository hygiene audit: 11 obsolete remote heads matched their latest merged
-PRs #1–12, including the reused network branch's PR #12 head (not old PR #4).
-`main` and `version-6` are retained. No deletion occurred: git write authentication
-was unavailable, and the connected GitHub API exposes no branch-delete operation.
-User was given the exact safe branch list for manual cleanup. The separate
-`v6-fragment-boundary-gate` is now merged as PR #13 and can also be retired
-if its head remains `60ca6efba59acf2fcd8f5500de3844491c377cc2`.
-Re-read exact heads before any later deletion; retain merged PR/commit recovery references.
+Repository hygiene: user deleted the obsolete merged PR #1–13 branches.
+Exact remote check at `b5c707b813be667d21f3a40740d0a7f469e3adc6` found only
+`main` and `version-6`. Temporary gates still need retirement after final use;
+re-read exact heads/open PRs before deletion and keep merged PR recovery references.
 
 ### Allocation and lifecycle
 
@@ -107,6 +103,31 @@ Re-read exact heads before any later deletion; retain merged PR/commit recovery 
   require tests before declaring the lifecycle API reusable.
 
 ### Packet reachability
+
+Link boundary candidate from `b5c707b8…`: the live AF_PACKET/SOCK_RAW owner
+maps Ethernet/IEEE802 to Ethernet; NONE/PPP/TUNNEL/TUNNEL6/SIT/IPGRE to raw IP;
+all other hardware types to unsupported. `any` resolves each packet's hardware
+type/index; a fixed interface retains its configured type/index. It never creates
+SLL headers or returns LINK_COOKED. Raw IP keeps absent MACs in the packet view;
+main creates surrogate identities later. No new capture type or BPF fallback.
+
+The compatibility SLL v1 decoder incorrectly tested the high byte of its BE16
+address length. A red→green fixture verifies length 6 now copies the complete MAC;
+all other lengths leave MAC absent, without truncating longer addresses into a
+false six-byte identity. Format reference: [libpcap sll.h](https://github.com/the-tcpdump-group/libpcap/blob/master/pcap/sll.h),
+blob `b13a8cbc2a024d788deca7825aacfcc09ec523ed`. Tests exhaust the 16-bit address
+length and hardware-type fields, raw/SLL IPv4/IPv6, alignment/truncation/reset,
+unsupported/per-packet rejection and fixed versus per-packet receive selection.
+SLL2 and cooked live input are not added. Native full/stub text/BSS are unchanged;
+the candidate still needs permanent gates. Full C1 is not frozen.
+
+Next reconciliation must preserve deliberate inspector/dispatch differences:
+the debug printer is best-effort and reparses IPv4, including nonfirst fragments;
+its UDP output prints the declared length without full datagram validation.
+The router DNS exception checks capture length, not declared IP end; later UDP
+dispatch validates bounds. Do not replace these with a stricter transport entry
+without separately testing/deciding the malformed-input behavior. PPPoE/legacy
+LLC declared-length validation and lossless VLAN output remain open.
 
 Runtime network context: `argos_network_context4/6` and an eight-byte
 `argos_network_packet_context_t` express source-side selection and source-routed

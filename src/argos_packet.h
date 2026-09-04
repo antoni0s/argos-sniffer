@@ -9,7 +9,7 @@ typedef enum {
     LINK_UNSUPPORTED = 0,
     LINK_ETHERNET = 1,
     LINK_RAW_IP = 2,
-    LINK_COOKED = 3,
+    LINK_COOKED = 3, /* SLL v1 compatibility input; not produced by live capture. */
     LINK_PER_PACKET = 4
 } link_type_t;
 
@@ -213,8 +213,9 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
 
     if (v->link_type == LINK_COOKED) {
         if (len < 16) return 0;
-        /* Keep the legacy SLL address-length interpretation byte-for-byte. */
-        if (buffer[4] >= 6U) memcpy(v->src_mac, buffer + 6, 6U);
+        /* SLL v1 has a BE16 address length. Do not invent a six-byte MAC
+         * from a shorter address or a truncated longer address. No dst MAC. */
+        if (read_be16(buffer + 4) == 6U) memcpy(v->src_mac, buffer + 6, 6U);
         v->l3_proto = read_be16(buffer + 14);
         v->l3_offset = 16;
         return 1;

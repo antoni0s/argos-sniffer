@@ -18,6 +18,7 @@ Branch: `version-6`. Verified production checkpoint: `986fb010…` (PR #13).
 - [x] Sink-owned legacy VLAN/OBS context — PR #11.
 - [x] Runtime network policy ownership and single-scan routing; reviewed size tradeoff and all gates — PR #12.
 - [x] IPv4/IPv6 fragment and extension-chain decode→transport boundary matrix; permanent sanitizer/ARM64 gates — PR #13.
+- [x] User removed obsolete merged branches; exact remote check retained only main/version-6 before the next gate.
 
 ## How to update — mandatory
 
@@ -43,8 +44,11 @@ Branch: `version-6`. Verified production checkpoint: `986fb010…` (PR #13).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
-  reconcile debug-dump and router-exception header peeks without changing their behavior.
+- [ ] **NOW:** Raw/cooked/unsupported link boundary gate; SLL BE16/six-byte address fix,
+  hardware-type matrix and per-packet/fixed receive ownership fixtures. Tick only after CI/merge.
+- [ ] Reconcile debug-dump and router-exception header peeks without changing their behavior;
+  explicitly resolve capture-padding versus declared-IP bounds and nonfirst-fragment printing.
+- [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval; PPPoE/LLC declared-length audit.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
@@ -187,10 +191,8 @@ fixtures and gates; fold/remove temporary staging headers only after canonical o
 
 ## Release gates
 
-- [ ] Repository hygiene: delete obsolete merged branches; retain `main` and active `version-6`.
-  PR #1–13 are merged; re-check exact heads and open PRs before deleting any reused branch.
-  Manual GitHub cleanup requested from user; no branches deleted by this agent.
-  Final `version-6` → `main` only after release gates.
+- [ ] Retire temporary gates after their final use; retain `main` and active `version-6`.
+  Re-check exact heads/open PRs before deletion. Final `version-6` → `main` only after release gates.
 - [ ] Legacy/canonical golden corpus and sanitized real-PCAP optional/vendor-field acceptance.
 - [ ] Native Linux gateway; SPAN/TAP including VLAN/QinQ/unnumbered NIC; real constrained OpenWrt ARM64.
 - [ ] Long-run bounded memory/expiry and burst/drop comparison to pre-architecture baseline.
@@ -205,8 +207,8 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** C1 link semantics/header-peek reconciliation, then no-port dispatch/AH/PTP reachability.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none. PR #13 merged; core 33864797588, L2 33864797374 and staging 33864797402 PASS.
-Test/CI-only step: production source and size cap unchanged; no staging runtime integration.
-ARM64 fixtures compile only; real hardware remains open. Branch cleanup awaits deletion access.
+**Pending gate:** `v6-core-gate`, SLL fix/link ownership from `b5c707b8…`.
+Local red→green fixture and sanitizers; full/stub text/BSS unchanged. Await permanent CI before merge.
+ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

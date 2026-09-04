@@ -19,6 +19,7 @@
 #include "../src/argos_bpf.h"
 
 static int fault, closes[128], next_fd, recv_mode;
+static unsigned short recv_hatype = ARPHRD_ETHER;
 static int fake_close(int fd) { assert(fd >= 0 && fd < 128); ++closes[fd]; return 0; }
 static int fake_epoll(int flags) { (void)flags; if (fault == 1) { errno = EMFILE; return -1; } return 90; }
 static char *fake_strdup(const char *s) { return fault == 2 ? NULL : strdup(s); }
@@ -50,7 +51,7 @@ static ssize_t fake_recv(int fd, struct msghdr *m, int flags) {
     if (recv_mode == 2) { errno = EAGAIN; return -1; }
     if (recv_mode == 3) return 0;
     struct sockaddr_ll *from = m->msg_name;
-    from->sll_ifindex = 12; from->sll_hatype = recv_mode == 4 ? 0xffff : ARPHRD_ETHER;
+    from->sll_ifindex = 12; from->sll_hatype = recv_mode == 4 ? 0xffff : recv_hatype;
     memset(m->msg_iov[0].iov_base, 0x45, m->msg_iov[0].iov_len);
     memset(m->msg_control, 0, m->msg_controllen);
     struct cmsghdr *c = m->msg_control;
@@ -134,10 +135,28 @@ static void metadata(void) {
     assert(argos_capture_receive(&iface, buffer, sizeof(buffer), &p));
     assert(p.type == LINK_RAW_IP && p.packet_ifindex == 7);
 }
+static void link_ownership(void) {
+    const unsigned short types[] = {ARPHRD_ETHER, ARPHRD_IEEE802, ARPHRD_NONE,
+        ARPHRD_PPP, ARPHRD_TUNNEL, ARPHRD_TUNNEL6, ARPHRD_SIT, ARPHRD_IPGRE,
+        ARPHRD_LOOPBACK, ARPHRD_IEEE802154, 0xffff};
+    const link_type_t fixed[] = {LINK_PER_PACKET, LINK_ETHERNET, LINK_RAW_IP};
+    unsigned char buffer[16]; argos_capture_packet_t p;
+    recv_mode = 0;
+    for (size_t i = 0; i < sizeof(types)/sizeof(types[0]); ++i)
+    for (size_t j = 0; j < sizeof(fixed)/sizeof(fixed[0]); ++j) {
+        recv_hatype = types[i];
+        argos_capture_iface_t iface = {.fd = 20, .ifindex = j ? 7 : 0, .type = fixed[j]};
+        assert(argos_capture_receive(&iface, buffer, sizeof(buffer), &p));
+        assert(p.type == (j ? fixed[j] : argos_capture_hatype(types[i])));
+        assert(p.packet_ifindex == (j ? 7 : 12));
+        assert(p.type != LINK_COOKED && p.type != LINK_PER_PACKET);
+    }
+    recv_hatype = ARPHRD_ETHER;
+}
 int main(int argc, char **argv) {
     (void)argv;
     if (argc == 1) metadata();
-    lifecycle();
+    link_ownership(); lifecycle();
     puts("Capture metadata/lifecycle contracts: PASS");
     return 0;
 }
