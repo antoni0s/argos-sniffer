@@ -14,6 +14,7 @@ jobs:
       - name: Strict standalone matrix and native full/stub
         run: |
           set -eu
+          python3 tests/check_transport_adoption.py
           for source in tests/test_*.c; do
             binary="/tmp/$(basename "$source" .c)"
             cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -lm -o "$binary"
@@ -22,6 +23,10 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/full
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/stub
           size /tmp/full /tmp/stub
+          # Normalized transport entry must specialize inline in production.
+          if nm /tmp/full /tmp/stub | grep -q 'argos_packet_transport'; then exit 1; fi
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/bench_transport.c -o /tmp/bench-transport
+          /tmp/bench-transport
           # Capture baseline text=155549; bounded STP reachability repair.
           test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 155677
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304
@@ -40,3 +45,4 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/arm-full
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/arm-stub
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_transport.c -o /tmp/arm-transport
+          if aarch64-linux-gnu-nm /tmp/arm-full /tmp/arm-stub | grep -q 'argos_packet_transport'; then exit 1; fi

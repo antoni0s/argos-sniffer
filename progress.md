@@ -39,7 +39,8 @@ Branch: `version-6`. Verified production checkpoint: `136d772e…` (PR #8).
 - [ ] **NOW:** Adopt common transport bounds in runtime without duplicate decode, changed gating
   or wire output; retain UDP relevance-before-length-validation order and benchmark code generation.
 - [ ] Explicit direction/ownership/routed context; raw/cooked/unsupported links; AUX VLAN/timestamp;
-  initialization failure/cleanup; VLAN/QinQ/PPPoE and fragment/extension-chain boundary tests.
+  initialization failure/cleanup; remaining fragment/extension-chain boundary tests;
+  reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
@@ -196,7 +197,10 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** runtime transport adoption, then remaining C1 context/reachability coverage.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none; #8 merged. Last gates: core 33842044829, L2 33842044502,
-staging 33842044543 PASS. ARM64 full/stub + fixture compilation (not fixture execution).
+**Pending gate:** `v6-transport-adoption-gate`; runtime adoption is not checked until promotion.
+Previous verified gates: PR #8 core/L2/staging PASS. ARM64 fixture coverage is compilation,
+not execution. Current local transport equivalence/frame tests and ASan/UBSan PASS;
+native full text 155521 (-44), BSS 80304 (unchanged); focused mixed benchmark ~1.00x
+enabled/~0.89x disabled, not a full capture-throughput or hardware acceptance claim.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
