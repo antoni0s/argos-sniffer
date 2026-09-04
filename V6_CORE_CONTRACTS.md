@@ -74,6 +74,19 @@ size measurements, not proof of zero runtime performance overhead.
 
 ### Packet reachability
 
+- Capture receive accepts only complete ancillary records within returned control
+  bytes; aligned stack storage, timestamp length checked, valid prefixes retained
+  under MSG_CTRUNC. VLAN validity remains independent of VID (including VID 0).
+- Capture close is repeat-safe after any open attempt; allocation failure releases
+  epoll immediately. A zero-interface return still requires close, as main already
+  does. Open must not be called on a live owner; arbitrary zeroed state is not an
+  initialized capture owner. Global runtime/sink failure cleanup is still open.
+- `test_capture_contract` mocks syscall failures without raw-socket privileges;
+  it checks EINTR/EAGAIN, clamping, per-packet versus fixed link/index, malformed
+  ancillary extents, partial startup and repeated close. `test_capture` also checks
+  a real kernel timestamp via a local datagram socket, not AF_PACKET hardware.
+  These tests do not freeze direction/ownership or VLAN observation semantics.
+
 - The audited baseline rejected the STP `42 42 03` LLC prefix. PR #7 repairs this
   using the existing canonical parsers: normalization retains LLC and bounds
   `packet_end` by declared 802.3 length; main passes that bound to STP/RSTP/MSTP.

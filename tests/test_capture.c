@@ -14,6 +14,8 @@ int main(void) {
 
     int fd[2];
     assert(socketpair(AF_UNIX, SOCK_DGRAM, 0, fd) == 0);
+    int timestamp = 1;
+    assert(setsockopt(fd[1], SOL_SOCKET, SO_TIMESTAMPNS, &timestamp, sizeof(timestamp)) == 0);
     unsigned char sent[64], received[16];
     memset(sent, 0xa5, sizeof(sent));
     assert(send(fd[0], sent, sizeof(sent), 0) == (ssize_t)sizeof(sent));
@@ -26,6 +28,7 @@ int main(void) {
     assert(packet.len == (ssize_t)sizeof(received));
     assert(packet.type == LINK_RAW_IP);
     assert(packet.packet_ifindex == 7);
+    assert(packet.timestamp_usec > 0);
     for (size_t i = 0; i < sizeof(received); ++i) assert(received[i] == 0xa5U);
 
     close(fd[0]); close(fd[1]);
