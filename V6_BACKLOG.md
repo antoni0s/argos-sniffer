@@ -125,6 +125,13 @@ integration, CLI bitmap wiring or telemetry-schema cutover without re-reading th
 
 ## Ordered delivery plan
 
+Execution status and mandatory completion/handoff rules live in `progress.md`.
+Keep that index synchronized with this detailed backlog and the master matrix.
+
+- [x] Repair STP/RSTP/MSTP LLC normalization reachability with declared-length
+  bounds and native/VLAN/QinQ frame-path regression (PR #7). This does not freeze
+  the whole packet/transport-view contract or promote overlapping staging parsers.
+
 ### Core-contract prerequisite queue (2026-09-04)
 
 Finish these in dependency order before any mass protocol or TLS-enrichment

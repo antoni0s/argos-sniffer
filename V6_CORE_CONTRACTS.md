@@ -52,10 +52,12 @@ size measurements, not proof of zero runtime performance overhead.
 
 ### Packet reachability
 
-- `argos_packet_strip_l2` recognizes selected LLC/SNAP patterns, but not the STP
-  `42 42 03` LLC prefix. Main's STP/RSTP/MSTP branches therefore do not establish
-  normal Ethernet BPDU reachability. Existing `test_stp`/`test_rstp`/`test_mstp`
-  bypass normalization. Add a failing frame-to-parser fixture before fixing this.
+- The audited baseline rejected the STP `42 42 03` LLC prefix. PR #7 repairs this
+  using the existing canonical parsers: normalization retains LLC and bounds
+  `packet_end` by declared 802.3 length; main passes that bound to STP/RSTP/MSTP.
+  `test_stp_path` failed before repair and now exercises BPF→normalization→parser
+  for native/VLAN/QinQ, truncated declarations and padding exclusion. This closes
+  this specific reachability defect, not the whole packet-view contract.
 - IPv6 AH is traversed as an extension by `argos_packet_ipv6_l4`; its own header
   offset is not retained for a future AH engine. ESP/AH remain on hold.
 - PTP EtherType `0x88f7` is not admitted by the main non-IP allowlist or native

@@ -1,7 +1,7 @@
 # Argos Sniffer v6 progress
 
 Repository: `antoni0s/argos-sniffer`; delivery branch: `version-6`.
-Last verified production checkpoint: `91a1d6bd52c6df02ac004c58f8d1e94505fa644d`.
+Last verified implementation checkpoint: `f0418a241b8e5ce9112509bc7b72e7d1db44375e` (PR #7).
 Last updated: 2026-09-04. Core contracts are **not frozen**.
 
 ## Update rules — mandatory for every task/handoff
@@ -52,9 +52,12 @@ Last updated: 2026-09-04. Core contracts are **not frozen**.
 
 ### 1. Packet / capture / normalization
 
-- [ ] **ACTIVE:** STP/RSTP/MSTP frame→BPF→normalization→canonical-parser regression
+- [x] STP/RSTP/MSTP frame→BPF→normalization→canonical-parser regression
   and repair of rejected LLC 42/42/03. Bound BPDU input by declared 802.3 length.
-- [ ] Common bounded transport/payload view; no observations stored in packet view.
+  PR #7: red→green test, native/VLAN/QinQ, malformed/truncated/padding cases;
+  native and ARM64 full/stub, standalone matrix, L2 ASan/UBSan and isolation pass.
+  Optimized native text +16 bytes; BSS unchanged; no new allocation/state/parser.
+- [ ] **NEXT:** Common bounded transport/payload view; no observations stored in packet view.
 - [ ] Capture ancillary VLAN/timestamp, raw/cooked/unsupported and failure cleanup tests.
 - [ ] Non-port IPv4/IPv6 dispatch contract, including AH header ownership.
 - [ ] Native EtherType and UDP PTP reachability to one engine.
@@ -158,7 +161,11 @@ Last updated: 2026-09-04. Core contracts are **not frozen**.
 
 ## Current handoff
 
-Next: reproduce and repair STP normalization, then update this status with PR/gates.
+Delivered: progress index/instructions and STP path repair in PR #7. All three
+PR gates passed. No temporary staging workflow/patch was introduced; the core
+regression workflow is permanent. No staging parser was runtime-integrated.
+Next: define/test the common bounded transport/payload view, retaining no-port IP
+protocols and borrowed-buffer lifetime. The full packet contract remains open.
 Known larger blockers: packet-time allocations, incomplete bitmap/dispatch,
 streaming/backpressure, collector compatibility. No full core contract is frozen.
 Mandatory invariant: bounded work/state; no regex/full DPI/full stream storage;
