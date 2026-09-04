@@ -290,6 +290,15 @@ and collector mapping remain HOLD. The isolated parser must consume this bounded
 framing at future integration; it must not repeat the extension walk. This is
 partial field-level verification, not a completed integration-ready row.
 
+State-owner update — PR #20 (`8e38cde6…`): existing optional SYN correlation and
+DNS request/response tracking now belong to each `argos_runtime_state_t` instance
+in `argos_flow_state.h` (`syn_track`, `dns_track`). `-E` still prepares both tables
+before capture; packet selection, keys, probes and TTLs are unchanged. Preparation
+is transactional and repeated enable/destroy is safe; lifecycle/allocation-trap
+fixtures cover independent owners and first evidence. This verifies owner/lifecycle
+fields only, not canonical bits, per-protocol byte budgets or collector mapping.
+Packet-time dedup/network/QUIC allocations remain open; no staging row is promoted.
+
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 
 ```text

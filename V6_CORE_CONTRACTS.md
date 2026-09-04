@@ -99,10 +99,10 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
   boundary, never retry allocations for every packet. This is a design target,
   not current implementation.
 - At the PR #19 baseline SYN state was module-static; repeated enable leaked old
-  tables and destruction left dangling pointers. The lifecycle candidate below
+  tables and destruction left dangling pointers. The lifecycle change below
   addresses this owner API, not every process-startup/sink cleanup path.
 
-#### SYN/DNS lifecycle candidate — from `6d697023…` (gates pending)
+#### SYN/DNS lifecycle — PR #20, `8e38cde6c9702b11b1cb856c814abb6bfa38656f`
 
 `argos_runtime_state_t` owns `syn_track` and `dns_track` independently of other
 instances. Initialize to zero and never copy a live owner. Preparation/destruction
@@ -133,8 +133,10 @@ the owner allows compiler specialization. Inline preparation gives full text
 156537, cold-hinted preparation 156489; explicit out-of-line startup preparation
 gives 156433 (stub 143818), within unchanged full cap 156441. Versus PR #19:
 +200/+124 text, no BSS increase. Native optimized SYN lookup has the same 303
-instructions after relocation normalization. Permanent native/sanitizer/ARM64
-gates are required before promotion; ARM64 fixtures compile only.
+instructions after relocation normalization. Core 33893211897, L2 33893211835
+and staging 33893211837 PASS: strict standalone/native full+stub, ASan/UBSan/LSan,
+ARM64 full+stub/lifecycle fixture compilation and unchanged size budgets.
+ARM64 fixtures compile only; no new hardware performance claim.
 
 Remaining C2/C8 work includes main's post-prepare capture-failure exits and sink
 cleanup, enabled-capacity selection, packet-time dedup/network/QUIC allocations,
