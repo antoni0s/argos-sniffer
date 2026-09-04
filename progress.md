@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `986fb010…` (PR #13).
-**Now:** link semantics / header-peek reconciliation. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `5c88814f…` (PR #14).
+**Now:** debug/router header-peek reconciliation. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -19,6 +19,7 @@ Branch: `version-6`. Verified production checkpoint: `986fb010…` (PR #13).
 - [x] Runtime network policy ownership and single-scan routing; reviewed size tradeoff and all gates — PR #12.
 - [x] IPv4/IPv6 fragment and extension-chain decode→transport boundary matrix; permanent sanitizer/ARM64 gates — PR #13.
 - [x] User removed obsolete merged branches; exact remote check retained only main/version-6 before the next gate.
+- [x] Live link-type/receive ownership matrix and SLL address identity bounds; red→green/permanent gates — PR #14.
 
 ## How to update — mandatory
 
@@ -44,9 +45,7 @@ Branch: `version-6`. Verified production checkpoint: `986fb010…` (PR #13).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Raw/cooked/unsupported link boundary gate; SLL BE16/six-byte address fix,
-  hardware-type matrix and per-packet/fixed receive ownership fixtures. Tick only after CI/merge.
-- [ ] Reconcile debug-dump and router-exception header peeks without changing their behavior;
+- [ ] **NOW:** Reconcile debug-dump and router-exception header peeks without changing their behavior;
   explicitly resolve capture-padding versus declared-IP bounds and nonfirst-fragment printing.
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval; PPPoE/LLC declared-length audit.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
@@ -205,10 +204,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 link semantics/header-peek reconciliation, then no-port dispatch/AH/PTP reachability.
+**Next:** C1 debug/router header peeks and encapsulation bounds, then no-port dispatch/AH/PTP reachability.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending gate:** `v6-core-gate`, SLL fix/link ownership from `b5c707b8…`.
-Local red→green fixture and sanitizers; full/stub text/BSS unchanged. Await permanent CI before merge.
+**Pending PR:** none. PR #14 merged; core 33865643412, L2 33865643350, staging 33865643383 PASS.
+Full/stub text/BSS unchanged. Keep reusable `v6-core-gate` during core work; retire after final use.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

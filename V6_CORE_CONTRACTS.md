@@ -104,7 +104,7 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
 
 ### Packet reachability
 
-Link boundary candidate from `b5c707b8…`: the live AF_PACKET/SOCK_RAW owner
+Link boundary PR #14 from `b5c707b8…`: the live AF_PACKET/SOCK_RAW owner
 maps Ethernet/IEEE802 to Ethernet; NONE/PPP/TUNNEL/TUNNEL6/SIT/IPGRE to raw IP;
 all other hardware types to unsupported. `any` resolves each packet's hardware
 type/index; a fixed interface retains its configured type/index. It never creates
@@ -118,8 +118,10 @@ false six-byte identity. Format reference: [libpcap sll.h](https://github.com/th
 blob `b13a8cbc2a024d788deca7825aacfcc09ec523ed`. Tests exhaust the 16-bit address
 length and hardware-type fields, raw/SLL IPv4/IPv6, alignment/truncation/reset,
 unsupported/per-packet rejection and fixed versus per-packet receive selection.
-SLL2 and cooked live input are not added. Native full/stub text/BSS are unchanged;
-the candidate still needs permanent gates. Full C1 is not frozen.
+SLL2 and cooked live input are not added. Native full/stub text/BSS are unchanged.
+Merged as `5c88814f68f778aba66234508c5c5c0873a805f1`; core 33865643412,
+L2 33865643350 and staging 33865643383 PASS. Native strict/full/stub and sanitizers
+ran; ARM64 builds/fixtures compiled only. Full C1 is not frozen.
 
 Next reconciliation must preserve deliberate inspector/dispatch differences:
 the debug printer is best-effort and reparses IPv4, including nonfirst fragments;
