@@ -1,6 +1,6 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `76472e9d…` (PR #24).
+Branch: `version-6`. Verified checkpoint: `fe2d8ca5…` (PR #25).
 **Now:** freeze bounded-state budgets, expiry and saturation behavior (C2).
 **Not yet:** full core freeze or staging runtime integration.
 
@@ -31,6 +31,7 @@ Branch: `version-6`. Verified checkpoint: `76472e9d…` (PR #24).
 - [x] Enabled-only dedup preparation removes allocation/retry from packet handling; lifecycle/equivalence gates — PR #22.
 - [x] Enabled-family network ownership preparation removes ARP/NDP allocation/retry from packet handling — PR #23.
 - [x] Enabled-only QUIC workspace/session preparation removes packet allocations and rejects forged tags before decrypt work — PR #24.
+- [x] Streaming fixed-stack TLS fingerprint hashing removes the last audited parser allocation and ~8 KiB MD5 stack — PR #25.
 
 ## How to update — mandatory
 
@@ -220,9 +221,9 @@ C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; C2/C8 remain incomplete.
-PR #24: core 33919266074, L2 33919265965, staging 33919266033 PASS.
-Native full/stub text 157024/144438; BSS 80360/80296. Enabled TLS reserves an
-81,919-byte QUIC workspace; TLS+`-W` also reserves the existing 593,408-byte table.
+PR #25: core 33920067953, L2 33920067902, staging 33920068034 PASS.
+Native full/stub text 157384/144790; BSS 80360/80296. TLS MD5 stack is 352 bytes
+(was 8480); QUIC enabled-memory policy from PR #24 is unchanged.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

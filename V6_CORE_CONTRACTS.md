@@ -92,7 +92,8 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
   failure stays family-local/fail-open and ARP/NDP calls never allocate or retry (PR #23).
 - QUIC owns one enabled-only startup workspace and its opt-in heavy session table;
   valid, invalid and stateful packet calls never allocate or retry (PR #24).
-- The audited remaining owners therefore satisfy **no malloc in the packet hot path**;
+- TLS fingerprint hashing streams through fixed scratch and performs no allocation (PR #25).
+- The audited production parsers/owners therefore satisfy **no malloc in the packet hot path**;
   complete budget/expiry/saturation coverage remains open before C2 can freeze.
 - Preserve disabled-mode footprint by allocating enabled subsystem capacity at
   startup/explicit activation, before capture processing. If future JIT activation
@@ -241,6 +242,22 @@ L2 33919265965 and staging 33919266033 PASS, including ASan/UBSan/LSan and ARM64
 full/stub/fixture compilation. Native full/stub text is 157024/144438; BSS is
 80360/80296 (+75/+0 text and +56/+0 BSS from PR #23). This is a structural CPU/latency
 benefit; no measured capture-throughput or ARM64 hardware-execution claim.
+
+#### TLS fingerprint streaming — PR #25, `fe2d8ca55622540c5377fe0c664de2e673d6ed16`
+
+The JA4-like MD5 helper now processes complete 64-byte input blocks directly and
+uses only a bounded 128-byte final-padding buffer. It removes the former 8 KiB
+whole-message copy/zero buffer and conditional packet-time `calloc/free`; output
+remains byte-compatible. A shared compression boundary avoids duplicated code.
+Standard vectors plus 55/56/63/64/65-byte padding boundaries and 2047/4095-byte
+production input bounds are permanent fixtures; the adoption check rejects allocator
+or large-buffer reintroduction. The MD5 stack frame is 352 bytes versus 8480.
+
+Core 33920067953, L2 33920067902 and staging 33920068034 PASS, including all strict
+fixtures, ASan/UBSan/LSan and ARM64 full/stub/fixture compilation. Native full/stub
+text is 157384/144790 (+360/+352); BSS is unchanged at 80360/80296 and no persistent
+RAM was added. Direct block processing avoids the former whole-input memory work;
+this is structural evidence, not a measured capture-throughput claim.
 
 ### Packet reachability
 
