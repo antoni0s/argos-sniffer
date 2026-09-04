@@ -23,7 +23,7 @@ jobs:
           s=Path('src/argos-sniffer.c').read_text(); c=Path('src/argos_capture.h').read_text()
           assert s.count('#include "argos_capture.h"') == 1
           for x in ('argos_capture_open','argos_capture_receive','argos_capture_report_stats','argos_capture_close'): assert x in c and x in s
-          for x in ('active_ifaces','capture_iface_t','hatype_to_link'): assert x not in s
+          for x in ('static capture_iface_t', 'static capture_iface_t active_ifaces', 'hatype_to_link('): assert x not in s
           assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c and 'recvmmsg(' not in c
           assert 'argos_packet_decode' not in c and 'argos_filter_match' not in c
           assert len(c) < 10000

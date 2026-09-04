@@ -1,0 +1,314 @@
+# Argos Sniffer v6 — Help System Backlog
+
+This document defines the v6 CLI help layout. It is a documentation/implementation contract only and does not authorize runtime CLI wiring until the active config/bitmap contracts are stable.
+
+## Design goal
+
+The base `--help` must stay approximately one terminal screen. Detailed protocol membership belongs in thematic help screens, one per super-group plus focused operational topics.
+
+Do **not** add a giant generic `--help-protocols`; that would recreate the oversized help output this design is intended to avoid.
+
+Thematic help membership should ultimately be generated from the same canonical tables used by the engine-enable bitmap so documentation and runtime behavior cannot drift.
+
+## Base `--help`
+
+```text
+argos-sniffer v6.0
+Passive network fingerprinting & telemetry engine
+
+USAGE
+  argos-sniffer [OPTIONS] [PROFILE | SUPER-GROUP | GROUP | PROTOCOL...]
+
+QUICK START
+  --all
+      Enable all vectors.
+
+  --profile core
+  --profile standard
+  --profile full
+  --profile home
+  --profile enterprise
+  --profile sensor
+
+SUPER GROUPS
+  --network
+  --application
+  --enterprise
+  --industrial
+  --iot
+  --vpn
+
+RATE LIMITING
+  lowercase protocol = normal / rate-limited
+  UPPERCASE protocol = unrated
+
+  Example:
+      --dns
+      --DNS
+
+CAPTURE
+  -i, --interface <iface>
+  -r <mac>
+  -R <mac>
+  -p, --promisc
+  -c <count>
+
+OUTPUT
+  -o <path>
+  -u <host>:<port>
+  -U <host>:<port>
+
+ADVANCED
+  -E, --extended-metrics
+  -W, --quic-stateful
+  --sensor
+  --identity[=hash|raw]
+
+MORE HELP
+  --help-profiles      Profiles and exact contents
+  --help-network       Network groups/protocols
+  --help-application   Application groups/protocols
+  --help-enterprise    Enterprise groups/protocols
+  --help-industrial    OT/ICS groups/protocols
+  --help-iot           IoT groups/protocols
+  --help-vpn           VPN groups/protocols
+  --help-capture       Interfaces, sensor mode and filters
+  --help-output        Telemetry sinks and record formats
+  --help-rate          Rate limiting, dedup and unrated mode
+  --help-identity      Identity/privacy options
+  --help-performance   Performance/heavy-engine options
+
+  --version
+```
+
+## `--help-enterprise`
+
+```text
+ENTERPRISE
+
+  --enterprise
+      Enable all enterprise groups.
+
+  --fileshare
+      smb, ntlm, nfs, ftp*
+
+  --storage
+      sunrpc, nfs, iscsi, nvmeof*
+
+  --database
+      mysql, postgresql, mssql, oracle, mongodb*, redis*
+
+  --identity
+      kerberos, ntlm, eapol, radius, tacacs*
+
+  --directory
+      cldap, netlogon, ldap*, ldaps*
+
+  --management
+      snmp, ipmi, rmcp, asf, vmware-slp,
+      syslog*, netflow*, ipfix*, sflow*
+
+  * proposed / not currently implemented
+```
+
+## `--help-network`
+
+```text
+NETWORK
+
+  --network
+      Enable all network groups.
+
+  --addressing
+      dhcp, dhcpv6, arp, ndp, ra
+
+  --discovery
+      mdns, ssdp, upnp, llmnr, wsd, nbns
+
+  --l2-discovery
+      lldp, cdp, edp, fdp, mndp, lldp-med*, stp*, lacp*
+
+  --multicast
+      igmp, mld
+
+  --routing
+      bgp, ospf, isis, rip*
+
+  --redundancy
+      vrrp, hsrp
+
+  --time
+      ntp, ptp*
+```
+
+## `--help-rate`
+
+```text
+RATE LIMITING
+
+  Lowercase protocol
+      Normal rate-limited/deduplicated telemetry.
+
+  UPPERCASE protocol
+      Same protocol without rate limiting.
+
+  Examples:
+      --dns       normal DNS
+      --DNS       unrated DNS
+      --radius    normal RADIUS
+      --RADIUS    unrated RADIUS
+
+  -f <seconds>
+      General deduplication window.
+      Default: 35 seconds.
+
+  --no-rate-limit=<target>
+      Remove rate limiting from:
+          all
+          super-group
+          group
+
+  Examples:
+      --no-rate-limit=all
+      --no-rate-limit=enterprise
+      --no-rate-limit=identity
+```
+
+## Remaining thematic help screens
+
+### `--help-profiles`
+
+Must list every profile and its exact canonical membership:
+
+- `core`
+- `standard`
+- `full`
+- `home`
+- `enterprise`
+- `sensor`
+
+Profile membership must come from the same canonical enable tables as runtime selection.
+
+### `--help-application`
+
+Must expose only the application super-group and its groups:
+
+- name-services
+- encrypted
+- web
+- remote-access
+- realtime
+- printing
+- voice
+- media
+
+### `--help-industrial`
+
+Must expose only:
+
+- building
+- automation
+- utility
+
+### `--help-iot`
+
+Must expose only:
+
+- messaging
+- smart-home
+
+### `--help-vpn`
+
+Must expose only:
+
+- modern-vpn
+- ipsec-suite
+
+### `--help-capture`
+
+Must document:
+
+- interface selection;
+- ignored/local MAC filters (`-r`, `-R`) according to the final preserved semantics;
+- promiscuous mode;
+- packet count/termination behavior;
+- sensor/SPAN deployment mode;
+- capture/filter interaction;
+- VLAN/QinQ/PPPoE caveats where relevant.
+
+### `--help-output`
+
+Must document:
+
+- local output path;
+- UDP/remote telemetry sinks;
+- stdout/local fan-out semantics;
+- JSONL/streaming mode only after the active output contract is frozen;
+- canonical vector grammar and compatibility mode only after schema freeze.
+
+### `--help-identity`
+
+Must document:
+
+- observable identity policy;
+- `--identity` modes;
+- hashed vs raw identity behavior;
+- allowed fields: username, principal, realm/domain, machine account, workstation, identity class, application identity;
+- prohibited secrets: passwords, authentication responses/blobs, tickets, session keys, shared secrets and cryptographic keys.
+
+### `--help-performance`
+
+Must document only performance-affecting features, including:
+
+- `--extended-metrics`;
+- `--quic-stateful`;
+- any future flow-shape feature if promoted;
+- heavy-engine/runtime-state implications;
+- defaults and whether the feature is lazily allocated;
+- explicit note that normal passive operation remains bounded/lightweight.
+
+## Proposed marker semantics
+
+During development documentation, `*` means proposed/staged and not yet production-integrated.
+
+Example:
+
+```text
+ftp*
+nvmeof*
+lldp-med*
+```
+
+Before the final v6 release, this marker must be generated from actual engine implementation status or removed. It must never become stale hand-maintained documentation.
+
+## Implementation requirements
+
+- [ ] Base `--help` stays approximately one terminal screen.
+- [ ] No generic giant `--help-protocols` screen.
+- [ ] One thematic help screen per super-group.
+- [ ] Dedicated operational help for capture, output, rate, identity and performance.
+- [ ] Help membership generated from the same canonical tables as the engine-enable bitmap.
+- [ ] Profile membership generated from canonical profile masks/tables.
+- [ ] Lowercase/UPPERCASE rate semantics documented consistently everywhere.
+- [ ] `-f` default shown from the real compiled/configured default rather than duplicated magic text if practical.
+- [ ] `--no-rate-limit` targets validated against canonical super-group/group names.
+- [ ] Proposed/staged `*` marker derived from implementation status or removed before release.
+- [ ] Unknown thematic help option exits with a clear bounded error and no protocol dump.
+- [ ] `--version` remains cheap and does not initialize capture/state engines.
+- [ ] Help paths must not initialize AF_PACKET, BPF, flow state, telemetry sinks or other runtime subsystems.
+
+## Regression tests
+
+- [ ] `--help` contains all top-level categories and remains under the agreed line/byte budget.
+- [ ] `--help-network` lists only network groups/protocols.
+- [ ] `--help-enterprise` lists only enterprise groups/protocols.
+- [ ] Each super-group help matches canonical group membership exactly.
+- [ ] Profiles shown by `--help-profiles` match the actual enable masks exactly.
+- [ ] Lowercase and uppercase protocol examples remain valid parser inputs.
+- [ ] `--help-rate` shows the actual default dedup interval.
+- [ ] Help output is identical in native and ARM64 builds for the same feature set.
+- [ ] Help execution performs no packet capture/state allocation.
+
+## Promotion gate
+
+This help design should be implemented only after the active CLI/config/bitmap ownership is stable. At promotion time, re-read the current `version-6` source and preserve any legacy short-option behavior that the compatibility plan still requires.

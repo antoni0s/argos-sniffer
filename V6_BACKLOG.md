@@ -41,6 +41,85 @@ cryptographic keys.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
   fixtures.
 
+## Non-disruptive architecture audit
+
+The following decisions are planning constraints only. They do not authorize runtime integration
+while packet/state/config/telemetry contracts are still moving.
+
+### Cohesive owner mapping for the 37 staged parsers
+
+The standalone staging headers are temporary implementation units. At promotion time they should
+fold into cohesive owners rather than remain one public header per protocol.
+
+| Cohesive owner | Staged parsers |
+|---|---|
+| `argos_l2.h` | LLDP-MED, LACP, STP |
+| `argos_network.h` | RIP, PTP |
+| application facade/section | HTTP proxy, Telnet, VNC, WinRM, LPD, RTP, RTCP, RTSP, Cast, AirPlay, DLNA |
+| `argos_enterprise.h` | FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS, Syslog, NetFlow, IPFIX, sFlow |
+| industrial facade/section | KNXnet/IP, S7comm, OPC UA, DNP3 |
+| IoT facade/section | Matter, Thread/6LoWPAN |
+| VPN facade/section | OpenVPN, IKE, ESP, AH |
+
+Do not create permanent `argos_application.h`, `argos_industrial.h`, `argos_iot.h` or
+`argos_vpn.h` merely to mirror CLI super-groups unless the current source audit proves those
+boundaries own enough shared logic/state to justify them. CLI taxonomy and source-file ownership
+are related but not required to be 1:1.
+
+### Normalized packet contract requirements
+
+Any final packet-view abstraction must be able to expose, without reparsing in every engine:
+
+- raw frame pointer/length when an engine genuinely needs it;
+- L2/L3/L4/payload pointers plus bounded lengths;
+- EtherType;
+- IP version and IP protocol;
+- source/destination MAC;
+- normalized source/destination IP representation;
+- source/destination ports when a port-bearing transport exists;
+- packet direction/ownership/routed context.
+
+The packet view must not assume every L4 protocol is TCP or UDP. ESP (IP protocol 50) and AH
+(IP protocol 51) require direct IP-protocol dispatch without ports.
+
+PTP must allow both native Ethernet PTP and UDP transport to reach the same protocol engine without
+forcing duplicate packet APIs.
+
+Packet normalization must stay separate from observations: SNI, JA4, usernames, SMB dialects,
+RADIUS identities, confidence and application labels are engine/observation data, not packet-view
+fields.
+
+### Shared-type boundary
+
+A shared types unit, if retained, should contain only concepts genuinely used across multiple
+subsystems, such as normalized IP/endpoints, direction/transport, observation identifiers and
+identity class. Protocol-private structs such as QUIC crypto state, TLS ClientHello state, STP
+BPDUs, RADIUS attributes or Matter headers remain private to their owners.
+
+Generic utility code must stay limited to small protocol-neutral primitives (bounded endian reads,
+bounds checks, MAC/IP comparison, monotonic time/hash helpers). Protocol parsing must not migrate
+into a generic utility dumping ground.
+
+### Special integration holds and dispatch requirements
+
+- **Thread/6LoWPAN:** staging parser remains valid, but runtime integration is held until capture
+  link-type semantics prove how raw IEEE 802.15.4/6LoWPAN input reaches the sniffer. Ordinary
+  Ethernet/SPAN capture does not by itself guarantee such frames.
+- **ESP/AH:** dispatcher/BPF design must support non-port IP protocols before these are connected.
+- **PTP:** dispatcher must support both EtherType-based and UDP-based reachability.
+- **LLDP-MED/LACP/STP:** reconcile against the canonical L2 implementation fixture-by-fixture;
+  never run duplicate production parsers for the same protocol.
+
+### Safe work while the core refactor is active
+
+Safe, non-disruptive work includes documentation, fixtures for isolated staging parsers, parser
+boundary audits, protocol-to-owner mapping, dependency matrices, vector/schema review and test
+corpus preparation.
+
+Do not perform source-level consolidation, packet-view rewrites, state-owner changes, dispatcher
+integration, CLI bitmap wiring or telemetry-schema cutover without re-reading the current
+`version-6` source immediately before the change.
+
 ## Ordered delivery plan
 
 ### Phase 1 — Finish the engine architecture

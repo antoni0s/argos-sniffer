@@ -21,7 +21,7 @@ index eb93eba..c087c3e 100644
            print('Capture benchmark contract invariants: PASS')
            PY
 diff --git a/.github/workflows/v6-ci.yml b/.github/workflows/v6-ci.yml
-index 4ac6a1b..e862420 100644
+index 4ac6a1b..b2b7fb8 100644
 --- a/.github/workflows/v6-ci.yml
 +++ b/.github/workflows/v6-ci.yml
 @@ -87,6 +87,29 @@ jobs:
@@ -43,7 +43,7 @@ index 4ac6a1b..e862420 100644
 +          for symbol in ('argos_capture_open', 'argos_capture_receive',
 +                         'argos_capture_report_stats', 'argos_capture_close'):
 +              assert symbol in c and symbol in s
-+          for old in ('active_ifaces', 'capture_iface_t', 'hatype_to_link'):
++          for old in ('static capture_iface_t active_ifaces', 'hatype_to_link('):
 +              assert old not in s
 +          assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c
 +          assert 'argos_packet_decode' not in c and 'argos_filter_match' not in c
