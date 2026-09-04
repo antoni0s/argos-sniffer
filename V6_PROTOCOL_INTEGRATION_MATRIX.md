@@ -262,6 +262,20 @@ padding exclusion; `tests/check_network_adoption.py` guards the runtime consumer
 These are exact owner/entry/trigger/input-bound facts only: canonical bits,
 complete protocol budgets, schema and collector mapping remain unverified.
 
+Non-port checkpoint at `5af8df48…` (characterization only):
+
+| Protocol | Exact isolated entry/input | Verified missing runtime path / adaptation |
+|---|---|---|
+| AH | `argos_ah.h:argos_ah_parse`, >=12 bytes, declared `(payload_len+2)*4` within slice, nonzero SPI | IPv6 walker loses own offset and accepts framing rejected by staging; IP-version alignment adapter needed. Untagged IPv4 BPF lacks 51. No runtime call. |
+| ESP | `argos_esp.h:argos_esp_parse`, >=8 bytes, nonzero SPI; terminal transport has no ports | Untagged IPv4 BPF lacks 50; no runtime call even when fallback admits capture. |
+| PTP | `argos_ptp.h:argos_ptp_parse`, v2, common header >=34, message_length 34..slice length | Same isolated entry accepts native/UDP fixtures. Native main allowlist and dedicated UDP319/320 gates absent; no runtime call. |
+
+`tests/test_nonport_contract.c` verifies these boundaries without runtime wiring.
+`V6_CORE_CONTRACTS.md` records the optional first-AH sidecar proposal and newly
+discovered 256-instruction BPF capacity blocker. Owner/entry/parser-input facts
+are exact; canonical bits, emission fields, lifecycle/bulk budgets and collector
+mapping are NOT verified by these tests. Holds and existing integration order remain.
+
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 
 ```text

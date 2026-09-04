@@ -48,6 +48,9 @@ Branch: `version-6`. Verified production checkpoint: `18b21557…` (PR #16).
 ### C1. Packet / capture / normalization
 
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval.
+- [ ] BPF capacity repair before adding gates: 212/1024 legacy masks exceed 256 instructions
+  (WireGuard=0); all-enabled+default WireGuard fails too. Compact checks first; all-mask/custom-port,
+  kernel attach/verifier and capture-failure policy tests. No silent cap/stack increase.
 - [ ] **NOW:** No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
@@ -204,10 +207,12 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 no-port dispatch/AH/PTP design and reachability fixtures before runtime wiring; VLAN schema decision remains open.
+**Next:** BPF capacity repair, then first-AH ownership API and non-port/PTP reachability prerequisites;
+VLAN schema decision remains open. No runtime staging integration.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none. PR #16 merged; core 33869462769, L2 33869462741, staging 33869462750 PASS.
-Full/stub text 156217/143676 (−64 each), BSS unchanged. Keep reusable `v6-core-gate` until final use.
+**Pending:** non-port/AH/PTP characterization and design candidate; permanent gates pending.
+241,362 local checks PASS, including explicitly labeled known BPF capacity gaps. `src/` unchanged.
+Keep reusable `v6-core-gate` until final use. Do not tick the full C1 contract.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
