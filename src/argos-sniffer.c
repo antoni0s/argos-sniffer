@@ -1159,6 +1159,12 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "warning: dedup cache unavailable; telemetry remains unsuppressed.\n");
     }
 
+    /* ARP/NDP ownership is learned only by the L2 engine. Prepare its bounded
+     * family tables once; live inspector and disabled families reserve nothing. */
+    if (!filter_mode1.is_active && opt_l2 &&
+        !argos_network_prepare_owners(&network_state, 1, opt_v6))
+        fprintf(stderr, "warning: network ownership cache unavailable; routed inference remains fail-open.\n");
+
     argos_bpf_config_t bpf_cfg = {
         .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
         .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),

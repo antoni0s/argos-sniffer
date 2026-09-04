@@ -23,6 +23,7 @@ int main(void) {
     assert(inet_pton(AF_INET, "10.0.0.1", &host4) == 1);
     assert(argos_network_owner4_mismatch(&state, host4, mac_a) == 0);
     assert(state.owner4 == NULL);
+    assert(argos_network_prepare_owners(&state, 1, 0));
     argos_network_owner4_note(&state, host4, mac_a);
     assert(state.owner4 != NULL);
     assert(argos_network_owner4_mismatch(&state, host4, mac_a) == 0);
@@ -33,6 +34,7 @@ int main(void) {
     struct in6_addr host6 = ip6("2001:db8:1::10");
     assert(argos_network_owner6_mismatch(&state, &host6, mac_a) == 0);
     assert(state.owner6 == NULL);
+    assert(argos_network_prepare_owners(&state, 0, 1));
     argos_network_owner6_note(&state, &host6, mac_a);
     assert(argos_network_owner6_mismatch(&state, &host6, mac_b) == 1);
 
