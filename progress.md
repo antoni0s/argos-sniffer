@@ -214,7 +214,9 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 **Next:** startup-failure cleanup, then enabled-only dedup/network/QUIC allocation outside
 packet handling. C1 non-port/PTP depends on C3/C4; VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate; remaining C2 work is not complete.
+**Pending:** startup cleanup candidate: shared process error exits and telemetry-owned
+repeat-safe close; actual-main fault fixture, native/sanitizer/ARM64 gates required
+before ticking. Remaining C2 work is not complete.
 PR #20: core 33893211897, L2 33893211835, staging 33893211837 PASS.
 Native full/stub text 156433/143818 (+200/+124), within unchanged budgets;
 BSS/main stack unchanged; normalized native SYN lookup instructions unchanged.

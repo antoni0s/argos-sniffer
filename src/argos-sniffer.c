@@ -950,6 +950,7 @@ static void print_help(const char *prog) {
 #ifndef ARGOS_PORTABLE_TEST
 int main(int argc, char *argv[]) {
     const char *iface = "any";
+    int exit_status = 1;
     
     argos_filter_program_t filter_mode1 = {0};
     argos_filter_program_t filter_mode2 = {0};
@@ -988,17 +989,17 @@ int main(int argc, char *argv[]) {
             case OPT_SENSOR_NAME:
                 if (!valid_sensor_name(optarg)) {
                     fprintf(stderr, "Error: --sensor-name may contain only letters, digits, '.', '_' and '-' (max 63 chars).\n");
-                    return 1;
+                    goto cleanup_state;
                 }
                 snprintf(sensor_name, sizeof(sensor_name), "%s", optarg);
                 break;
-            case OPT_INSIDE: if (!add_inside_prefix(optarg)) return 1; break;
+            case OPT_INSIDE: if (!add_inside_prefix(optarg)) goto cleanup_state; break;
             case OPT_ENTERPRISE: argos_runtime_enable_enterprise(&runtime_cfg, 0); opt_v6 = 1; break;
             case OPT_ENTERPRISE_VERBOSE: argos_runtime_enable_enterprise(&runtime_cfg, 1); opt_v6 = 1; break;
             case OPT_IDENTITY:
                 if (!argos_identity_mode_parse(optarg, &runtime_cfg.identity_mode)) {
                     fprintf(stderr, "Error: --identity expects hash or raw (use --identity=hash or --identity=raw).\n");
-                    return 1;
+                    goto cleanup_state;
                 }
                 break;
             case OPT_IDENTITY_RAW:
@@ -1008,7 +1009,7 @@ int main(int argc, char *argv[]) {
             case OPT_WIREGUARD_PORT: {
                 char *end = NULL; long v = strtol(optarg, &end, 10);
                 if (!end || *end || v < 1 || v > 65535) {
-                    fprintf(stderr, "Error: invalid --wireguard-port: %s\n", optarg); return 1;
+                    fprintf(stderr, "Error: invalid --wireguard-port: %s\n", optarg); goto cleanup_state;
                 }
                 runtime_cfg.wireguard_port = (uint16_t)v; runtime_cfg.wireguard_port_explicit = 1; break;
             }
@@ -1018,7 +1019,7 @@ int main(int argc, char *argv[]) {
                 if (hard_exclude_mac_count < MAX_HARD_EXCLUDE_MACS) {
                     uint8_t parsed_mac[6];
                     if (!argos_filter_parse_mac(optarg, parsed_mac)) {
-                        fprintf(stderr, "Error: invalid MAC address for -R: %s\n", optarg); return 1;
+                        fprintf(stderr, "Error: invalid MAC address for -R: %s\n", optarg); goto cleanup_state;
                     }
                     memcpy(hard_exclude_macs[hard_exclude_mac_count], parsed_mac, 6);
                     hard_exclude_mac_count++;
@@ -1028,27 +1029,28 @@ int main(int argc, char *argv[]) {
                 if (router_mac_count < MAX_ROUTER_MACS) {
                     uint8_t parsed_mac[6];
                     if (!argos_filter_parse_mac(optarg, parsed_mac)) {
-                        fprintf(stderr, "Error: invalid MAC address for -r: %s\n", optarg); return 1;
+                        fprintf(stderr, "Error: invalid MAC address for -r: %s\n", optarg); goto cleanup_state;
                     }
                     memcpy(router_macs[router_mac_count], parsed_mac, 6);
                     router_mac_count++;
                 }
                 break;
-            case 'x': if (argos_filter_compile(optarg, &filter_exclude) < 0) return 1; break;
-            case 'z': if (argos_filter_compile(optarg, &filter_mode1) < 0) return 1; opt_promisc = 1; break;
-            case 'Z': if (argos_filter_compile(optarg, &filter_mode2) < 0) return 1; break;
+            case 'x': if (argos_filter_compile(optarg, &filter_exclude) < 0) goto cleanup_state; break;
+            case 'z': if (argos_filter_compile(optarg, &filter_mode1) < 0) goto cleanup_state; opt_promisc = 1; break;
+            case 'Z': if (argos_filter_compile(optarg, &filter_mode2) < 0) goto cleanup_state; break;
             case 'o': 
                 if (ipc_sock >= 0) close(ipc_sock); /* defensive: avoid leaking a fd if -o is given more than once */
                 use_ipc = 1;
-                if ((ipc_sock = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) { perror("socket AF_UNIX"); return 1; }
+                if ((ipc_sock = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) { perror("socket AF_UNIX"); goto cleanup_state; }
                 memset(&ipc_addr, 0, sizeof(struct sockaddr_un));
                 ipc_addr.sun_family = AF_UNIX;
                 strncpy(ipc_addr.sun_path, optarg, sizeof(ipc_addr.sun_path) - 1);
                 break;
             case 'u': /* UDP-only remote telemetry sink. */
                 if (remote_sock >= 0) close(remote_sock);
-                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1;
-                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -u"); return 1; }
+                remote_sock = -1; /* No stale owner if resolution fails. */
+                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) goto cleanup_state;
+                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -u"); goto cleanup_state; }
                 use_remote = 1;
                 udp_only = 1;
                 break;
@@ -1058,15 +1060,16 @@ int main(int argc, char *argv[]) {
                        * the outgoing telemetry datagrams will be visible to the capture loop like
                        * any other traffic; use -x to exclude the collector's IP/port if that would
                        * create noise or a feedback loop. */
-                if (remote_sock >= 0) close(remote_sock); /* defensive: avoid leaking a fd if -U is given more than once */
-                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) return 1; /* parse_host_port() already printed why */
-                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -U"); return 1; }
+                if (remote_sock >= 0) close(remote_sock);
+                remote_sock = -1; /* No stale owner if resolution fails. */
+                if (parse_host_port(optarg, &remote_addr, &remote_addr_len) < 0) goto cleanup_state; /* parse_host_port() already printed why */
+                if ((remote_sock = socket(remote_addr.ss_family, SOCK_DGRAM, 0)) < 0) { perror("socket -U"); goto cleanup_state; }
                 use_remote = 1;
                 udp_only = 0;
                 fprintf(stderr, "warning: -U streams telemetry to %s over plain UDP and stdout; UDP is unencrypted, use only over a trusted path.\n", optarg);
                 break;
-            case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); return 1; } max_packets = (int)v; break; }
-            case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); return 1; } rate_limit_ttl = (int)v; break; }
+            case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); goto cleanup_state; } max_packets = (int)v; break; }
+            case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); goto cleanup_state; } rate_limit_ttl = (int)v; break; }
             case 'p': opt_promisc = 1; break;
             case 's': opt_syn = 1; opt_syn_rl = 1; break;
             case 'S': opt_syn = 1; opt_syn_rl = 0; break;
@@ -1095,7 +1098,7 @@ int main(int argc, char *argv[]) {
                 opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 0;
                 opt_v6 = 1; break;
             case 'W': opt_quic_heavy = 1; break;    
-            default: print_help(argv[0]); return 1;
+            default: print_help(argv[0]); goto cleanup_state;
         }
     }
 
@@ -1106,27 +1109,27 @@ int main(int argc, char *argv[]) {
         opt_v6 = 1;
     }
 
-    if (optind < argc) { fprintf(stderr, "Error: Unrecognized extra argument.\n"); return 1; }
+    if (optind < argc) { fprintf(stderr, "Error: Unrecognized extra argument.\n"); goto cleanup_state; }
 
     if (!opt_sensor_mode && (sensor_name[0] || network_state.configured_count > 0)) {
         fprintf(stderr, "Error: --sensor-name/--inside require --sensor.\n");
-        return 1;
+        goto cleanup_state;
     }
     if (opt_sensor_mode) {
         if (!sensor_name[0]) {
             fprintf(stderr, "Error: --sensor requires --sensor-name.\n");
-            return 1;
+            goto cleanup_state;
         }
         if (strcasecmp(iface, "any") == 0) {
             fprintf(stderr, "Error: --sensor requires an explicit SPAN/TAP interface via -i (not 'any').\n");
-            return 1;
+            goto cleanup_state;
         }
     }
 
     const char *runtime_cfg_error = argos_runtime_config_validate(&runtime_cfg);
     if (runtime_cfg_error) {
         fprintf(stderr, "Error: %s\n", runtime_cfg_error);
-        return 1;
+        goto cleanup_state;
     }
 
     if (filter_mode1.is_active && filter_mode2.is_active) {
@@ -1136,9 +1139,7 @@ int main(int argc, char *argv[]) {
     if (opt_ext_metrics) {
         if (!argos_runtime_state_enable_extended_metrics(&runtime_state)) {
             fprintf(stderr, "Error: unable to allocate extended-metrics state.\n");
-            argos_runtime_state_destroy(&runtime_state);
-            argos_network_destroy(&network_state);
-            return 1;
+            goto cleanup_state;
         }
     }
 
@@ -1162,10 +1163,10 @@ int main(int argc, char *argv[]) {
     argos_capture_state_t capture;
     int capture_count = argos_capture_open(&capture, iface, opt_promisc,
                                            filter_mode1.is_active, &bpf_cfg);
-    if (capture_count < 0) { perror("capture initialization"); return 1; }
+    if (capture_count < 0) { perror("capture initialization"); goto cleanup_capture; }
     if (opt_promisc && capture_count == 1 && capture.ifaces[0].type == LINK_PER_PACKET)
         fprintf(stderr, "warning: promiscuous mode with -i any is not enabled globally; use explicit interfaces with -p for full L2 visibility\n");
-    if (capture_count == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\n"); argos_capture_close(&capture); return 1; }
+    if (capture_count == 0) { fprintf(stderr, "No valid interfaces bound. Exiting.\n"); goto cleanup_capture; }
     for (int i = 0; i < capture_count; ++i)
         argos_network_add_iface(&network_state, capture.ifaces[i].name,
                                 capture.ifaces[i].ifindex);
@@ -1916,13 +1917,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* Cleanup sockets and resources */
     if (lan_netlink_fd >= 0) close(lan_netlink_fd);
-    if (ipc_sock >= 0) close(ipc_sock);
-    if (remote_sock >= 0) close(remote_sock);
+    exit_status = 0;
+cleanup_capture:
+    /* Every open attempt leaves a closeable owner; CLI failures never reach it. */
+    argos_capture_close(&capture);
+cleanup_state:
+    argos_telemetry_close();
     argos_runtime_state_destroy(&runtime_state);
     argos_network_destroy(&network_state);
-    argos_capture_close(&capture);
-    return 0;
+    return exit_status;
 }
 #endif

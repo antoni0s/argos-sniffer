@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 #endif
 
 /* Telemetry owns sink state, sensor observation context and wire emission.
@@ -78,6 +79,14 @@ static int remote_sock = -1;
 static struct sockaddr_storage remote_addr;
 static socklen_t remote_addr_len = 0;
 static int use_remote = 0;
+
+/* Startup failure or stopped capture only; never closes stdout. */
+static inline void argos_telemetry_close(void) {
+    if (ipc_sock >= 0) close(ipc_sock);
+    if (remote_sock >= 0) close(remote_sock);
+    ipc_sock = remote_sock = -1;
+    use_ipc = use_remote = udp_only = 0;
+}
 
 /**
  * Parses a "host:port" (or "[host]:port" for an IPv6 literal, per the usual
