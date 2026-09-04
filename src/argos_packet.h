@@ -58,6 +58,42 @@ static inline uint16_t read_be16(const unsigned char *p) {
  * First fragments retain legacy behavior if a complete transport header fits;
  * non-first fragments cannot expose transport. IPv6 AH traversal is unchanged:
  * this API describes the final normalized L4 span, not skipped AH headers. */
+/* Internal fast entry: v must retain successful decoder framing fields with
+ * is_ip && !nonfirst_fragment; out must be non-NULL. The dispatcher has already
+ * checked these conditions; protocol must equal v->ip_protocol (the known
+ * dispatch constant permits compile-time specialization). On failure out is
+ * unspecified and must not be used.
+ * Both entries share the same transport parser; do not repeat IP validation. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
+static inline int argos_packet_transport_normalized(const argos_packet_view_t *v,
+                                                     uint8_t protocol,
+                                                     argos_transport_view_t *out) {
+    int available = v->packet_end - v->l4_offset;
+    int header = 0, length = available;
+    const unsigned char *p = v->frame + v->l4_offset;
+    if (protocol == 6U) {
+        if (available < 20) return 0;
+        header = (int)(p[12] >> 4) * 4;
+        if (header < 20 || header > available) return 0;
+    } else if (protocol == 17U) {
+        if (available < 8) return 0;
+        length = (int)read_be16(p + 4);
+        if (length < 8 || length > available) return 0;
+        header = 8;
+    }
+    out->sport = header ? read_be16(p) : 0U;
+    out->dport = header ? read_be16(p + 2) : 0U;
+    out->has_ports = (uint8_t)(header != 0);
+    out->header_len = header;
+    out->payload_offset = v->l4_offset + header;
+    out->payload_len = length - header;
+    return 1;
+}
+
+/* Defensive entry for callers that have not established the normalized-view
+ * preconditions. Failure clears the result, preserving the public API contract. */
 static inline int argos_packet_transport(const argos_packet_view_t *v,
                                           argos_transport_view_t *out) {
     if (!out) return 0;
@@ -65,28 +101,7 @@ static inline int argos_packet_transport(const argos_packet_view_t *v,
     if (!v || !v->frame || !v->is_ip || v->nonfirst_fragment ||
         v->l3_offset < 0 || v->l4_offset < v->l3_offset ||
         v->packet_end < v->l4_offset || v->packet_end > v->captured_len) return 0;
-    int available = v->packet_end - v->l4_offset;
-    int header = 0, length = available;
-    const unsigned char *p = v->frame + v->l4_offset;
-    if (v->ip_protocol == 6U) {
-        if (available < 20) return 0;
-        header = (int)(p[12] >> 4) * 4;
-        if (header < 20 || header > available) return 0;
-    } else if (v->ip_protocol == 17U) {
-        if (available < 8) return 0;
-        length = (int)read_be16(p + 4);
-        if (length < 8 || length > available) return 0;
-        header = 8;
-    }
-    if (header) {
-        out->sport = read_be16(p);
-        out->dport = read_be16(p + 2);
-        out->has_ports = 1U;
-    }
-    out->header_len = header;
-    out->payload_offset = v->l4_offset + header;
-    out->payload_len = length - header;
-    return 1;
+    return argos_packet_transport_normalized(v, v->ip_protocol, out);
 }
 
 static inline int ipv4_header_info(const unsigned char *buffer, int available,

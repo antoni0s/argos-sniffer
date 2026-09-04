@@ -12,12 +12,18 @@ are not evidence of runtime reachability or collector compatibility.
 Transport API addition: `argos_packet_transport()` returns borrowed bounded offsets,
 TCP/UDP ports only when applicable, and rejects malformed lengths/nonfirst fragments.
 `tests/test_transport.c` checks equivalence with the existing main-loop predicates.
-Main adoption remains pending: no runtime dispatch, AH handling, output, or state
-ownership changes are implied by adding this currently unused inline API.
+Runtime adoption uses `argos_packet_transport_normalized(view, protocol, out)`
+after successful normalization and IP/nonfirst-fragment guards. The protocol
+argument is the matching TCP/UDP dispatch constant, enabling inline specialization.
+The defensive API shares this parser and remains available for other callers.
+TCP option bounds use the returned header length; UDP relevance/owner checks stay
+before length validation. No AH handling, output or state ownership changes.
+The debug packet dump and earlier router-exception header peeks remain separate;
+this step replaces the TCP/UDP protocol-dispatch payload calculations only.
 
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
-| 1 | Capture / normalization | Capture extraction owns AF_PACKET setup/receive/stats/close. `argos_packet.h` owns a borrowed frame view; main still validates TCP/UDP and derives payload bounds. | Common bounded transport view, explicit no-port transport semantics, L2 reachability fixtures, ancillary metadata and failure-path coverage. |
+| 1 | Capture / normalization | Capture extraction owns AF_PACKET setup/receive/stats/close. `argos_packet.h` owns borrowed frame and TCP/UDP dispatch payload bounds. | Direction/ownership context, no-port dispatch/AH semantics, ancillary metadata and failure-path coverage; debug-dump/header-peek reconciliation. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate state. | Eliminate packet-time allocation, explicit prepare/destroy contracts, partial-init cleanup, byte budgets, clock behavior and cache-eviction semantics. |
 | 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |

@@ -1504,13 +1504,13 @@ int main(int argc, char *argv[]) {
             }
 
             if (protocol == IPPROTO_TCP) {
-                if (l4_offset + 20 > l3_packet_end) continue;
+                argos_transport_view_t transport;
+                if (!argos_packet_transport_normalized(&packet_view, IPPROTO_TCP, &transport)) continue;
                 struct tcphdr tcp_hdr; memcpy(&tcp_hdr, buffer + l4_offset, sizeof(tcp_hdr));
                 struct tcphdr *tcp = &tcp_hdr;
-                uint16_t dport = ntohs(tcp->dest), sport = ntohs(tcp->source);
-                int tcp_hl = tcp->doff * 4;
-                if (tcp_hl < 20 || l4_offset + tcp_hl > l3_packet_end) continue;
-                int payload_offset = l4_offset + tcp_hl, payload_len = l3_packet_end - payload_offset;
+                uint16_t dport = transport.dport, sport = transport.sport;
+                int tcp_hl = transport.header_len;
+                int payload_offset = transport.payload_offset, payload_len = transport.payload_len;
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
                                    (opt_http && (dport == 80U || dport == 8080U)) ||
                                    (opt_tls && (argos_tls_tcp_port(dport) || argos_tls_tcp_port(sport))) ||
@@ -1766,10 +1766,10 @@ int main(int argc, char *argv[]) {
                         routed_evidence = 1; routed_str = "|routed";
                     }
                 }
-                uint16_t udp_len = ntohs(udp->len);
-                if (udp_len < 8U || (int)udp_len > l3_packet_end - l4_offset) continue;
-                int payload_offset = l4_offset + 8;
-                int payload_len = (int)udp_len - 8;
+                argos_transport_view_t transport;
+                if (!argos_packet_transport_normalized(&packet_view, IPPROTO_UDP, &transport)) continue;
+                int payload_offset = transport.payload_offset;
+                int payload_len = transport.payload_len;
                 if (payload_len <= 0) continue;
 
                 const unsigned char *payload = buffer + payload_offset;
