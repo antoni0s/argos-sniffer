@@ -88,12 +88,12 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
 
 - Dedup is prepared during startup only when rate-limited output is enabled;
   absent/OOM state stays fail-open and packet calls never allocate or retry (PR #22).
-- `argos_network_owner4_note` / `argos_network_owner6_note` can allocate ownership
-  tables through their ensure helpers while processing ARP/NDP.
+- Network ownership is prepared at startup only for enabled L2 families; partial
+  failure stays family-local/fail-open and ARP/NDP calls never allocate or retry (PR #23).
 - QUIC stateless and stateful decrypt allocate scratch buffers per call;
   `quic_heavy_ensure_table` allocates its table on first use.
 - Consequently **no malloc in the packet hot path is not currently satisfied**;
-  network ownership and QUIC remain open after the completed dedup repair.
+  QUIC remains open after the completed dedup and network ownership repairs.
 - Preserve disabled-mode footprint by allocating enabled subsystem capacity at
   startup/explicit activation, before capture processing. If future JIT activation
   is required, request activation and return; prepare resources at a lifecycle
@@ -165,8 +165,8 @@ ASan/UBSan/LSan and ARM64 full/stub/fixture compilation (not hardware execution)
 Native full/stub text is 156309/144022 (-124/+204), BSS unchanged at 80304/80296,
 main stack 84944 (-16). Size budgets are unchanged; no throughput claim.
 
-Remaining C2/C8 work includes enabled-capacity selection, packet-time network/QUIC
-allocations and lifecycle, sink setup extraction, and complete clock/saturation/
+Remaining C2/C8 work includes enabled-capacity selection, packet-time QUIC allocation
+and lifecycle, sink setup extraction, and complete clock/saturation/
 budget/backpressure testing. This does not freeze C2 or C8.
 
 #### Dedup preparation — PR #22, `833849024c09b4064d9091bedf85f18545780801`
@@ -183,7 +183,7 @@ This intentionally removes the old per-evidence allocation retry after OOM;
 explicit lifecycle retry is possible outside packet processing. Enabled idle
 instances now reserve 49152 bytes before first evidence, rather than lazily on it;
 steady-state cache capacity, keys/hash, probes, fixed/sliding TTL and wire output
-remain unchanged. Network/QUIC packet-time allocation remains unresolved.
+remain unchanged. QUIC packet-time allocation remains unresolved.
 
 `test_dedup_lifecycle` traps allocation on first/failed-cache evidence, checks repeat
 prepare/destroy, independent owners, and 30000 decision/full-cache comparisons with
@@ -205,6 +205,23 @@ L2 33896908769 and staging 33896908794 PASS, including native full/stub,
 ASan/UBSan/LSan and ARM64 full/stub/fixture compilation. The squash production
 commit is the heading commit above. No ARM64 hardware execution or measured
 capture-throughput claim.
+
+#### Network ownership preparation — PR #23, `b799b791b8257e47eea8f0aa14ee2965d2efd6fd`
+
+`argos_network_prepare_owners(state, want4, want6)` replaces packet-time ensure
+calls. Main requests IPv4 only for enabled L2, IPv6 only for L2+IPv6, and neither
+for live inspector/disabled L2. The families are independent: partial OOM retains
+the available family and missing state remains fail-open without packet retries.
+Repeated prepare preserves learned entries; destroy remains repeat-safe. Capacity,
+four-probe lookup, 180-second TTL, replacement, routed classification and output
+are unchanged. Enabled capacity is 8192 bytes IPv4 plus 5120 bytes IPv6.
+
+`test_network_owner_lifecycle` traps first/failed-family evidence and checks repeat
+prepare/destroy. The actual-main startup fixture verifies legacy flag precedence,
+family selection, inspector bypass and partial failures. Core 33917508319, L2
+33917508349 and staging 33917508313 PASS, including ASan/UBSan/LSan and ARM64
+full/stub/fixture compilation. Native full/stub text is 156949/144438; BSS remains
+80304/80296. No capture-throughput or ARM64 hardware-execution claim.
 
 ### Packet reachability
 
@@ -525,9 +542,9 @@ No dependency is waived by a protocol's position in that sequence.
 
 - Frame fixtures for STP/RSTP/MSTP, native+UDP PTP, IPv4/IPv6 AH/ESP, fragments,
   VLAN/QinQ/PPPoE, raw/cooked/unsupported links and ancillary VLAN/timestamp data.
-- Allocator interception after startup including successful/failing QUIC decrypt
-  and first ARP/NDP evidence; zero allocations required. Dedup first/failed-evidence
-  interception is delivered by PR #22.
+- Allocator interception after startup including successful/failing QUIC decrypt;
+  zero allocations required. Dedup and ARP/NDP first/failed-evidence interception
+  is delivered by PR #22 and PR #23.
 - Partial initialization, repeated shutdown, allocation failure, table saturation,
   tuple reuse, clock rollback and expiry; explicit per-protocol packet/byte budgets.
 - Disabled-engine counters proving no payload parsing or state lookup; startup

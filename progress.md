@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `83384902…` (PR #22).
-**Now:** enabled-only network ownership preparation outside packet handling (C2).
+Branch: `version-6`. Verified checkpoint: `b799b791…` (PR #23).
+**Now:** remove QUIC scratch/state allocation from packet handling (C2).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -29,6 +29,7 @@ Branch: `version-6`. Verified checkpoint: `83384902…` (PR #22).
 - [x] Instance-owned SYN/DNS, transactional preparation and repeat-safe reset/destroy; failure/allocation traps and permanent gates — PR #20.
 - [x] Process startup failures unwind state/capture/sinks; telemetry-owned repeat-safe close and actual-main fault gates — PR #21.
 - [x] Enabled-only dedup preparation removes allocation/retry from packet handling; lifecycle/equivalence gates — PR #22.
+- [x] Enabled-family network ownership preparation removes ARP/NDP allocation/retry from packet handling — PR #23.
 
 ## How to update — mandatory
 
@@ -65,10 +66,10 @@ Branch: `version-6`. Verified checkpoint: `83384902…` (PR #22).
 
 ### C2. Bounded state / lifecycle
 
-- [ ] Remove packet-time network-owner allocations and QUIC scratch allocations;
+- [ ] Remove packet-time QUIC scratch/state allocations;
   prepare only enabled capacity outside packet handling; heavy QUIC remains opt-in/default cheap.
-- [ ] **NOW:** Enabled-only network ownership preparation, then QUIC capacity selection and
-  lifecycle tests beyond the completed SYN/DNS/dedup/process-startup cleanup;
+- [ ] **NOW:** QUIC capacity/failure policy and lifecycle tests beyond the completed
+  SYN/DNS/dedup/network/process-startup cleanup;
   no extra generic tracker. First-evidence allocation traps must cover all remaining owners.
 - [ ] Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
   measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
@@ -216,14 +217,14 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** network owner preparation/failure policy and first-ARP/NDP allocation traps,
-then QUIC allocation outside packet handling. C1 non-port/PTP depends on C3/C4;
+**Next:** QUIC scratch/state allocation outside packet handling, keeping heavy mode opt-in
+and the disabled path effectively free. C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; C2/C8 remain incomplete.
-PR #22: core 33896908802, L2 33896908769, staging 33896908794 PASS.
-Native full/stub text 156581/144106; approved cap 156581; BSS unchanged;
-main stack 84960. Existing 48 KiB cache is prepared only when dedup is enabled.
+PR #23: core 33917508319, L2 33917508349, staging 33917508313 PASS.
+Native full/stub text 156949/144438; BSS unchanged at 80304/80296.
+Ownership reserves 8 KiB IPv4 plus 5 KiB IPv6 only for enabled L2 families.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

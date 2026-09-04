@@ -299,8 +299,10 @@ fixtures cover independent owners and first evidence. This verifies owner/lifecy
 fields only, not canonical bits, per-protocol byte budgets or collector mapping.
 PR #22 (`83384902…`) moves the existing bounded dedup cache allocation to enabled-only
 startup preparation. First evidence and failed preparation never allocate or retry;
-keys, probes, TTL and wire behavior remain unchanged. Packet-time network/QUIC
-allocations remain open; no staging row is promoted.
+keys, probes, TTL and wire behavior remain unchanged. PR #23 (`b799b791…`) prepares
+the existing 8 KiB IPv4 and 5 KiB IPv6 ownership tables only for enabled L2 families;
+ARP/NDP never allocate/retry and partial OOM remains family-local/fail-open. Packet-time
+QUIC allocations remain open; no staging row is promoted.
 
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 
