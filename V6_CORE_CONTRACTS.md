@@ -168,6 +168,42 @@ Remaining C2/C8 work includes enabled-capacity selection, packet-time dedup/netw
 QUIC allocations and lifecycle, sink setup extraction, and complete clock/saturation/
 budget/backpressure testing. This does not freeze C2 or C8.
 
+#### Dedup preparation candidate — PR #22, NOT production; size approval pending
+
+Baseline `6b186c4b16e80f25e65eaeb9060b85b320a54390`. Candidate
+`argos_dedup_prepare` initializes the existing 2048-slot/eight-probe cache outside
+packet handling. Repeated prepare preserves entries; destroy remains repeat-safe.
+Main computes demand after legacy defaults/precedence: positive -f, at least one
+rate-limited category/enterprise, and not live inspector (-z). -A/wholly verbose
+and -f 0 do not allocate. Canonical bitmap/profile work is not implied.
+
+Failure remains fail-open with one startup warning; packets never retry allocation.
+This intentionally removes the old per-evidence allocation retry after OOM;
+explicit lifecycle retry is possible outside packet processing. Enabled idle
+instances now reserve 49152 bytes before first evidence, rather than lazily on it;
+steady-state cache capacity, keys/hash, probes, fixed/sliding TTL and wire output
+remain unchanged. Network/QUIC packet-time allocation remains unresolved.
+
+`test_dedup_lifecycle` traps allocation on first/failed-cache evidence, checks repeat
+prepare/destroy, independent owners, and 30000 decision/full-cache comparisons with
+the frozen prior dedup algorithm, including saturation/collisions/clock rollback.
+`test_startup_lifecycle` also checks actual CLI defaults, order, verbose/mixed,
+enterprise, -f 0, inspector and fail-open startup policy. Existing owner tests now
+prepare explicitly. These are not full capture throughput or all-owner acceptance.
+
+Alternatives (native full text): inline 156921; bitwise demand 157033;
+out-of-line prepare 157065; shared lookup 156581; cold prepare/shared lookup 156801.
+Selected shared lookup retains the prior native shared-call boundary and removes
+its allocator branch. Full/stub 156581/144106 (+272/+84 from baseline), unchanged
+BSS 80304/80296; main stack 84960 (+16). The full cap remains 156441: candidate
+is 140 bytes over and must not merge without explicit approval. No staged protocol
+row becomes exact/ready from this lifecycle-only candidate.
+Candidate `b42b352336d5dd98f14f6cad61bc54f1c3eb1595`: core 33896102915 passes
+native full/stub, ASan/UBSan/LSan and ARM64 full/stub/fixture compilation; it fails
+only the unchanged text cap. L2 33896102897 and staging 33896102861 PASS.
+The task remains unchecked and production dedup remains lazy until approval,
+a newly passing gate and production promotion. No ARM64 hardware execution claim.
+
 ### Packet reachability
 
 Link boundary PR #14 from `b5c707b8…`: the live AF_PACKET/SOCK_RAW owner

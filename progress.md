@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `7e18fab4…` (PR #21).
-**Now:** enabled-only dedup preparation outside packet handling (C2).
+**Now:** dedup preparation staged; waiting for text-budget approval (C2, PR #22).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -216,7 +216,12 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 network/QUIC allocation outside packet handling. C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate; remaining C2/C8 work is not complete.
+**Pending:** PR #22 (`b42b3523…`), not production: enabled-only dedup prepare and
+allocation-free fail-open lookup. Core 33896102915 passes native/ASan/UBSan/LSan/
+ARM64 compilation, fails only size; L2 33896102897 and staging 33896102861 PASS.
+Full text 156581 exceeds cap 156441 by 140 bytes after five measured alternatives;
+recommend this exact cap revision, pending approval. BSS unchanged; stack +16;
+existing 48 KiB cache reserved at startup only when needed. No tick/merge yet.
 PR #21: core 33894580958, L2 33894580816, staging 33894580782 PASS.
 Native full/stub text 156309/144022 (-124/+204), within unchanged budgets;
 BSS unchanged; main stack 84944 (-16); packet loop unchanged.
