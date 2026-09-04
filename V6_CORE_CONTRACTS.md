@@ -284,29 +284,48 @@ Core 33890379876, L2 33890379859 and staging 33890379875 PASS: strict standalone
 native full/stub, ASan/UBSan/LSan, ARM64 full/stub and fixture compilation, unchanged
 size budgets. ARM64 fixtures compile only; hardware acceptance remains open.
 
-**Proposed API direction, not implemented:** packet normalization owns framing;
-preserve `ip_protocol/l4_offset` terminal semantics for existing consumers. Prefer
-an optional caller-owned first-AH offset/length sidecar populated during the same
-bounded IPv6 walk (IPv4 uses the existing header offset). No packet-wide list,
-payload copy, allocation, protocol result fields or new per-flow tracker. Compare
-this against two inline packet-view fields before selecting the final API; measure
-stack/ABI/text and disabled-path specialization on native/ARM64. A null/disabled
-request must not add engine calls or state lookups. No extra traversal per engine.
+**First-AH API candidate (permanent gates pending):** packet normalization owns
+framing via `argos_packet_decode_with_ah(..., argos_packet_ah_view_t *out)`.
+`out` is optional caller-owned offset/length populated in the same bounded IPv6
+walk; IPv4 uses its existing L4 offset. Packet decode success and AH presence are
+separate: a successful packet can have empty AH evidence. NULL preserves legacy
+decode. `ip_protocol/l4_offset` terminal semantics and the main caller are unchanged.
+No packet-wide list, payload copy, allocation, protocol result fields, state lookup
+or new per-flow tracker. Offsets borrow the capture buffer and expire with it.
+The sidecar must not overlap the packet view or capture buffer.
 
-The future first-AH contract must explicitly state first-only coverage for
-repeated AH, no recursive tunnel inspection, no ports on AH/ESP slices, and no
-usable output on decode failure. Do not recover AH evidence from AH→59 or a later
-malformed extension by using a partially initialized view. Such evidence would
-need a separately reviewed partial-success API. Reject nonfirst fragments; only
-complete bounded headers on admitted first/atomic fragments can supply metadata,
+First-only coverage is explicit: an invalid first AH cannot be replaced by a
+valid later AH. No recursive tunnel inspection or invented ports. Output is
+cleared on every request and remains empty on decode failure, including AH→59,
+later malformed extensions and depth exhaustion. Partial-success evidence needs
+a separate reviewed API. Nonfirst fragments never supply AH evidence; only
+complete bounded headers on admitted first/atomic fragments can supply framing,
 never authentication verification or reassembly.
 
 AH framing length follows [RFC 4302 §2.2](https://www.rfc-editor.org/rfc/rfc4302.html#section-2.2).
 The legacy IPv6 walker accepts an eight-byte AH, whereas the isolated parser
 requires at least twelve; neither currently enforces IPv6's eight-byte alignment.
-The proposed evidence adapter must validate those bounds without silently changing
-legacy terminal dispatch. Neither SPI/sequence extraction nor a valid length
+The new evidence adapter validates those bounds without changing legacy terminal
+dispatch. Neither SPI/sequence extraction nor a valid length
 proves AH integrity. No ICV/key material may become observation storage.
+
+`tests/test_packet_ah.c` compares every tested decode/view with a test-only frozen
+PR #18 decoder: 17,884,886 checks across six link wrappers, both alignments and IP
+versions, all AH lengths/capture truncations, declared bounds/padding, repeated/mixed
+chains, first/nonfirst/atomic fragments, absent/disabled/null/failure paths. Main
+does not call the new API; staging AH remains isolated and still needs adaptation
+to version-validated framing. This is not non-port BPF/dispatch integration.
+
+Local native full/stub text 156233/143694, BSS 80304/80296 and main stack 84960
+remain unchanged. Packet view remains 88 bytes; optional sidecar 8 bytes versus
+96 bytes for an inline-field alternative. `bench_packet_ah.c` uses the same API
+for the inline alternative (not another parser). Initial compiler sharing caused
+a disabled-path slowdown; explicit internal inlining and independent NULL entry
+specialization removed it. Repeated local disabled/frozen ratios are near 1.0;
+benchmark timings are diagnostic, not a noisy wall-clock CI threshold. Native
+production disassembly differs only by an equivalent comparison direction, not
+extra AH instructions. ARM64 compilation/performance evidence is pending; real
+capture/hardware throughput remains a separate release gate.
 
 PTP adapters should supply the same bounded message slice to the existing parser:
 native `[l3_offset,packet_end)` or UDP's declared payload. Use one protocol enable

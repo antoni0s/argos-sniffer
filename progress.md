@@ -210,7 +210,9 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 **Next:** first-AH ownership API and non-port/PTP reachability prerequisites;
 VLAN schema decision remains open. No runtime staging integration.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate; next API requires its own gate. Full C1 remains open.
+**Pending:** first-AH API candidate on reused `v6-core-gate`; permanent gates pending.
+17,884,886 local framing/equivalence checks and ASan/UBSan PASS; packet view remains
+88 bytes, optional framing 8 bytes, native text/BSS unchanged. Full C1 remains open.
 PR #18: core 33890379876, L2 33890379859, staging 33890379875 PASS.
 Native full/stub text 156233/143694; BSS and measured startup/main stack unchanged.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
