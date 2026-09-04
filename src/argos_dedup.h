@@ -72,7 +72,7 @@ static int argos_dedup_should_suppress_at(argos_dedup_state_t *state,
         size_t slot = (base + probe) & (ARGOS_DEDUP_SLOTS - 1U);
         argos_dedup_entry_t *e = &state->table[slot];
         if (e->valid && e->key == h) {
-            if ((now - e->last_seen) < ttl) {
+            if (now >= e->last_seen && (now - e->last_seen) < ttl) {
                 if (sliding) e->last_seen = now;
                 return 1;
             }

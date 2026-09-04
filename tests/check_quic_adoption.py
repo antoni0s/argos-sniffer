@@ -14,6 +14,9 @@ assert "!filter_mode1.is_active && opt_tls" in startup
 assert "argos_quic_prepare(&quic_state, opt_quic_heavy)" in startup
 assert main.count("argos_quic_prepare(&quic_state") == 1
 assert "uint8_t fake_tls_buf[8192]" not in main
+assert "quic_success_cache" not in main
+assert "argos_quic_success_recent(&quic_state" in main
+assert "argos_quic_mark_success(&quic_state" in main
 assert "decrypt_quic_sni(&quic_state" in main
 assert "decrypt_quic_sni_stateful(&quic_state" in main
 assert "quic_heavy_gc(&quic_state)" in main

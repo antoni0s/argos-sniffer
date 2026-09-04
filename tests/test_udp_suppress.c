@@ -16,6 +16,8 @@ int main(void) {
     /* Suppressed hits do not refresh the epoch: revalidate after 5 seconds. */
     assert(argos_udp_suppress_recent(tab,4,a,b,50000,51820,4,106)==0);
     assert(argos_udp_suppress_recent(tab,4,a,b,50000,51820,4,107)==1);
+    assert(argos_udp_suppress_recent(tab,4,a,b,50000,51820,4,99)==0);
+    assert(argos_udp_suppress_recent(tab,4,a,b,50000,51820,4,99)==1);
 
     /* Reverse direction and a different message class are independent. */
     assert(argos_udp_suppress_recent(tab,4,b,a,51820,50000,4,107)==0);

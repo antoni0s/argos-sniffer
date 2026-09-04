@@ -40,6 +40,11 @@ int main(void) {
     assert(argos_flow_find_at(&expiry, 4, a, b, 53000, 443, 0, 1060) != NULL);
     assert(argos_flow_find_at(&expiry, 4, a, b, 53000, 443, 0, 1121) == NULL);
 
+    /* A backward wall-clock correction starts a fresh fail-open epoch. */
+    e = argos_flow_find_at(&expiry, 4, a, b, 53001, 443, 1, 2000);
+    assert(e); e->done = 1U;
+    assert(argos_flow_find_at(&expiry, 4, a, b, 53001, 443, 0, 1999) == NULL);
+
     assert(argos_flow_find_at(&state, 5, a, b, 1, 2, 1, 1) == NULL);
     puts("Flow-state module fixtures: PASS");
     return 0;

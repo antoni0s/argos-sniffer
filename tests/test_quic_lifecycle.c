@@ -74,6 +74,19 @@ int main(void) {
     assert(a.fake_tls == a.present + ARGOS_QUIC_MAX_CRYPTO && !a.sessions);
     assert(argos_quic_prepare(&a, 0) && calls == 1);
 
+    const uint64_t success_key = UINT64_C(0x1234);
+    const uint64_t collision_key = success_key + ARGOS_QUIC_SUCCESS_SLOTS;
+    assert(!argos_quic_success_recent_at(&a, success_key, 100));
+    argos_quic_mark_success_at(&a, success_key, 100);
+    assert(argos_quic_success_recent_at(&a, success_key, 100 + ARGOS_QUIC_SUCCESS_TTL_SECS));
+    assert(!argos_quic_success_recent_at(&a, success_key, 101 + ARGOS_QUIC_SUCCESS_TTL_SECS));
+    argos_quic_mark_success_at(&a, success_key, 200);
+    assert(!argos_quic_success_recent_at(&a, success_key, 199));
+    argos_quic_mark_success_at(&a, success_key, 300);
+    argos_quic_mark_success_at(&a, collision_key, 301);
+    assert(!argos_quic_success_recent_at(&a, success_key, 301));
+    assert(argos_quic_success_recent_at(&a, collision_key, 301));
+
     uint8_t packet[96]; size_t packet_len = make_initial(packet); int out_len = 0;
     hot = 1;
     assert(decrypt_quic_sni(&a, packet, (int)packet_len, 6, 8,
@@ -88,6 +101,14 @@ int main(void) {
     assert(argos_quic_prepare(&a, 1));
     size_t session_bytes = QUIC_STATE_SLOTS * sizeof(quic_session_t);
     assert(calls == 2 && live == 2 && allocated_bytes == ARGOS_QUIC_WORKSPACE_BYTES + session_bytes);
+    a.sessions[0].used = 1; a.sessions[0].last_seen = 100;
+    quic_heavy_gc_at(&a, 99);
+    assert(!a.sessions[0].used);
+    a.sessions[0].used = 1; a.sessions[0].last_seen = 100;
+    quic_heavy_gc_at(&a, 100 + QUIC_STATE_TTL);
+    assert(a.sessions[0].used);
+    quic_heavy_gc_at(&a, 101 + QUIC_STATE_TTL);
+    assert(!a.sessions[0].used);
     hot = 1;
     assert(decrypt_quic_sni_stateful(&a, packet, (int)packet_len, 6, 8,
                                      a.fake_tls, ARGOS_QUIC_FAKE_TLS_CAP, &out_len) == 1);
@@ -108,6 +129,7 @@ int main(void) {
     assert(argos_quic_prepare(&c, 1));
 
     argos_quic_destroy(&a); argos_quic_destroy(&a);
+    assert(!argos_quic_success_recent_at(&a, collision_key, 301));
     argos_quic_destroy(&b); argos_quic_destroy(&c); argos_quic_destroy(&c);
     assert(!live && frees == 5);
     printf("QUIC lifecycle/success/failure/no packet allocation: PASS; scratch=%u heavy=%zu bytes\n",

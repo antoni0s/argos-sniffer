@@ -136,8 +136,8 @@ static inline argos_syn_track_t *argos_syn_track_find(const argos_runtime_state_
     uint64_t oldest = UINT64_MAX;
     for (uint32_t p = 0; p < ARGOS_SYN_TRACK_PROBES; ++p) {
         argos_syn_track_t *e = &table[(base + p) & (ARGOS_SYN_TRACK_SLOTS - 1U)];
-        if (e->valid && now_usec >= e->ts_usec &&
-            now_usec - e->ts_usec > ARGOS_SYN_TRACK_TTL_USEC) e->valid = 0;
+        if (e->valid && (now_usec < e->ts_usec ||
+            now_usec - e->ts_usec > ARGOS_SYN_TRACK_TTL_USEC)) e->valid = 0;
         if (argos_syn_track_matches(e, mac, sport, dport, ip_version,
                                     src_addr, dst_addr)) return e;
         if (!e->valid) {
@@ -191,13 +191,15 @@ static inline argos_flow_entry_t *argos_flow_find_at(argos_flow_state_t *state,
         if (e->valid && e->key == key && e->ip_version == ip_version &&
             e->sport == sport && e->dport == dport &&
             memcmp(e->src, src, addr_len) == 0 && memcmp(e->dst, dst, addr_len) == 0) {
-            if ((now - e->last_seen) <= ARGOS_FLOW_TTL_SECS) {
+            if (now >= e->last_seen &&
+                (now - e->last_seen) <= ARGOS_FLOW_TTL_SECS) {
                 e->last_seen = now;
                 return e;
             }
             e->valid = 0;
         }
-        if (!e->valid || (now - e->last_seen) > ARGOS_FLOW_TTL_SECS) {
+        if (!e->valid || now < e->last_seen ||
+            (now - e->last_seen) > ARGOS_FLOW_TTL_SECS) {
             replace_slot = slot;
             break;
         }

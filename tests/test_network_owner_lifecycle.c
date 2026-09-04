@@ -40,6 +40,12 @@ int main(void) {
     hot = 1;
     argos_network_owner4_note(&a, ip4, mac_a);
     assert(argos_network_owner4_mismatch(&a, ip4, mac_b));
+    size_t owner4_slot = (size_t)(argos_network_hash(&ip4, sizeof(ip4)) &
+                                  (ARGOS_NETWORK_OWNER4_SLOTS - 1U));
+    assert(a.owner4[owner4_slot].valid);
+    a.owner4[owner4_slot].last_seen = time(NULL) + 60;
+    assert(!argos_network_owner4_mismatch(&a, ip4, mac_b));
+    assert(!a.owner4[owner4_slot].valid);
     hot = 0;
     assert(calls == 1);
 
