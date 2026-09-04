@@ -271,11 +271,24 @@ Non-port checkpoint at `5af8df48…` (characterization only):
 | PTP | `argos_ptp.h:argos_ptp_parse`, v2, common header >=34, message_length 34..slice length | Same isolated entry accepts native/UDP fixtures. Native main allowlist and dedicated UDP319/320 gates absent; no runtime call. |
 
 `tests/test_nonport_contract.c` verifies these boundaries without runtime wiring.
-`V6_CORE_CONTRACTS.md` records the optional first-AH sidecar proposal and the
+`V6_CORE_CONTRACTS.md` records the optional first-AH sidecar API (PR #19) and the
 BPF capacity repair (PR #18; unchanged 256-instruction cap). This does not add
 non-port/PTP runtime reachability. Owner/entry/parser-input facts
 are exact; canonical bits, emission fields, lifecycle/bulk budgets and collector
 mapping are NOT verified by these tests. Holds and existing integration order remain.
+
+First-AH ownership update — PR #19 (`775ffbbb…`):
+`src/argos_packet.h:argos_packet_decode_with_ah` now optionally returns caller-owned
+`argos_packet_ah_view_t` offset/length during the existing normalization walk.
+Exact framing facts: first AH only, >=12 bytes, IPv6 multiple-of-eight length,
+declared-IP bounds, no nonfirst-fragment evidence, empty on any decode failure.
+Terminal transport semantics are unchanged. `tests/test_packet_ah.c` verifies
+these against frozen PR #18 decode; no runtime caller adopts the new API yet.
+The earlier missing AH offset/length API is resolved, but AH's planned runtime
+trigger/owner, no-port BPF/dispatch, canonical bit, observation/privacy budgets
+and collector mapping remain HOLD. The isolated parser must consume this bounded
+framing at future integration; it must not repeat the extension walk. This is
+partial field-level verification, not a completed integration-ready row.
 
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 

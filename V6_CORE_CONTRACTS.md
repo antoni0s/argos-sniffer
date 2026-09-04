@@ -284,7 +284,7 @@ Core 33890379876, L2 33890379859 and staging 33890379875 PASS: strict standalone
 native full/stub, ASan/UBSan/LSan, ARM64 full/stub and fixture compilation, unchanged
 size budgets. ARM64 fixtures compile only; hardware acceptance remains open.
 
-**First-AH API candidate (permanent gates pending):** packet normalization owns
+**First-AH API — PR #19, `775ffbbb772d79fea87cc5e6436eabe1c6c4554f`:** packet normalization owns
 framing via `argos_packet_decode_with_ah(..., argos_packet_ah_view_t *out)`.
 `out` is optional caller-owned offset/length populated in the same bounded IPv6
 walk; IPv4 uses its existing L4 offset. Packet decode success and AH presence are
@@ -324,8 +324,13 @@ a disabled-path slowdown; explicit internal inlining and independent NULL entry
 specialization removed it. Repeated local disabled/frozen ratios are near 1.0;
 benchmark timings are diagnostic, not a noisy wall-clock CI threshold. Native
 production disassembly differs only by an equivalent comparison direction, not
-extra AH instructions. ARM64 compilation/performance evidence is pending; real
-capture/hardware throughput remains a separate release gate.
+extra AH instructions. Core 33891626373, L2 33891626349 and staging 33891626357
+PASS: strict standalone/native full+stub, ASan/UBSan/LSan, ARM64 full+stub and
+fixture/benchmark compilation, unchanged size budgets. CI disabled/frozen decoder
+ratio 0.999 (8.113/8.122 ns); optional enabled 14.689 ns, inline alternative
+14.758 ns. ARM64 fixtures/benchmark compile only; real ARM64 performance and
+capture/hardware throughput remain separate release gates. This framing API is
+delivered, but the full packet contract and integration-readiness review remain open.
 
 PTP adapters should supply the same bounded message slice to the existing parser:
 native `[l3_offset,packet_end)` or UDP's declared payload. Use one protocol enable

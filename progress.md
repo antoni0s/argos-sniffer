@@ -1,7 +1,8 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `a366b60e…` (PR #18).
-**Now:** first-AH framing ownership API. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified checkpoint: `775ffbbb…` (PR #19).
+**Now:** bounded state lifecycle (C2), starting with repeat-safe SYN/DNS ownership.
+**Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -24,6 +25,7 @@ Branch: `version-6`. Verified checkpoint: `a366b60e…` (PR #18).
 - [x] PPPoE/LLC declared-length bounds and canonical discovery padding exclusion; exhaustive fixtures/permanent gates — PR #16.
 - [x] Non-port/AH/PTP source characterization, bounded fixtures and ownership design; existing BPF capacity blocker identified — PR #17.
 - [x] BPF capacity repair without cap/stack increase; policy equivalence, kernel attach/filter/failure tests and permanent gates — PR #18.
+- [x] Optional first-AH framing ownership, unchanged terminal decode/view and disabled cost; frozen equivalence/sanitizer/native/ARM64 gates — PR #19.
 
 ## How to update — mandatory
 
@@ -50,16 +52,16 @@ Branch: `version-6`. Verified checkpoint: `a366b60e…` (PR #18).
 ### C1. Packet / capture / normalization
 
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval.
-- [ ] **NOW:** First-AH ownership API with unchanged terminal transport semantics, then no-port IPv4/IPv6 dispatch/BPF;
-  compare optional sidecar/inline fields and measure disabled cost. PTP native EtherType + UDP
-  reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
+- [ ] No-port IPv4/IPv6 dispatch/BPF and first-AH API adoption after canonical enable bits (C3/C4);
+  PTP native EtherType + UDP reach one engine. Thread stays HOLD until raw
+  IEEE802.15.4/6LoWPAN capture is defined. C1 remains open across those dependencies.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
 
 ### C2. Bounded state / lifecycle
 
 - [ ] Remove packet-time dedup/network-owner allocations and QUIC scratch allocations;
   prepare only enabled capacity outside packet handling; heavy QUIC remains opt-in/default cheap.
-- [ ] Explicit owner/init/destroy, partial-init failure, repeated shutdown, optional SYN/DNS
+- [ ] **NOW:** Explicit owner/init/destroy, partial-init failure, repeated shutdown, optional SYN/DNS
   lifecycle; no extra generic tracker. Test first evidence and success/failure with allocation trap.
 - [ ] Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
   measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
@@ -207,13 +209,12 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** first-AH ownership API and non-port/PTP reachability prerequisites;
-VLAN schema decision remains open. No runtime staging integration.
+**Next:** repeat-safe SYN/DNS lifecycle, then enabled-only dedup/network/QUIC allocation
+outside packet handling. C1 non-port/PTP depends on C3/C4; VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** first-AH API candidate on reused `v6-core-gate`; permanent gates pending.
-17,884,886 local framing/equivalence checks and ASan/UBSan PASS; packet view remains
-88 bytes, optional framing 8 bytes, native text/BSS unchanged. Full C1 remains open.
-PR #18: core 33890379876, L2 33890379859, staging 33890379875 PASS.
+**Pending:** no open candidate. C2 implementation has not started; source gaps identified.
+PR #19: core 33891626373, L2 33891626349, staging 33891626357 PASS;
+17,884,886 framing/equivalence checks, CI disabled/frozen decoder ratio 0.999.
 Native full/stub text 156233/143694; BSS and measured startup/main stack unchanged.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
