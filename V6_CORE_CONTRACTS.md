@@ -6,6 +6,7 @@ Transport API production commit: `136d772e17a02421624a9942cf7e2ba73e6cccb4` (PR 
 Runtime transport adoption: `181e1ec8c63971fcb915e938eac8257c7c3cb321` (PR #9).
 Capture metadata/lifecycle hardening: `c2c06dfaa9813472143e28662514b1e73393b2db` (PR #10).
 Legacy VLAN/OBS context and network API preparation: `223720c9a3a42800e9bc84fba9cf7bea4bbf73c0` (PR #11).
+Runtime network policy adoption: `0d5d783a014fa6f3b07e04d2579542c5e047dd05` (PR #12).
 This is an **interim audit, not integration approval**.
 The protocol integration matrix remains the master blueprint. Its planned fields
 are not evidence of runtime reachability or collector compatibility.
@@ -34,7 +35,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
-| 1 | Capture / normalization | Capture extraction owns AF_PACKET setup/receive/stats/close. `argos_packet.h` owns borrowed frame and TCP/UDP dispatch payload bounds. | Direction/ownership context, no-port dispatch/AH semantics, ancillary metadata and failure-path coverage; debug-dump/header-peek reconciliation. |
+| 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. `argos_packet.h` owns borrowed frame/transport bounds; network API owns runtime source-side/routed classification (PR #12). | Remaining link/fragment/extension-chain reachability, no-port dispatch/AH semantics, lossless VLAN schema decision; debug-dump/header-peek reconciliation. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate state. | Eliminate packet-time allocation, explicit prepare/destroy contracts, partial-init cleanup, byte budgets, clock behavior and cache-eviction semantics. |
 | 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
@@ -56,7 +57,7 @@ size measurements, not proof of zero runtime performance overhead.
 
 ## Concrete blockers, not hypothetical architecture work
 
-### Pending network context candidate (not production)
+### Runtime network context — PR #12
 
 Baseline `b44ad2866979aec430c88e18004e79ca1918d3cb`. Runtime adoption preserves
 filter/router/raw-identity/device selection and cheap TCP/UDP owner-cache gating.
@@ -66,29 +67,22 @@ a later direct prefix overrides an earlier routed candidate. Destination members
 is skipped when source-side evidence already admits the packet. No state/heap additions.
 
 132600 IPv4/IPv6 endpoint/interface/capacity equivalence cases use test-only baseline
-routing predicates; reject/reset and unchanged-state checks included. Local focused
-benchmark (0/32/64 learned prefixes) ratios 0.57–0.83 versus baseline; this is not
-capture throughput or hardware acceptance. Native full text 156441 versus 155629
-(+812 bytes, ~0.52%), BSS 80304 unchanged. Earlier narrower extraction variants
-still exceeded the text cap and did not consistently improve the focused benchmark.
-The single-scan candidate merits review for reduced repeated work and testable policy
-ownership, not merely shorter source. Existing 155677-byte cap remains unchanged;
-CI executes correctness/sanitizer/ARM64 checks before reporting budget rejection.
-Do not promote until the tradeoff is accepted and all required gates pass.
-
-PR #12 tested candidate `348e6dbc71d3e0cdee680d39eb96f561a2ef4ec9`:
-core 33863375209 passed strict standalone/native full+stub, ASan/UBSan and ARM64
-full+stub/fixture compilation; only the unchanged text-size budget failed.
-L2 33863375161 and staging 33863375177 passed. CI confirmed full text 156441,
-stub 143936 (+796), unchanged BSS 80304/80296; focused benchmark ratios 0.60–0.83.
-No ARM64 fixture execution or real capture throughput claim. Recommendation:
-accept the small explicit text increase for fewer repeated scans and testable
-policy ownership, subject to user approval and a rerun of the revised budget gate.
+routing predicates; reject/reset and unchanged-state checks included. Core 33863897098,
+L2 33863897107 and staging 33863896952 passed on candidate
+`1a2c908dc287a0a5122934e46cf8db4e3377fc25`: strict standalone/native full+stub,
+ASan/UBSan, ARM64 full+stub/fixture compilation and revised size gate.
+Native full text 156441 versus 155629 (+812 bytes, ~0.52%); stub 143936 (+796);
+BSS unchanged 80304/80296. User accepted the measured tradeoff after alternatives
+were evaluated; the full-text cap is exactly 156441 with no additional headroom.
+Focused 0/32/64-prefix benchmark on the original source candidate had CI ratios
+0.60–0.83; code is unchanged by the approved gate revision. This is not capture
+throughput or hardware acceptance. ARM64 fixtures compile only. Full core freeze
+and staging integration remain blocked by the remaining contracts below.
 
 Repository hygiene audit: remote heads for merged PRs #1–11 matched their PR heads.
 `main` and `version-6` are retained. No deletion occurred: git write authentication
 was unavailable, and the connected GitHub API exposes no branch-delete operation.
-The old PR #4 branch is now reused for active PR #12 and must be retained.
+The old PR #4 branch was reused for PR #12, which is now merged.
 Re-read exact heads before any later deletion; retain merged PR/commit recovery references.
 
 ### Allocation and lifecycle
@@ -111,12 +105,12 @@ Re-read exact heads before any later deletion; retain merged PR/commit recovery 
 
 ### Packet reachability
 
-Network context preparation: `argos_network_context4/6` and an eight-byte
+Runtime network context: `argos_network_context4/6` and an eight-byte
 `argos_network_packet_context_t` express source-side selection and source-routed
 evidence. This is not capture-socket direction. Equivalence fixtures cover both
-directions, configured/learned prefixes and unknown interfaces. These functions
-are NOT yet called from main: the trial runtime adoption exceeded the existing
-native text cap (155793 > 155677) and was not promoted. No core-freeze claim.
+directions, configured/learned prefixes and unknown interfaces. Main now calls
+these functions after normalization; later owner-cache checks remain behind the
+existing TCP/UDP relevance gates. No packet pointers are retained. No core-freeze claim.
 
 `argos_telemetry_capture_context` owns the current legacy VLAN projection and
 copies interface provenance into bounded sink storage, only in sensor mode.
@@ -131,7 +125,8 @@ Native full text 155629 (unchanged), stub 143140 (-20); BSS unchanged 80304/8029
 The existing text cap was not relaxed. Strict native standalone tests and
 ASan/UBSan passed, including network and telemetry fixtures. ARM64 full/stub and
 fixtures compiled; no ARM64 fixture execution or end-to-end throughput claim.
-Main's network predicates, owner-cache gating and identity selection remain unchanged.
+PR #11 left main's network predicates unchanged; PR #12 adopts the network API
+while preserving policy outcomes, owner-cache gating and identity selection.
 
 PR #10: core 33843660310, L2 33843660206, staging 33843660244 PASS.
 Native full text 155629 (+108), stub 143160 (+380); BSS unchanged 80304/80296.

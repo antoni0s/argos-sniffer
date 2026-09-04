@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
-**Now:** network context adoption gate / measured size tradeoff. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `0d5d783a…` (PR #12).
+**Now:** fragment / extension-chain boundary fixtures. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -15,7 +15,8 @@ Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
 - [x] Core audit, master matrix and persistent progress/update instructions.
 - [x] Bounded transport API and TCP/UDP runtime adoption; equivalence/frame/sanitizer/native/ARM64 gates — PR #8–9.
 - [x] Capture ancillary bounds, startup failure cleanup and repeat-safe close — PR #10.
-- [x] Sink-owned legacy VLAN/OBS context and tested network policy API — PR #11; runtime policy adoption remains open.
+- [x] Sink-owned legacy VLAN/OBS context — PR #11.
+- [x] Runtime network policy ownership and single-scan routing; reviewed size tradeoff and all gates — PR #12.
 
 ## How to update — mandatory
 
@@ -41,10 +42,9 @@ Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Runtime network context adoption — PR #12: correctness/sanitizer/native/ARM64 checks pass;
-  approve measured +812-byte native text tradeoff and rerun size gate before promotion (limit unchanged).
-  Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
-  remaining fragment/extension-chain boundary tests;
+- [ ] **NOW:** IPv4/IPv6 fragment and extension-chain boundary fixtures: first/non-first/atomic
+  fragments, truncated and maximum-depth chains, transport reachability and padding exclusion.
+- [ ] Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
@@ -189,7 +189,7 @@ fixtures and gates; fold/remove temporary staging headers only after canonical o
 ## Release gates
 
 - [ ] Repository hygiene: delete obsolete merged branches; retain `main` and active `version-6`.
-  PR #1–11 heads were verified merged; PR #4 branch is now reused by active PR #12 and must be kept.
+  PR #1–12 are merged; re-check exact heads and open PRs before deleting any reused branch.
   Other deletions await authenticated branch-delete access; none deleted.
   Final `version-6` → `main` only after release gates.
 - [ ] Legacy/canonical golden corpus and sanitized real-PCAP optional/vendor-field acceptance.
@@ -204,10 +204,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** Approve/reject network context size tradeoff; then remaining C1 reachability tests.
+**Next:** C1 fragment/extension-chain boundary fixtures, then link semantics/header-peek reconciliation.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** #12 on reused `v6-network-production-gate`, not merged. Core 33863375209:
-correctness/sanitizers/native/ARM64 PASS, size FAIL; L2 33863375161 and staging 33863375177 PASS.
+**Pending PR:** none for this step. PR #12 merged; core 33863897098 (including approved size cap),
+L2 33863897107 and staging 33863896952 PASS.
 ARM64 fixtures compile only; real hardware remains open. Branch cleanup awaits deletion access.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
