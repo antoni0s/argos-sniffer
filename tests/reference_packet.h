@@ -1,17 +1,19 @@
-#ifndef ARGOS_PACKET_H
-#define ARGOS_PACKET_H
+/* Test-only packet decoder snapshot at 1def2ffb (PR #18).
+ * Only symbol/include-guard prefixes differ. Never included by production. */
+#ifndef reference_ARGOS_PACKET_H
+#define reference_ARGOS_PACKET_H
 
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 typedef enum {
-    LINK_UNSUPPORTED = 0,
-    LINK_ETHERNET = 1,
-    LINK_RAW_IP = 2,
-    LINK_COOKED = 3, /* SLL v1 compatibility input; not produced by live capture. */
-    LINK_PER_PACKET = 4
-} link_type_t;
+    reference_LINK_UNSUPPORTED = 0,
+    reference_LINK_ETHERNET = 1,
+    reference_LINK_RAW_IP = 2,
+    reference_LINK_COOKED = 3, /* SLL v1 compatibility input; not produced by live capture. */
+    reference_LINK_PER_PACKET = 4
+} reference_link_type_t;
 
 /* Stack-only normalized view over the capture buffer. It owns no payload,
  * performs no allocation and keeps policy (LAN/routed/filtering) outside the
@@ -19,7 +21,7 @@ typedef enum {
 typedef struct {
     const unsigned char *frame;
     int captured_len;
-    link_type_t link_type;
+    reference_link_type_t link_type;
     uint8_t src_mac[6];
     uint8_t dst_mac[6];
     uint16_t l3_proto;
@@ -35,15 +37,7 @@ typedef struct {
     uint8_t nonfirst_fragment;
     uint8_t src_addr[16];
     uint8_t dst_addr[16];
-} argos_packet_view_t;
-
-/* Optional caller-owned framing, not observation storage. A nonzero length
- * identifies only the FIRST AH in the original capture buffer. Lifetime is the
- * packet view's lifetime; no authentication/ICV, SPI or sequence is retained. */
-typedef struct {
-    int offset;
-    int length;
-} argos_packet_ah_view_t;
+} reference_argos_packet_view_t;
 
 /* Borrowed transport slice; offsets refer to packet.frame and expire when that
  * capture buffer is reused. No payload/observation storage or protocol state.
@@ -55,15 +49,15 @@ typedef struct {
     uint16_t sport;
     uint16_t dport;
     uint8_t has_ports;
-} argos_transport_view_t;
+} reference_argos_transport_view_t;
 
-static inline uint16_t read_be16(const unsigned char *p) {
+static inline uint16_t reference_read_be16(const unsigned char *p) {
     return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
 }
 
 /* Framing only, shared by transport dispatch and the best-effort inspector.
  * p covers available bytes; fragment admission remains the caller's policy. */
-static inline int argos_packet_tcp_header_length(const unsigned char *p, int available) {
+static inline int reference_argos_packet_tcp_header_length(const unsigned char *p, int available) {
     if (available < 20) return 0;
     int header = (int)(p[12] >> 4) * 4;
     return header >= 20 && header <= available ? header : 0;
@@ -83,23 +77,23 @@ static inline int argos_packet_tcp_header_length(const unsigned char *p, int ava
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((always_inline))
 #endif
-static inline int argos_packet_transport_normalized(const argos_packet_view_t *v,
+static inline int reference_argos_packet_transport_normalized(const reference_argos_packet_view_t *v,
                                                      uint8_t protocol,
-                                                     argos_transport_view_t *out) {
+                                                     reference_argos_transport_view_t *out) {
     int available = v->packet_end - v->l4_offset;
     int header = 0, length = available;
     const unsigned char *p = v->frame + v->l4_offset;
     if (protocol == 6U) {
-        header = argos_packet_tcp_header_length(p, available);
+        header = reference_argos_packet_tcp_header_length(p, available);
         if (!header) return 0;
     } else if (protocol == 17U) {
         if (available < 8) return 0;
-        length = (int)read_be16(p + 4);
+        length = (int)reference_read_be16(p + 4);
         if (length < 8 || length > available) return 0;
         header = 8;
     }
-    out->sport = header ? read_be16(p) : 0U;
-    out->dport = header ? read_be16(p + 2) : 0U;
+    out->sport = header ? reference_read_be16(p) : 0U;
+    out->dport = header ? reference_read_be16(p + 2) : 0U;
     out->has_ports = (uint8_t)(header != 0);
     out->header_len = header;
     out->payload_offset = v->l4_offset + header;
@@ -109,17 +103,17 @@ static inline int argos_packet_transport_normalized(const argos_packet_view_t *v
 
 /* Defensive entry for callers that have not established the normalized-view
  * preconditions. Failure clears the result, preserving the public API contract. */
-static inline int argos_packet_transport(const argos_packet_view_t *v,
-                                          argos_transport_view_t *out) {
+static inline int reference_argos_packet_transport(const reference_argos_packet_view_t *v,
+                                          reference_argos_transport_view_t *out) {
     if (!out) return 0;
     memset(out, 0, sizeof(*out));
     if (!v || !v->frame || !v->is_ip || v->nonfirst_fragment ||
         v->l3_offset < 0 || v->l4_offset < v->l3_offset ||
         v->packet_end < v->l4_offset || v->packet_end > v->captured_len) return 0;
-    return argos_packet_transport_normalized(v, v->ip_protocol, out);
+    return reference_argos_packet_transport_normalized(v, v->ip_protocol, out);
 }
 
-static inline int ipv4_header_info(const unsigned char *buffer, int available,
+static inline int reference_ipv4_header_info(const unsigned char *buffer, int available,
                                    uint16_t *total_len_out, int *header_len_out) {
     if (!buffer || available < 20) return 0;
     uint8_t version = (uint8_t)(buffer[0] >> 4);
@@ -127,42 +121,42 @@ static inline int ipv4_header_info(const unsigned char *buffer, int available,
     if (version != 4U || ihl < 5U) return 0;
     int header_len = (int)ihl * 4;
     if (header_len > available) return 0;
-    uint16_t total_len = read_be16(buffer + 2);
+    uint16_t total_len = reference_read_be16(buffer + 2);
     if (total_len < (uint16_t)header_len || total_len > (uint16_t)available) return 0;
     if (total_len_out) *total_len_out = total_len;
     if (header_len_out) *header_len_out = header_len;
     return 1;
 }
 
-static inline int ipv6_packet_info(const unsigned char *buffer, int available,
+static inline int reference_ipv6_packet_info(const unsigned char *buffer, int available,
                                    int *packet_len_out) {
     if (!buffer || available < 40 || (buffer[0] >> 4) != 6U) return 0;
-    uint32_t packet_len = 40U + (uint32_t)read_be16(buffer + 4);
+    uint32_t packet_len = 40U + (uint32_t)reference_read_be16(buffer + 4);
     if (packet_len > (uint32_t)available) return 0;
     if (packet_len_out) *packet_len_out = (int)packet_len;
     return 1;
 }
 
-static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
+static inline int reference_argos_packet_strip_l2(reference_argos_packet_view_t *v) {
     const unsigned char *buffer = v->frame;
     int len = v->captured_len;
 
-    if (v->link_type == LINK_ETHERNET) {
+    if (v->link_type == reference_LINK_ETHERNET) {
         if (len < 14) return 0;
         memcpy(v->dst_mac, buffer, 6U);
         memcpy(v->src_mac, buffer + 6, 6U);
-        uint16_t eth_type = read_be16(buffer + 12);
+        uint16_t eth_type = reference_read_be16(buffer + 12);
         int offset = 14;
 
         if (eth_type == 0x8100U || eth_type == 0x88a8U) {
             if (len < 18) return 0;
-            v->outer_vlan = (uint16_t)(read_be16(buffer + 14) & 0x0fffU);
-            eth_type = read_be16(buffer + 16);
+            v->outer_vlan = (uint16_t)(reference_read_be16(buffer + 14) & 0x0fffU);
+            eth_type = reference_read_be16(buffer + 16);
             offset = 18;
             if (eth_type == 0x8100U || eth_type == 0x88a8U) {
                 if (len < 22) return 0;
-                v->inner_vlan = (uint16_t)(read_be16(buffer + 18) & 0x0fffU);
-                eth_type = read_be16(buffer + 20);
+                v->inner_vlan = (uint16_t)(reference_read_be16(buffer + 18) & 0x0fffU);
+                eth_type = reference_read_be16(buffer + 20);
                 offset = 22;
             }
         }
@@ -184,7 +178,7 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
             if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
                 buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
                 buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x2bU &&
-                read_be16(buffer + offset + 6) == 0x00bbU) {
+                reference_read_be16(buffer + offset + 6) == 0x00bbU) {
                 v->l3_proto = 0x00bbU;
                 v->l3_offset = offset + 8;
                 return 1;
@@ -192,7 +186,7 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
             if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
                 buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
                 buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x52U &&
-                read_be16(buffer + offset + 6) == 0x2000U) {
+                reference_read_be16(buffer + offset + 6) == 0x2000U) {
                 v->l3_proto = 0xf200U;
                 v->l3_offset = offset + 8;
                 return 1;
@@ -200,7 +194,7 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
             if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
                 buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
                 buffer[offset + 4] == 0x00U && buffer[offset + 5] == 0x0cU &&
-                read_be16(buffer + offset + 6) == 0x2000U) {
+                reference_read_be16(buffer + offset + 6) == 0x2000U) {
                 v->l3_proto = 0x2000U;
                 v->l3_offset = offset + 8;
                 return 1;
@@ -218,10 +212,10 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
             if (len < offset + 8) return 0;
             /* RFC 2516: payload length includes the PPP protocol field,
              * not the six-byte PPPoE header or Ethernet padding. */
-            int payload_len = (int)read_be16(buffer + offset + 4);
+            int payload_len = (int)reference_read_be16(buffer + offset + 4);
             if (payload_len < 2 || payload_len > len - offset - 6) return 0;
             v->packet_end = offset + 6 + payload_len;
-            uint16_t ppp_proto = read_be16(buffer + offset + 6);
+            uint16_t ppp_proto = reference_read_be16(buffer + offset + 6);
             offset += 8;
             if (ppp_proto == 0x0021U) eth_type = 0x0800U;
             else if (ppp_proto == 0x0057U) eth_type = 0x86ddU;
@@ -232,17 +226,17 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
         return 1;
     }
 
-    if (v->link_type == LINK_COOKED) {
+    if (v->link_type == reference_LINK_COOKED) {
         if (len < 16) return 0;
         /* SLL v1 has a BE16 address length. Do not invent a six-byte MAC
          * from a shorter address or a truncated longer address. No dst MAC. */
-        if (read_be16(buffer + 4) == 6U) memcpy(v->src_mac, buffer + 6, 6U);
-        v->l3_proto = read_be16(buffer + 14);
+        if (reference_read_be16(buffer + 4) == 6U) memcpy(v->src_mac, buffer + 6, 6U);
+        v->l3_proto = reference_read_be16(buffer + 14);
         v->l3_offset = 16;
         return 1;
     }
 
-    if (v->link_type == LINK_RAW_IP) {
+    if (v->link_type == reference_LINK_RAW_IP) {
         if (len < 1) return 0;
         uint8_t version = (uint8_t)(buffer[0] >> 4);
         if (version == 4U) v->l3_proto = 0x0800U;
@@ -255,8 +249,7 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
     return 0;
 }
 
-static inline int argos_packet_ipv6_l4_with_ah(argos_packet_view_t *v,
-                                              argos_packet_ah_view_t *ah) {
+static inline int reference_argos_packet_ipv6_l4(reference_argos_packet_view_t *v) {
     const unsigned char *buf = v->frame;
     int end = v->packet_end;
     uint8_t next = buf[v->l3_offset + 6];
@@ -271,19 +264,13 @@ static inline int argos_packet_ipv6_l4_with_ah(argos_packet_view_t *v,
             if (off > end) return 0;
         } else if (next == 44U) {
             if (off + 8 > end) return 0;
-            uint16_t fragment = read_be16(buf + off + 2);
+            uint16_t fragment = reference_read_be16(buf + off + 2);
             if ((fragment & 0xfff8U) != 0U) return 0;
             next = buf[off];
             off += 8;
         } else if (next == 51U) {
             if (off + 2 > end) return 0;
             int header_len = ((int)buf[off + 1] + 2) * 4;
-            /* Record the first candidate, including invalid evidence lengths;
-             * a later AH must never replace it. Commit/validation is below. */
-            if (ah && !ah->length) {
-                ah->offset = off;
-                ah->length = header_len;
-            }
             next = buf[off];
             off += header_len;
             if (off > end) return 0;
@@ -298,33 +285,23 @@ static inline int argos_packet_ipv6_l4_with_ah(argos_packet_view_t *v,
     return 0;
 }
 
-static inline int argos_packet_ipv6_l4(argos_packet_view_t *v) {
-    return argos_packet_ipv6_l4_with_ah(v, NULL);
-}
-
-/* Specialize the optional output at each public entry; do not retain a shared
- * runtime-NULL branch on every packet when both APIs exist in one translation unit. */
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((always_inline))
-#endif
-static inline int argos_packet_decode_impl(link_type_t type,
+static inline int reference_argos_packet_decode(reference_link_type_t type,
                                       const unsigned char *frame, int length,
                                       int enable_ipv6,
-                                      argos_packet_view_t *v,
-                                      argos_packet_ah_view_t *ah) {
+                                      reference_argos_packet_view_t *v) {
     if (!frame || !v || length <= 0) return 0;
     memset(v, 0, sizeof(*v));
     v->frame = frame;
     v->captured_len = length;
     v->packet_end = length;
     v->link_type = type;
-    if (!argos_packet_strip_l2(v)) return 0;
+    if (!reference_argos_packet_strip_l2(v)) return 0;
 
     int available = v->packet_end - v->l3_offset;
     if (v->l3_proto == 0x0800U) {
         uint16_t total_len = 0U;
         int header_len = 0;
-        if (!ipv4_header_info(frame + v->l3_offset, available, &total_len, &header_len)) return 0;
+        if (!reference_ipv4_header_info(frame + v->l3_offset, available, &total_len, &header_len)) return 0;
 
         v->is_ip = 1U;
         v->ip_version = 4U;
@@ -332,7 +309,7 @@ static inline int argos_packet_decode_impl(link_type_t type,
         v->ip_protocol = frame[v->l3_offset + 9];
         v->l4_offset = v->l3_offset + header_len;
         v->packet_end = v->l3_offset + (int)total_len;
-        v->nonfirst_fragment = (uint8_t)((read_be16(frame + v->l3_offset + 6) & 0x1fffU) != 0U);
+        v->nonfirst_fragment = (uint8_t)((reference_read_be16(frame + v->l3_offset + 6) & 0x1fffU) != 0U);
         memcpy(v->src_addr, frame + v->l3_offset + 12, 4U);
         memcpy(v->dst_addr, frame + v->l3_offset + 16, 4U);
         return 1;
@@ -340,7 +317,7 @@ static inline int argos_packet_decode_impl(link_type_t type,
 
     if (v->l3_proto == 0x86ddU && enable_ipv6) {
         int packet_len = 0;
-        if (!ipv6_packet_info(frame + v->l3_offset, available, &packet_len)) return 0;
+        if (!reference_ipv6_packet_info(frame + v->l3_offset, available, &packet_len)) return 0;
 
         v->is_ip = 1U;
         v->ip_version = 6U;
@@ -348,45 +325,11 @@ static inline int argos_packet_decode_impl(link_type_t type,
         v->packet_end = v->l3_offset + packet_len;
         memcpy(v->src_addr, frame + v->l3_offset + 8, 16U);
         memcpy(v->dst_addr, frame + v->l3_offset + 24, 16U);
-        return argos_packet_ipv6_l4_with_ah(v, ah);
+        return reference_argos_packet_ipv6_l4(v);
     }
 
     return 1;
 }
 
-/* Existing callers retain exactly the terminal transport contract. NULL
- * specialization eliminates optional AH work/storage from the disabled path. */
-static inline int argos_packet_decode(link_type_t type,
-                                      const unsigned char *frame, int length,
-                                      int enable_ipv6, argos_packet_view_t *v) {
-    return argos_packet_decode_impl(type, frame, length, enable_ipv6, v, NULL);
-}
+#endif /* reference_ARGOS_PACKET_H */
 
-/* Opt-in first-AH framing during the SAME bounded normalization walk. Return
- * value describes packet decode, not AH presence. The sidecar is empty for
- * absent/invalid AH, nonfirst fragments, or any decode failure (including an
- * invalid later extension or AH->NoNext). No partial-success evidence, tunnel
- * recursion or reassembly. IPv4 retains AH as terminal L4; IPv6 retains the
- * existing final protocol/offset. Minimum 12 bytes; IPv6 length is a multiple
- * of eight (RFC 4302). These stricter evidence bounds do not change decode.
- * out must not overlap v or the capture buffer; NULL requests legacy decode. */
-static inline int argos_packet_decode_with_ah(link_type_t type,
-                                      const unsigned char *frame, int length,
-                                      int enable_ipv6, argos_packet_view_t *v,
-                                      argos_packet_ah_view_t *out) {
-    if (!out) return argos_packet_decode_impl(type, frame, length, enable_ipv6, v, NULL);
-    memset(out, 0, sizeof(*out));
-    argos_packet_ah_view_t ah = {0};
-    int ok = argos_packet_decode_impl(type, frame, length, enable_ipv6, v, &ah);
-    if (!ok || !v->is_ip || v->nonfirst_fragment) return ok;
-    if (v->ip_version == 4U && v->ip_protocol == 51U &&
-        v->packet_end - v->l4_offset >= 2) {
-        ah.offset = v->l4_offset;
-        ah.length = ((int)frame[ah.offset + 1] + 2) * 4;
-    }
-    if (ah.length >= 12 && ah.length <= v->packet_end - ah.offset &&
-        (v->ip_version != 6U || (ah.length & 7) == 0)) *out = ah;
-    return ok;
-}
-
-#endif /* ARGOS_PACKET_H */

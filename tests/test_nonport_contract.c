@@ -192,7 +192,10 @@ static void ah_chain_limits(void) {
     CHECK(argos_ah_parse(p + off, 16, &first), "valid AH framing can precede rejected terminal view");
 }
 
-int main(void) {
+#ifndef ARGOS_NONPORT_FIXTURE_MAIN
+#define ARGOS_NONPORT_FIXTURE_MAIN main
+#endif
+int ARGOS_NONPORT_FIXTURE_MAIN(void) {
     bpf_matrix(); ipsec_views(); ptp_views(); ah_chain_limits();
     printf("Current non-port/AH/PTP contract: %lu checks PASS (no runtime integration)\n", cases);
     return 0;
