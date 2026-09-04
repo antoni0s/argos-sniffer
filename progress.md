@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `fe2d8ca5…` (PR #25).
-**Now:** freeze bounded-state budgets, expiry and saturation behavior (C2).
+Branch: `version-6`. Verified checkpoint: `a32c4011…` (PR #26).
+**Now:** freeze saturation/eviction/tuple-reuse and per-engine budgets (C2).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -32,6 +32,7 @@ Branch: `version-6`. Verified checkpoint: `fe2d8ca5…` (PR #25).
 - [x] Enabled-family network ownership preparation removes ARP/NDP allocation/retry from packet handling — PR #23.
 - [x] Enabled-only QUIC workspace/session preparation removes packet allocations and rejects forged tags before decrypt work — PR #24.
 - [x] Streaming fixed-stack TLS fingerprint hashing removes the last audited parser allocation and ~8 KiB MD5 stack — PR #25.
+- [x] State clock rollback fails open consistently; QUIC success suppression moved into its explicit owner — PR #26.
 
 ## How to update — mandatory
 
@@ -70,7 +71,7 @@ Branch: `version-6`. Verified checkpoint: `fe2d8ca5…` (PR #25).
 
 - [x] Remove packet-time QUIC scratch/state allocations; prepare only enabled capacity outside
   packet handling; heavy QUIC remains opt-in/default cheap.
-- [ ] **NOW:** Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
+- [ ] **NOW:** Packet/byte/state budgets, collisions/eviction/saturation and tuple reuse;
   measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
 
 ### C3. Config / bitmap / help
@@ -216,14 +217,14 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C2 budget/expiry/saturation/tuple-reuse audit, then C3 canonical bitmap/config tables.
+**Next:** C2 budget/saturation/tuple-reuse audit, then C3 canonical bitmap/config tables.
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; C2/C8 remain incomplete.
-PR #25: core 33920067953, L2 33920067902, staging 33920068034 PASS.
-Native full/stub text 157384/144790; BSS 80360/80296. TLS MD5 stack is 352 bytes
-(was 8480); QUIC enabled-memory policy from PR #24 is unchanged.
+PR #26: core 33921014158, L2 33921014199, staging 33921014217 PASS.
+Native full/stub text 157560/144886; BSS 80360/78760. No new state/probes;
+stub drops the former unrelated 1536-byte QUIC success global.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

@@ -95,6 +95,8 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
 - TLS fingerprint hashing streams through fixed scratch and performs no allocation (PR #25).
 - The audited production parsers/owners therefore satisfy **no malloc in the packet hot path**;
   complete budget/expiry/saturation coverage remains open before C2 can freeze.
+- Future-dated application/SYN/dedup/network/QUIC entries fail open after clock rollback;
+  DNS and UDP already used the same policy (PR #26).
 - Preserve disabled-mode footprint by allocating enabled subsystem capacity at
   startup/explicit activation, before capture processing. If future JIT activation
   is required, request activation and return; prepare resources at a lifecycle
@@ -258,6 +260,23 @@ fixtures, ASan/UBSan/LSan and ARM64 full/stub/fixture compilation. Native full/s
 text is 157384/144790 (+360/+352); BSS is unchanged at 80360/80296 and no persistent
 RAM was added. Direct block processing avoids the former whole-input memory work;
 this is structural evidence, not a measured capture-throughput claim.
+
+#### Clock rollback and QUIC success ownership — PR #26, `a32c4011733c60e90024027d5f854c227e4481f1`
+
+Application DONE, SYN correlation, emitted-record dedup, IPv4/IPv6 ownership,
+QUIC reassembly and QUIC success suppression now invalidate future-dated entries
+when wall time moves backward. This matches the existing DNS/UDP fail-open policy
+and prevents stale suppression/ownership from surviving until the clock catches up.
+Existing TTL boundaries, keys, probes, capacities and normal monotonic behavior are
+unchanged. The existing 64-slot direct-mapped QUIC success cache moved from main into
+`argos_quic_state_t`; collisions still replace one slot and destroy clears it.
+
+Deterministic fixtures cover rollback, TTL boundaries, collision and destroy behavior;
+the dedup oracle retains 30000 exact monotonic legacy-equivalence cases. Core
+33921014158, L2 33921014199 and staging 33921014217 PASS, including ASan/UBSan/LSan
+and ARM64 full/stub/fixture compilation. Native full/stub text is 157560/144886
+(+176/+96); full BSS stays 80360 and stub BSS falls 80296→78760 because the unrelated
+global cache is absent in stub mode. No new state, allocation, probe or throughput claim.
 
 ### Packet reachability
 
