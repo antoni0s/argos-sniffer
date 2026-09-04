@@ -73,6 +73,9 @@ int main(void) {
 
     memset(frame, 0, sizeof(frame));
     ethernet(frame, 0x8864U);
+    frame[14] = 0x11U;
+    put16(frame + 16, 1U);
+    put16(frame + 18, 42U);
     put16(frame + 20, 0x0021U);
     ipv4_header(frame + 22, 6U, 40U);
     check(argos_packet_decode(LINK_ETHERNET, frame, 62, 1, &v), "PPPoE IPv4 decoded");
@@ -112,7 +115,7 @@ int main(void) {
           "disabled IPv6 remains an unclassified L2 view");
 
     memset(frame, 0, sizeof(frame));
-    ethernet(frame, 100U);
+    ethernet(frame, 18U);
     frame[14] = 0xaaU; frame[15] = 0xaaU; frame[16] = 0x03U;
     frame[17] = 0x00U; frame[18] = 0x00U; frame[19] = 0x0cU;
     put16(frame + 20, 0x2000U);

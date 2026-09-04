@@ -206,8 +206,10 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** C1 encapsulation bounds, then no-port dispatch/AH/PTP reachability; VLAN schema decision remains open.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none. PR #15 merged; core 33866793091, L2 33866793047, staging 33866793903 PASS.
-Main −1491 source bytes, full/stub text −160/−196, BSS unchanged. Keep reusable `v6-core-gate` until final use.
+**Pending:** PPPoE/LLC candidate awaiting permanent gates on reused `v6-core-gate`.
+Local 3,444,174 encapsulation cases and packet/transport/STP/inspector fixtures PASS;
+full/stub text 156217/143676 (−64 each), BSS unchanged. Local LeakSanitizer cannot
+read sandbox `/proc`; leak checking remains required in CI. Task is not checked complete.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

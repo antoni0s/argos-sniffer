@@ -1384,7 +1384,7 @@ int main(int argc, char *argv[]) {
                                    l3_proto == 0x2000U || l3_proto == 0x00feU ||
                                     l3_proto == 0x00bbU || l3_proto == 0xf200U)) {
                 argos_enterprise_result_t ent;
-                if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, (int)len - l3_offset, &ent) && ent.emit) {
+                if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, l3_packet_end - l3_offset, &ent) && ent.emit) {
                     char ent_sig[640];
                     snprintf(ent_sig, sizeof(ent_sig), "%s|%s", ent.proto, ent.detail);
                     if (!dedup_should_suppress(mac_str, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))

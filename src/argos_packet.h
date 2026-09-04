@@ -161,15 +161,16 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
 
         /* Preserve the existing LLC/SNAP protocol discriminators. */
         if (eth_type <= 1500U) {
+            if ((int)eth_type > len - offset) return 0;
+            len = offset + (int)eth_type;
+            v->packet_end = len;
             /* STP-family parsers consume the LLC prefix themselves. Retain it,
              * and exclude Ethernet padding using the declared 802.3 length.
              * Unknown LLC formats remain rejected; this is not generic DPI. */
             if (len >= offset + 3 && buffer[offset] == 0x42U &&
                 buffer[offset + 1] == 0x42U && buffer[offset + 2] == 0x03U) {
-                if (eth_type < 3U || (int)eth_type > len - offset) return 0;
                 v->l3_proto = eth_type;
                 v->l3_offset = offset;
-                v->packet_end = offset + (int)eth_type;
                 return 1;
             }
             if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
@@ -207,6 +208,11 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
 
         if (eth_type == 0x8864U) {
             if (len < offset + 8) return 0;
+            /* RFC 2516: payload length includes the PPP protocol field,
+             * not the six-byte PPPoE header or Ethernet padding. */
+            int payload_len = (int)read_be16(buffer + offset + 4);
+            if (payload_len < 2 || payload_len > len - offset - 6) return 0;
+            v->packet_end = offset + 6 + payload_len;
             uint16_t ppp_proto = read_be16(buffer + offset + 6);
             offset += 8;
             if (ppp_proto == 0x0021U) eth_type = 0x0800U;
@@ -289,7 +295,7 @@ static inline int argos_packet_decode(link_type_t type,
     v->link_type = type;
     if (!argos_packet_strip_l2(v)) return 0;
 
-    int available = length - v->l3_offset;
+    int available = v->packet_end - v->l3_offset;
     if (v->l3_proto == 0x0800U) {
         uint16_t total_len = 0U;
         int header_len = 0;

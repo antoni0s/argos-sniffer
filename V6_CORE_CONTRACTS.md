@@ -149,7 +149,19 @@ ran; ARM64 full/stub and fixtures compiled only. The focused transport benchmark
 binary is byte-identical to baseline (SHA256 recorded in the merge commit), so
 its observed timing variation is not changed test code. No full capture-throughput
 or core-freeze claim.
-PPPoE/legacy LLC declared-length validation and lossless VLAN output remain open.
+PPPoE/legacy LLC candidate (not yet production): normalization bounds all existing
+LLC/SNAP discriminators by the 802.3 declaration and inner IP by PPPoE payload
+length. The existing enterprise L2 consumer uses normalized `packet_end`, so
+padding cannot supply discovery TLVs. No new parser, state, BPF or wire schema.
+Length semantics follow [RFC 2516 section 4](https://www.rfc-editor.org/rfc/rfc2516.html#section-4):
+PPPoE length includes the PPP protocol field but not its six-byte envelope.
+This step intentionally retains legacy version/type/code/session-ID acceptance;
+it is length framing, not complete PPPoE semantic validation or discovery support.
+The new fixture fails on the baseline and passes 3,444,174 boundary cases after
+repair, plus canonical CDP/FDP/EDP padding-evidence checks. Existing malformed
+positive PPPoE/CDP test frames now carry valid declared lengths. Full/stub text
+156217/143676 (−64 each), BSS unchanged. Permanent gates pending; lossless VLAN
+output and full frame-to-observation coverage remain open.
 
 Runtime network context: `argos_network_context4/6` and an eight-byte
 `argos_network_packet_context_t` express source-side selection and source-routed

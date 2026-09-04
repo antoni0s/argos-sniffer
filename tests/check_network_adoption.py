@@ -20,6 +20,7 @@ assert "!is_ip_packet || !argos_network_router_exception(ip_protocol," in router
 assert "buffer + l4_offset, l3_packet_end - l4_offset, is_outbound)" in router
 assert "memcpy" not in router and "len >= l4_offset" not in router
 assert loop.count("argos_network_router_exception(") == 1
+assert "argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, l3_packet_end - l3_offset, &ent)" in loop
 inspector = source[source.index("static void dump_target_packet("):].split("\n#endif", 1)[0]
 assert "const argos_packet_view_t *v" in inspector
 assert "ipv4_header_info" not in inspector and "ipv6_packet_info" not in inspector
