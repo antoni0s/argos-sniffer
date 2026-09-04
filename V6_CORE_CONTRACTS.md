@@ -4,6 +4,7 @@ Audit baseline: `0b704b8e2d0288702cc91b86c2f66914fa6eaaab` (`version-6`).
 Capture production commit: `aacdf45d867e13a1b382661bace53aa905fe1331` (PR #6).
 Transport API production commit: `136d772e17a02421624a9942cf7e2ba73e6cccb4` (PR #8).
 Runtime transport adoption: `181e1ec8c63971fcb915e938eac8257c7c3cb321` (PR #9).
+Capture metadata/lifecycle hardening: `c2c06dfaa9813472143e28662514b1e73393b2db` (PR #10).
 This is an **interim audit, not integration approval**.
 The protocol integration matrix remains the master blueprint. Its planned fields
 are not evidence of runtime reachability or collector compatibility.
@@ -73,6 +74,12 @@ size measurements, not proof of zero runtime performance overhead.
   require tests before declaring the lifecycle API reusable.
 
 ### Packet reachability
+
+PR #10: core 33843660310, L2 33843660206, staging 33843660244 PASS.
+Native full text 155629 (+108), stub 143160 (+380); BSS unchanged 80304/80296.
+Size cap was not relaxed. These are correctness bounds/cleanup changes, not
+an end-to-end throughput benchmark. Native fixtures and sanitizers ran; ARM64
+full/stub and the capture contract fixture were compiled, not hardware-executed.
 
 - Capture receive accepts only complete ancillary records within returned control
   bytes; aligned stack storage, timestamp length checked, valid prefixes retained

@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `181e1ec8…` (PR #9).
-**Now:** remaining capture/context contracts. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `c2c06dfa…` (PR #10).
+**Now:** direction/ownership and VLAN context. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -14,6 +14,7 @@ Branch: `version-6`. Verified production checkpoint: `181e1ec8…` (PR #9).
 - [x] STP/RSTP/MSTP normalization repair — PR #7.
 - [x] Core audit, master matrix and persistent progress/update instructions.
 - [x] Bounded transport API and TCP/UDP runtime adoption; equivalence/frame/sanitizer/native/ARM64 gates — PR #8–9.
+- [x] Capture ancillary bounds, startup failure cleanup and repeat-safe close — PR #10.
 
 ## How to update — mandatory
 
@@ -36,8 +37,7 @@ Branch: `version-6`. Verified production checkpoint: `181e1ec8…` (PR #9).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Capture ancillary bounds and partial-init/repeated-close contract; fixtures and promotion.
-- [ ] Explicit direction/ownership/routed context; raw/cooked/unsupported link semantics;
+- [ ] **NOW:** Explicit direction/ownership/routed context; raw/cooked/unsupported link semantics;
   AUX VLAN-to-observation reconciliation; remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
@@ -194,9 +194,9 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 capture metadata/failure fixtures and explicit direction/ownership context.
+**Next:** C1 direction/ownership and VLAN-to-observation context; then remaining reachability tests.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending gate:** `v6-capture-contract-gate`; ancillary/lifecycle local red→green and sanitizers PASS.
-Previous production #9 gates passed. ARM64 fixtures compile only; real hardware remains open.
+**Pending PR:** none; #10 merged. Gates: core 33843660310, L2 33843660206,
+staging 33843660244 PASS. ARM64 fixtures compile only; real hardware remains open.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
