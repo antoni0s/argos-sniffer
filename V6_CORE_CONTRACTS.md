@@ -22,8 +22,8 @@ argument is the matching TCP/UDP dispatch constant, enabling inline specializati
 The defensive API shares this parser and remains available for other callers.
 TCP option bounds use the returned header length; UDP relevance/owner checks stay
 before length validation. No AH handling, output or state ownership changes.
-The debug packet dump and earlier router-exception header peeks remain separate;
-this step replaces the TCP/UDP protocol-dispatch payload calculations only.
+PR #9 replaced only TCP/UDP dispatch payload calculations. PR #15 below also
+adopts normalized inspector input and bounds the network-owned router exception.
 
 PR #9 gates: core 33843014442, L2 33843014466, staging 33843014452 PASS.
 Native full text 155521 (-44), stub 142780 (+344), BSS unchanged (80304/80296).
@@ -35,7 +35,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
-| 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. `argos_packet.h` owns borrowed frame/transport bounds; network API owns runtime source-side/routed classification (PR #12). | Remaining link/fragment/extension-chain reachability, no-port dispatch/AH semantics, lossless VLAN schema decision; debug-dump/header-peek reconciliation. |
+| 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input; network owner supplies source-side/routed classification and router admission (PR #12/#15). | PPPoE/LLC bounds, complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate state. | Eliminate packet-time allocation, explicit prepare/destroy contracts, partial-init cleanup, byte budgets, clock behavior and cache-eviction semantics. |
 | 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
@@ -123,7 +123,7 @@ Merged as `5c88814f68f778aba66234508c5c5c0873a805f1`; core 33865643412,
 L2 33865643350 and staging 33865643383 PASS. Native strict/full/stub and sanitizers
 ran; ARM64 builds/fixtures compiled only. Full C1 is not frozen.
 
-Header-peek candidate from `cd4c370a…`: the inspector now consumes the successful
+Header-peek PR #15 from `cd4c370a…`: the inspector now consumes the successful
 normalized view rather than reparsing IP. Shared TCP header-length framing lives
 in `argos_packet.h`; fragment admission remains a separate dispatch policy.
 Actual-printer golden tests preserve nonfirst IPv4 diagnostics, short-header
@@ -143,7 +143,12 @@ No BPF, telemetry grammar, privacy, state or staging integration change.
 
 Main shrinks 1491 source bytes. Local native full text 156281 (−160), stub 143740
 (−196); BSS 80304/80296 unchanged. New helpers inline in optimized full/stub builds.
-Permanent CI/ARM64 gates pending; no full capture-throughput or core-freeze claim.
+Merged as `5940804b3b9b942705f69b2ce7da09c6716e1f82`; core 33866793091,
+L2 33866793047 and staging 33866793903 PASS. Native strict/full/stub and sanitizers
+ran; ARM64 full/stub and fixtures compiled only. The focused transport benchmark
+binary is byte-identical to baseline (SHA256 recorded in the merge commit), so
+its observed timing variation is not changed test code. No full capture-throughput
+or core-freeze claim.
 PPPoE/legacy LLC declared-length validation and lossless VLAN output remain open.
 
 Runtime network context: `argos_network_context4/6` and an eight-byte
