@@ -1234,15 +1234,9 @@ int main(int argc, char *argv[]) {
             int l3_offset = packet_view.l3_offset;
 
             if (opt_sensor_mode) {
-                uint16_t outer = packet_view.outer_vlan;
-                uint16_t inner = packet_view.inner_vlan;
-                if (aux_vlan_valid) {
-                    if (outer == 0U) outer = aux_vlan;
-                    else if (aux_vlan != outer) { inner = outer; outer = aux_vlan; }
-                }
-                snprintf(sensor_observation_iface, sizeof(sensor_observation_iface), "%s", current_iface->name);
-                sensor_observation_outer_vlan = outer;
-                sensor_observation_inner_vlan = inner;
+                argos_telemetry_capture_context(current_iface->name,
+                                                packet_view.outer_vlan, packet_view.inner_vlan,
+                                                aux_vlan_valid, aux_vlan);
             }
 
             static const unsigned char zero_mac[6] = {0,0,0,0,0,0};

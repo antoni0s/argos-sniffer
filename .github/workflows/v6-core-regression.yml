@@ -33,7 +33,7 @@ jobs:
       - name: Packet, transport and capture contract sanitizers
         run: |
           set -eu
-          for source in tests/test_packet.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c; do
+          for source in tests/test_packet.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_telemetry.c; do
             binary="/tmp/$(basename "$source" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -o "$binary"
             ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$binary"
@@ -46,4 +46,6 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/arm-stub
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_transport.c -o /tmp/arm-transport
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_capture_contract.c -o /tmp/arm-capture-contract
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_network.c -o /tmp/arm-network-context
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_telemetry.c -o /tmp/arm-telemetry-context
           if aarch64-linux-gnu-nm /tmp/arm-full /tmp/arm-stub | grep -q 'argos_packet_transport'; then exit 1; fi
