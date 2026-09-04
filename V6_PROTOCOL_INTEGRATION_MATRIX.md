@@ -297,7 +297,10 @@ before capture; packet selection, keys, probes and TTLs are unchanged. Preparati
 is transactional and repeated enable/destroy is safe; lifecycle/allocation-trap
 fixtures cover independent owners and first evidence. This verifies owner/lifecycle
 fields only, not canonical bits, per-protocol byte budgets or collector mapping.
-Packet-time dedup/network/QUIC allocations remain open; no staging row is promoted.
+PR #22 (`83384902…`) moves the existing bounded dedup cache allocation to enabled-only
+startup preparation. First evidence and failed preparation never allocate or retry;
+keys, probes, TTL and wire behavior remain unchanged. Packet-time network/QUIC
+allocations remain open; no staging row is promoted.
 
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 

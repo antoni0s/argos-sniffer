@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `7e18fab4…` (PR #21).
-**Now:** dedup preparation approved; fresh gate and promotion pending (C2, PR #22).
+Branch: `version-6`. Verified checkpoint: `83384902…` (PR #22).
+**Now:** enabled-only network ownership preparation outside packet handling (C2).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -28,6 +28,7 @@ Branch: `version-6`. Verified checkpoint: `7e18fab4…` (PR #21).
 - [x] Optional first-AH framing ownership, unchanged terminal decode/view and disabled cost; frozen equivalence/sanitizer/native/ARM64 gates — PR #19.
 - [x] Instance-owned SYN/DNS, transactional preparation and repeat-safe reset/destroy; failure/allocation traps and permanent gates — PR #20.
 - [x] Process startup failures unwind state/capture/sinks; telemetry-owned repeat-safe close and actual-main fault gates — PR #21.
+- [x] Enabled-only dedup preparation removes allocation/retry from packet handling; lifecycle/equivalence gates — PR #22.
 
 ## How to update — mandatory
 
@@ -64,10 +65,10 @@ Branch: `version-6`. Verified checkpoint: `7e18fab4…` (PR #21).
 
 ### C2. Bounded state / lifecycle
 
-- [ ] Remove packet-time dedup/network-owner allocations and QUIC scratch allocations;
+- [ ] Remove packet-time network-owner allocations and QUIC scratch allocations;
   prepare only enabled capacity outside packet handling; heavy QUIC remains opt-in/default cheap.
-- [ ] **NOW:** Enabled-only dedup preparation, then network/QUIC capacity selection and
-  lifecycle tests beyond the completed SYN/DNS and process-startup cleanup;
+- [ ] **NOW:** Enabled-only network ownership preparation, then QUIC capacity selection and
+  lifecycle tests beyond the completed SYN/DNS/dedup/process-startup cleanup;
   no extra generic tracker. First-evidence allocation traps must cover all remaining owners.
 - [ ] Packet/byte/state budgets, expiry/clock rollback, collisions/eviction/saturation and tuple reuse;
   measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
@@ -215,20 +216,14 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** dedup preparation/failure policy and first-evidence allocation traps, then
-network/QUIC allocation outside packet handling. C1 non-port/PTP depends on C3/C4;
+**Next:** network owner preparation/failure policy and first-ARP/NDP allocation traps,
+then QUIC allocation outside packet handling. C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** PR #22 (`b42b3523…`), not production: enabled-only dedup prepare and
-allocation-free fail-open lookup. Core 33896102915 passes native/ASan/UBSan/LSan/
-ARM64 compilation, fails only size; L2 33896102897 and staging 33896102861 PASS.
-Full text 156581 exceeds cap 156441 by 140 bytes after five measured alternatives;
-User approved the exact cap revision to 156581 and prioritizes CPU/latency/code quality.
-BSS unchanged; stack +16; existing 48 KiB cache reserved at startup only when needed.
-Fresh approved gate and merge pending; no tick yet.
-PR #21: core 33894580958, L2 33894580816, staging 33894580782 PASS.
-Native full/stub text 156309/144022 (-124/+204), within unchanged budgets;
-BSS unchanged; main stack 84944 (-16); packet loop unchanged.
+**Pending:** no open candidate; C2/C8 remain incomplete.
+PR #22: core 33896908802, L2 33896908769, staging 33896908794 PASS.
+Native full/stub text 156581/144106; approved cap 156581; BSS unchanged;
+main stack 84960. Existing 48 KiB cache is prepared only when dedup is enabled.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

@@ -86,13 +86,14 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
 
 ### Allocation and lifecycle
 
-- `argos_dedup_should_suppress_at` allocates its table on first emitted evidence.
+- Dedup is prepared during startup only when rate-limited output is enabled;
+  absent/OOM state stays fail-open and packet calls never allocate or retry (PR #22).
 - `argos_network_owner4_note` / `argos_network_owner6_note` can allocate ownership
   tables through their ensure helpers while processing ARP/NDP.
 - QUIC stateless and stateful decrypt allocate scratch buffers per call;
   `quic_heavy_ensure_table` allocates its table on first use.
-- Consequently **no malloc in the packet hot path is not currently satisfied**.
-  Moving only dedup allocation would not close this contract.
+- Consequently **no malloc in the packet hot path is not currently satisfied**;
+  network ownership and QUIC remain open after the completed dedup repair.
 - Preserve disabled-mode footprint by allocating enabled subsystem capacity at
   startup/explicit activation, before capture processing. If future JIT activation
   is required, request activation and return; prepare resources at a lifecycle
@@ -164,11 +165,11 @@ ASan/UBSan/LSan and ARM64 full/stub/fixture compilation (not hardware execution)
 Native full/stub text is 156309/144022 (-124/+204), BSS unchanged at 80304/80296,
 main stack 84944 (-16). Size budgets are unchanged; no throughput claim.
 
-Remaining C2/C8 work includes enabled-capacity selection, packet-time dedup/network/
-QUIC allocations and lifecycle, sink setup extraction, and complete clock/saturation/
+Remaining C2/C8 work includes enabled-capacity selection, packet-time network/QUIC
+allocations and lifecycle, sink setup extraction, and complete clock/saturation/
 budget/backpressure testing. This does not freeze C2 or C8.
 
-#### Dedup preparation candidate — PR #22, approved candidate; fresh gate pending
+#### Dedup preparation — PR #22, `833849024c09b4064d9091bedf85f18545780801`
 
 Baseline `6b186c4b16e80f25e65eaeb9060b85b320a54390`. Candidate
 `argos_dedup_prepare` initializes the existing 2048-slot/eight-probe cache outside
@@ -199,11 +200,11 @@ BSS 80304/80296; main stack 84960 (+16). User approved the 140-byte cap revision
 156441 -> 156581, prioritizing CPU/latency and code quality over tiny text changes.
 The structural benefit is removal of packet-time allocation/retry; no measured
 capture-throughput gain is claimed. No staged protocol row becomes ready.
-Candidate `b42b352336d5dd98f14f6cad61bc54f1c3eb1595`: core 33896102915 passes
-native full/stub, ASan/UBSan/LSan and ARM64 full/stub/fixture compilation; it fails
-only the unchanged text cap. L2 33896102897 and staging 33896102861 PASS.
-The task remains unchecked and production dedup remains lazy until a newly
-passing approved gate and production promotion. No ARM64 hardware execution claim.
+Approved candidate `4ea2a3764e664ba3b1dd56fdbe69a44e80c53c9a`: core 33896908802,
+L2 33896908769 and staging 33896908794 PASS, including native full/stub,
+ASan/UBSan/LSan and ARM64 full/stub/fixture compilation. The squash production
+commit is the heading commit above. No ARM64 hardware execution or measured
+capture-throughput claim.
 
 ### Packet reachability
 
@@ -524,8 +525,9 @@ No dependency is waived by a protocol's position in that sequence.
 
 - Frame fixtures for STP/RSTP/MSTP, native+UDP PTP, IPv4/IPv6 AH/ESP, fragments,
   VLAN/QinQ/PPPoE, raw/cooked/unsupported links and ancillary VLAN/timestamp data.
-- Allocator interception after startup including successful/failing QUIC decrypt,
-  first ARP/NDP evidence and first deduplicated emission; zero allocations required.
+- Allocator interception after startup including successful/failing QUIC decrypt
+  and first ARP/NDP evidence; zero allocations required. Dedup first/failed-evidence
+  interception is delivered by PR #22.
 - Partial initialization, repeated shutdown, allocation failure, table saturation,
   tuple reuse, clock rollback and expiry; explicit per-protocol packet/byte budgets.
 - Disabled-engine counters proving no payload parsing or state lookup; startup
