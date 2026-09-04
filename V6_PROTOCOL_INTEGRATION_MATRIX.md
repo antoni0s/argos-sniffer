@@ -271,8 +271,9 @@ Non-port checkpoint at `5af8df48…` (characterization only):
 | PTP | `argos_ptp.h:argos_ptp_parse`, v2, common header >=34, message_length 34..slice length | Same isolated entry accepts native/UDP fixtures. Native main allowlist and dedicated UDP319/320 gates absent; no runtime call. |
 
 `tests/test_nonport_contract.c` verifies these boundaries without runtime wiring.
-`V6_CORE_CONTRACTS.md` records the optional first-AH sidecar proposal and newly
-discovered 256-instruction BPF capacity blocker. Owner/entry/parser-input facts
+`V6_CORE_CONTRACTS.md` records the optional first-AH sidecar proposal and the
+BPF capacity repair (PR #18; unchanged 256-instruction cap). This does not add
+non-port/PTP runtime reachability. Owner/entry/parser-input facts
 are exact; canonical bits, emission fields, lifecycle/bulk budgets and collector
 mapping are NOT verified by these tests. Holds and existing integration order remain.
 

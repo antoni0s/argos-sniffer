@@ -253,13 +253,10 @@ WireGuard port zero. All categories enabled plus WireGuard 51820 also fails
 (e.g. `-a --enterprise`, not `-a` alone). On the applicable fixed-Ethernet capture
 path this prevents prefilter attachment; packets still undergo userspace gates.
 No memory overrun was observed: builder bounds reject the partial program.
-Fix compact admission generation and test all masks/custom ports before adding
-new protocol gates. Evaluate shared return targets/deduplicated checks first;
-any necessary capacity/stack increase requires measured review, not a silent cap
-change. Kernel verifier/attach and fault-policy tests remain required. The current
-fixture deliberately labels this a KNOWN GAP; change its expectations when fixed.
+Resolved by PR #18 below; fixtures now require every legacy mask to build.
+New protocol gates still require separate reachability/ownership review.
 
-BPF repair candidate from `12166a0b…` (permanent gates pending): four port lists
+BPF repair merged as PR #18, `a366b60e3a32447a1a951048ef43315bd355f45b`: four port lists
 use one shared ACCEPT return, with startup-only bounded jump fixups in the existing
 instruction array. No heap/fixup array, capacity increase or per-packet C change.
 All 1024 masks × seven representative WireGuard ports fit: maximum 185 versus
@@ -283,6 +280,9 @@ instructions; the existing warn-and-continue capture policy is unchanged.
 Native full/stub text 156233/143694 (+16/+18); BSS 80304/80296 unchanged.
 GCC stack-use reports unchanged attach 2688, capture-open 208, main 84960 bytes;
 these are static frame reports, not total-memory or throughput measurements.
+Core 33890379876, L2 33890379859 and staging 33890379875 PASS: strict standalone,
+native full/stub, ASan/UBSan/LSan, ARM64 full/stub and fixture compilation, unchanged
+size budgets. ARM64 fixtures compile only; hardware acceptance remains open.
 
 **Proposed API direction, not implemented:** packet normalization owns framing;
 preserve `ip_protocol/l4_offset` terminal semantics for existing consumers. Prefer
@@ -315,17 +315,16 @@ enabled port can incidentally admit the tuple today; this is not PTP integration
 PTP common-header metadata is not full message-specific validity, and its staging
 result's clock/sequence/correction fields are not frozen fingerprint inputs.
 
-Fixtures cover buildable-mask non-port admission, explicit bounded failure masks,
+Current fixtures cover all-mask non-port admission and bounded builder failure,
 raw/Ethernet/VLAN/QinQ/PPPoE/SLL compatibility, alignment/truncation/padding,
 AH length fields/mixed chain/header loss/fragments and one isolated PTP parser
-across native/UDP4/UDP6. BPF interpreter checks use complete frames only; its
-out-of-range load behavior is not the kernel's immediate-drop behavior. This is
-not an AF_PACKET throughput test, kernel verifier test or end-to-end emission test.
+across native/UDP4/UDP6. PR #18 repairs interpreter out-of-range loads and adds
+kernel verifier/filter checks; neither step is AF_PACKET throughput or end-to-end emission coverage.
 Merged as PR #17, `2ac259284e5481d65ba852d943a000d2b24bfd32`. Core 33874404696,
 L2 33874404652 and staging 33874404676 PASS: strict standalone/native full/stub,
 ASan/UBSan/LSan, ARM64 full/stub/fixture compilation and unchanged size budgets.
-241,362 characterization checks passed; known BPF failures are not repaired or
-waived. Native full/stub binaries are byte-identical to PR #16 (hashes in merge
+At PR #17, 241,362 characterization checks passed; BPF failures were characterized,
+not waived (subsequently repaired in PR #18). Its native full/stub binaries were byte-identical to PR #16 (hashes in merge
 commit); ARM64 fixtures compiled, not executed. ESP/AH/PTP remain runtime-isolated.
 
 ### Completion and rate semantics (remaining work)
