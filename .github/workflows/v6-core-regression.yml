@@ -15,6 +15,7 @@ jobs:
         run: |
           set -eu
           python3 tests/check_transport_adoption.py
+          python3 tests/check_network_adoption.py
           for source in tests/test_*.c; do
             binary="/tmp/$(basename "$source" .c)"
             cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -lm -o "$binary"
@@ -27,13 +28,13 @@ jobs:
           if nm /tmp/full /tmp/stub | grep -q 'argos_packet_transport'; then exit 1; fi
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/bench_transport.c -o /tmp/bench-transport
           /tmp/bench-transport
-          # Capture baseline text=155549; bounded STP reachability repair.
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 155677
-          test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/bench_network_context.c -o /tmp/bench-network
+          /tmp/bench-network
+          if nm /tmp/full /tmp/stub | grep -q 'argos_network_context'; then exit 1; fi
       - name: Packet, transport and capture contract sanitizers
         run: |
           set -eu
-          for source in tests/test_packet.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_telemetry.c; do
+          for source in tests/test_packet.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
             binary="/tmp/$(basename "$source" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -o "$binary"
             ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$binary"
@@ -47,5 +48,15 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_transport.c -o /tmp/arm-transport
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_capture_contract.c -o /tmp/arm-capture-contract
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_network.c -o /tmp/arm-network-context
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_network_context.c -o /tmp/arm-network-matrix
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_telemetry.c -o /tmp/arm-telemetry-context
           if aarch64-linux-gnu-nm /tmp/arm-full /tmp/arm-stub | grep -q 'argos_packet_transport'; then exit 1; fi
+          if aarch64-linux-gnu-nm /tmp/arm-full /tmp/arm-stub | grep -q 'argos_network_context'; then exit 1; fi
+      - name: Text and BSS budget (explicit approval required to revise)
+        run: |
+          set -eu
+          # PR #12: user-approved single-scan network policy tradeoff, +812
+          # full text vs 155629 baseline. No extra headroom or BSS increase.
+          size /tmp/full /tmp/stub
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 156441
+          test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304

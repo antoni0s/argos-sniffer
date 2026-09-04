@@ -1248,8 +1248,7 @@ int main(int argc, char *argv[]) {
             }
 
             uint32_t src_ip_num = 0, dst_ip_num = 0;
-            int is_outbound = 0;
-            int source_offlink_routed = 0;
+            argos_network_packet_context_t network_context = {0};
             struct in6_addr src_ip6_addr, dst_ip6_addr;
             memset(&src_ip6_addr, 0, sizeof(src_ip6_addr));
             memset(&dst_ip6_addr, 0, sizeof(dst_ip6_addr));
@@ -1263,19 +1262,13 @@ int main(int argc, char *argv[]) {
             if (packet_view.ip_version == 4U) {
                 memcpy(&src_ip_num, packet_view.src_addr, 4U);
                 memcpy(&dst_ip_num, packet_view.dst_addr, 4U);
-                int src_lan = argos_network_is_lan4(&network_state, src_ip_num);
-                int dst_lan = argos_network_is_lan4(&network_state, dst_ip_num);
-                source_offlink_routed = argos_network_routed4(&network_state, src_ip_num, packet_ifindex);
-                if (!src_lan && !dst_lan && !source_offlink_routed) continue;
-                is_outbound = src_lan || source_offlink_routed;
+                if (!argos_network_context4(&network_state, src_ip_num, dst_ip_num,
+                                             packet_ifindex, &network_context)) continue;
             } else if (packet_view.ip_version == 6U) {
                 memcpy(&src_ip6_addr, packet_view.src_addr, 16U);
                 memcpy(&dst_ip6_addr, packet_view.dst_addr, 16U);
-                int src_lan = argos_network_is_lan6(&network_state, &src_ip6_addr);
-                int dst_lan = argos_network_is_lan6(&network_state, &dst_ip6_addr);
-                source_offlink_routed = argos_network_routed6(&network_state, &src_ip6_addr, packet_ifindex);
-                if (!src_lan && !dst_lan && !source_offlink_routed) continue;
-                is_outbound = src_lan || source_offlink_routed;
+                if (!argos_network_context6(&network_state, &src_ip6_addr, &dst_ip6_addr,
+                                             packet_ifindex, &network_context)) continue;
             } else if (l3_proto == 0x88ccU || l3_proto == 0x0806U ||
                        (runtime_cfg.enterprise_enabled &&
                         (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU ||
@@ -1286,6 +1279,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            int is_outbound = network_context.source_side;
             int l3_packet_end = packet_view.packet_end;
 
             const struct in6_addr *filt_src_ip6 = is_ipv6_packet ? &src_ip6_addr : NULL;
@@ -1342,7 +1336,7 @@ int main(int argc, char *argv[]) {
                 if (!argos_filter_match(&filter_mode2, src_mac, dst_mac, src_ip_num, dst_ip_num, filt_src_ip6, filt_dst_ip6)) continue;
             }
 
-            int routed_evidence = source_offlink_routed;
+            int routed_evidence = network_context.routed;
 
             unsigned char device_mac[6];
             /* L2 discovery/control frames identify their sender by source MAC.

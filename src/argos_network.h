@@ -262,26 +262,35 @@ static inline int argos_network_direct6(const argos_network_state_t *state,
 
 static inline int argos_network_routed4(const argos_network_state_t *state,
                                          uint32_t ip_be, int ifindex) {
-    if (!argos_network_iface_has_family(state, ifindex, AF_INET) ||
-        argos_network_direct4(state, ip_be, ifindex)) return 0;
+    if (!state || ifindex <= 0) return 0;
     uint32_t ip = ntohl(ip_be);
-    return (ip & 0xFF000000U) == 0x0A000000U || (ip & 0xFFF00000U) == 0xAC100000U ||
-           (ip & 0xFFFF0000U) == 0xC0A80000U || (ip & 0xFFC00000U) == 0x64400000U;
+    if (!((ip & 0xFF000000U) == 0x0A000000U || (ip & 0xFFF00000U) == 0xAC100000U ||
+          (ip & 0xFFFF0000U) == 0xC0A80000U || (ip & 0xFFC00000U) == 0x64400000U)) return 0;
+    int has_family = 0;
+    for (int i = 0; i < state->learned_count; ++i) {
+        const argos_network_prefix_t *p = &state->learned[i];
+        if (p->family != AF_INET || p->ifindex != ifindex) continue;
+        has_family = 1;
+        if ((ip_be & p->v4mask) == p->v4) return 0;
+    }
+    return has_family;
 }
 
 static inline int argos_network_routed6(const argos_network_state_t *state,
                                          const struct in6_addr *addr, int ifindex) {
-    if (!addr || !argos_network_iface_has_family(state, ifindex, AF_INET6) ||
-        argos_network_direct6(state, addr, ifindex)) return 0;
-    if ((addr->s6_addr[0] & 0xFEU) == 0xFCU) return 1;
-    if ((addr->s6_addr[0] & 0xE0U) != 0x20U) return 0;
+    if (!state || !addr || ifindex <= 0) return 0;
+    int ula = (addr->s6_addr[0] & 0xFEU) == 0xFCU;
+    if (!ula && (addr->s6_addr[0] & 0xE0U) != 0x20U) return 0;
+    int routed = 0;
     for (int i = 0; i < state->learned_count; ++i) {
         const argos_network_prefix_t *p = &state->learned[i];
-        if (p->family == AF_INET6 && p->ifindex == ifindex &&
-            (p->v6.s6_addr[0] & 0xE0U) == 0x20U &&
-            memcmp(addr->s6_addr, p->v6.s6_addr, 6) == 0) return 1;
+        if (p->family != AF_INET6 || p->ifindex != ifindex) continue;
+        /* A later direct prefix must override an earlier routed candidate. */
+        if (argos_network_prefix6_match(addr, p)) return 0;
+        if (ula || ((p->v6.s6_addr[0] & 0xE0U) == 0x20U &&
+                    memcmp(addr->s6_addr, p->v6.s6_addr, 6) == 0)) routed = 1;
     }
-    return 0;
+    return routed;
 }
 
 static inline int argos_network_prefix_context(int capture_ifindex, int packet_ifindex) {
@@ -304,10 +313,11 @@ static inline int argos_network_context4(const argos_network_state_t *state,
                                          uint32_t src, uint32_t dst, int ifindex,
                                          argos_network_packet_context_t *out) {
     int src_lan = argos_network_is_lan4(state, src);
-    int dst_lan = argos_network_is_lan4(state, dst);
     out->routed = argos_network_routed4(state, src, ifindex);
     out->source_side = src_lan || out->routed;
-    return out->source_side || dst_lan;
+    /* A source-side match already admits the packet; destination membership
+     * cannot change source-side selection or routed evidence. */
+    return out->source_side || argos_network_is_lan4(state, dst);
 }
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -318,10 +328,9 @@ static inline int argos_network_context6(const argos_network_state_t *state,
                                          const struct in6_addr *dst, int ifindex,
                                          argos_network_packet_context_t *out) {
     int src_lan = argos_network_is_lan6(state, src);
-    int dst_lan = argos_network_is_lan6(state, dst);
     out->routed = argos_network_routed6(state, src, ifindex);
     out->source_side = src_lan || out->routed;
-    return out->source_side || dst_lan;
+    return out->source_side || argos_network_is_lan6(state, dst);
 }
 
 static inline int argos_network_add_iface(argos_network_state_t *state,
