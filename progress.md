@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `18b21557…` (PR #16).
-**Now:** non-port dispatch/AH/PTP contract and reachability fixtures. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified checkpoint: `2ac25928…` (PR #17; runtime unchanged).
+**Now:** BPF capacity repair before new dispatch gates. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -22,6 +22,7 @@ Branch: `version-6`. Verified production checkpoint: `18b21557…` (PR #16).
 - [x] Live link-type/receive ownership matrix and SLL address identity bounds; red→green/permanent gates — PR #14.
 - [x] Normalized inspector/shared TCP framing and network-owned bounded router admission; golden/equivalence gates — PR #15.
 - [x] PPPoE/LLC declared-length bounds and canonical discovery padding exclusion; exhaustive fixtures/permanent gates — PR #16.
+- [x] Non-port/AH/PTP source characterization, bounded fixtures and ownership design; existing BPF capacity blocker identified — PR #17.
 
 ## How to update — mandatory
 
@@ -48,10 +49,11 @@ Branch: `version-6`. Verified production checkpoint: `18b21557…` (PR #16).
 ### C1. Packet / capture / normalization
 
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval.
-- [ ] BPF capacity repair before adding gates: 212/1024 legacy masks exceed 256 instructions
+- [ ] **NOW:** BPF capacity repair before adding gates: 212/1024 legacy masks exceed 256 instructions
   (WireGuard=0); all-enabled+default WireGuard fails too. Compact checks first; all-mask/custom-port,
   kernel attach/verifier and capture-failure policy tests. No silent cap/stack increase.
-- [ ] **NOW:** No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
+- [ ] First-AH ownership API with unchanged terminal transport semantics, then no-port IPv4/IPv6 dispatch/BPF;
+  compare optional sidecar/inline fields and measure disabled cost. PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
 
@@ -210,9 +212,9 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 **Next:** BPF capacity repair, then first-AH ownership API and non-port/PTP reachability prerequisites;
 VLAN schema decision remains open. No runtime staging integration.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** non-port/AH/PTP characterization and design candidate; permanent gates pending.
-241,362 local checks PASS, including explicitly labeled known BPF capacity gaps. `src/` unchanged.
-Keep reusable `v6-core-gate` until final use. Do not tick the full C1 contract.
+**Pending PR:** none. PR #17 merged; core 33874404696, L2 33874404652, staging 33874404676 PASS.
+241,362 characterization checks; known BPF capacity failure remains open above. `src/` and native
+full/stub binaries unchanged. Keep reusable `v6-core-gate` until final use. Full C1 remains open.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

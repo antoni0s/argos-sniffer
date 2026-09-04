@@ -296,7 +296,12 @@ AH length fields/mixed chain/header loss/fragments and one isolated PTP parser
 across native/UDP4/UDP6. BPF interpreter checks use complete frames only; its
 out-of-range load behavior is not the kernel's immediate-drop behavior. This is
 not an AF_PACKET throughput test, kernel verifier test or end-to-end emission test.
-Core native/sanitizer/ARM64 gate results pending. ESP/AH/PTP remain runtime-isolated.
+Merged as PR #17, `2ac259284e5481d65ba852d943a000d2b24bfd32`. Core 33874404696,
+L2 33874404652 and staging 33874404676 PASS: strict standalone/native full/stub,
+ASan/UBSan/LSan, ARM64 full/stub/fixture compilation and unchanged size budgets.
+241,362 characterization checks passed; known BPF failures are not repaired or
+waived. Native full/stub binaries are byte-identical to PR #16 (hashes in merge
+commit); ARM64 fixtures compiled, not executed. ESP/AH/PTP remain runtime-isolated.
 
 ### Completion and rate semantics (remaining work)
 
