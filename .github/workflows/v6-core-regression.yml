@@ -55,7 +55,8 @@ jobs:
       - name: Text and BSS budget (explicit approval required to revise)
         run: |
           set -eu
-          # Keep the existing limit; report other gates before budget rejection.
+          # PR #12: user-approved single-scan network policy tradeoff, +812
+          # full text vs 155629 baseline. No extra headroom or BSS increase.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 155677
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 156441
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304
