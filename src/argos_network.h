@@ -111,24 +111,24 @@ static inline int argos_network_mac_is_unicast(const uint8_t mac[6]) {
     return mac && memcmp(mac, zero, 6) != 0 && (mac[0] & 1U) == 0U;
 }
 
-static inline int argos_network_owner4_ensure(argos_network_state_t *state) {
-    if (state->owner4) return 1;
-    state->owner4 = (argos_network_owner4_entry_t *)calloc(
-        ARGOS_NETWORK_OWNER4_SLOTS, sizeof(*state->owner4));
-    return state->owner4 != NULL;
-}
-
-static inline int argos_network_owner6_ensure(argos_network_state_t *state) {
-    if (state->owner6) return 1;
-    state->owner6 = (argos_network_owner6_entry_t *)calloc(
-        ARGOS_NETWORK_OWNER6_SLOTS, sizeof(*state->owner6));
-    return state->owner6 != NULL;
+/* Lifecycle-only preparation. Requested families are independent so one remains
+ * useful if the other allocation fails. Repeated calls preserve learned owners. */
+static inline int argos_network_prepare_owners(argos_network_state_t *state,
+                                                int want4, int want6) {
+    if (!state) return 0;
+    if (want4 && !state->owner4)
+        state->owner4 = (argos_network_owner4_entry_t *)calloc(
+            ARGOS_NETWORK_OWNER4_SLOTS, sizeof(*state->owner4));
+    if (want6 && !state->owner6)
+        state->owner6 = (argos_network_owner6_entry_t *)calloc(
+            ARGOS_NETWORK_OWNER6_SLOTS, sizeof(*state->owner6));
+    return (!want4 || state->owner4) && (!want6 || state->owner6);
 }
 
 static inline void argos_network_owner4_note(argos_network_state_t *state,
                                               uint32_t ip, const uint8_t mac[6]) {
-    if (!state || ip == 0U || !argos_network_mac_is_unicast(mac) ||
-        !argos_network_owner4_ensure(state)) return;
+    if (!state || !state->owner4 || ip == 0U ||
+        !argos_network_mac_is_unicast(mac)) return;
     size_t base = (size_t)(argos_network_hash(&ip, sizeof(ip)) &
                            (ARGOS_NETWORK_OWNER4_SLOTS - 1U));
     time_t now = time(NULL), oldest = now;
@@ -164,8 +164,8 @@ static inline int argos_network_owner4_mismatch(argos_network_state_t *state,
 static inline void argos_network_owner6_note(argos_network_state_t *state,
                                               const struct in6_addr *ip, const uint8_t mac[6]) {
     static const struct in6_addr zero = IN6ADDR_ANY_INIT;
-    if (!state || !ip || IN6_ARE_ADDR_EQUAL(ip, &zero) ||
-        !argos_network_mac_is_unicast(mac) || !argos_network_owner6_ensure(state)) return;
+    if (!state || !state->owner6 || !ip || IN6_ARE_ADDR_EQUAL(ip, &zero) ||
+        !argos_network_mac_is_unicast(mac)) return;
     size_t base = (size_t)(argos_network_hash(ip->s6_addr, 16) &
                            (ARGOS_NETWORK_OWNER6_SLOTS - 1U));
     time_t now = time(NULL), oldest = now;

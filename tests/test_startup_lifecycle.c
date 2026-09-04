@@ -23,7 +23,9 @@ static int fault, next_fd = 10, live_fd[64], domains[64], allocations, live_heap
 static int capture_attempts, waits;
 static int unix_calls, udp_calls, resolve_calls;
 static int dedup_expected = -1, dedup_fail;
+static int network_expected = -1, allocation_fail_at;
 static void check_dedup_packet(void);
+static void check_network_packet(void);
 static void *owned[8];
 static int fake_close(int fd) {
     assert(fd >= 0 && fd < 64 && live_fd[fd]);
@@ -68,6 +70,7 @@ static int fake_ctl(int ep, int op, int fd, struct epoll_event *ev) {
 static int fake_wait(int ep, struct epoll_event *ev, int n, int timeout) {
     (void)ev; (void)n; (void)timeout; assert(live_fd[ep]); ++waits;
     check_dedup_packet();
+    check_network_packet();
     assert(raise(SIGTERM) == 0); errno = EINTR; return -1;
 }
 static int fake_setopt(int fd, int level, int opt, const void *p, socklen_t n) {
@@ -94,7 +97,7 @@ static int fake_resolve(const char *host, const char *port,
 static void fake_freeaddr(struct addrinfo *p) { (void)p; }
 static void *fake_calloc(size_t n, size_t s) {
     ++allocations;
-    if (dedup_fail) return NULL;
+    if (dedup_fail || allocations == allocation_fail_at) return NULL;
     if ((fault == SYN_FAIL && allocations == 1) ||
         (fault == DNS_FAIL && allocations == 2)) return NULL;
     void *p = calloc(n, s); assert(p);
@@ -139,18 +142,31 @@ static void check_dedup_packet(void) {
     assert(allocations == before);
 }
 
+static void check_network_packet(void) {
+    if (network_expected < 0) return;
+    assert((network_state.owner4 != NULL) == ((network_expected & 1) != 0));
+    assert((network_state.owner6 != NULL) == ((network_expected & 2) != 0));
+    const uint8_t mac[6] = {0x02,1,2,3,4,5};
+    uint32_t ip4 = htonl(0x0a000001U);
+    struct in6_addr ip6 = IN6ADDR_LOOPBACK_INIT;
+    int before = allocations;
+    argos_network_owner4_note(&network_state, ip4, mac);
+    argos_network_owner6_note(&network_state, &ip6, mac);
+    assert(allocations == before); /* Missing/failed families never retry here. */
+}
+
 static void dedup_policy(void) {
-    const struct { int need; const char *args[8]; } cases[] = {
-        {1, {"-i", "any"}}, {1, {"any"}}, {1, {"-a"}}, {0, {"-A"}},
-        {1, {"-A", "-s"}}, {0, {"-s", "-A"}}, {0, {"-s", "-S"}},
-        {1, {"-S", "-s"}}, {0, {"-a", "-f", "0"}},
-        {1, {"-a", "-f", "0", "-f", "35"}},
-        {1, {"--enterprise"}}, {0, {"--enterprise-verbose"}},
-        {1, {"--enterprise-verbose", "-t"}},
-        {0, {"--enterprise", "--enterprise-verbose"}},
-        {1, {"--enterprise-verbose", "--enterprise"}},
-        {0, {"-z", "192.0.2.0/24", "-a", "--enterprise"}},
-        {1, {"-Z", "192.0.2.0/24", "-a"}}, {1, {"-W"}}, {1, {"-v"}}
+    const struct { int need, owner_allocations; const char *args[8]; } cases[] = {
+        {1, 0, {"-i", "any"}}, {1, 2, {"any"}}, {1, 2, {"-a"}}, {0, 2, {"-A"}},
+        {1, 2, {"-A", "-s"}}, {0, 2, {"-s", "-A"}}, {0, 0, {"-s", "-S"}},
+        {1, 0, {"-S", "-s"}}, {0, 2, {"-a", "-f", "0"}},
+        {1, 2, {"-a", "-f", "0", "-f", "35"}},
+        {1, 0, {"--enterprise"}}, {0, 0, {"--enterprise-verbose"}},
+        {1, 0, {"--enterprise-verbose", "-t"}},
+        {0, 0, {"--enterprise", "--enterprise-verbose"}},
+        {1, 0, {"--enterprise-verbose", "--enterprise"}},
+        {0, 0, {"-z", "192.0.2.0/24", "-a", "--enterprise"}},
+        {1, 2, {"-Z", "192.0.2.0/24", "-a"}}, {1, 0, {"-W"}}, {1, 0, {"-v"}}
     };
     for (unsigned i = 0; i < sizeof(cases)/sizeof(cases[0]); ++i)
     for (int fail = 0; fail <= cases[i].need; ++fail) {
@@ -160,8 +176,43 @@ static void dedup_policy(void) {
             char *argv[10] = {"argos"}; int argc = 1;
             for (unsigned j = 0; cases[i].args[j]; ++j) argv[argc++] = (char *)cases[i].args[j];
             assert(argos_program_main(argc, argv) == 0);
-            assert(allocations == cases[i].need && !live_heap && waits == 1);
+            assert(allocations == cases[i].need + cases[i].owner_allocations &&
+                   !live_heap && waits == 1);
             assert(!runtime_state.dedup.table);
+            for (unsigned j = 0; j < 64; ++j) assert(!live_fd[j]);
+            exit(0);
+        }
+        int status; assert(waitpid(child, &status, 0) == child);
+        assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    }
+}
+
+static void network_policy(void) {
+    const struct { int dedup, requested, ready, fail_at; const char *args[5]; } cases[] = {
+        {0, 1, 1, 0, {"-L"}},
+        {1, 1, 1, 0, {"-l"}},
+        {0, 3, 3, 0, {"-L", "-V"}},
+        {0, 3, 3, 0, {"-A"}},
+        {1, 3, 3, 0, {"-a"}},
+        {1, 0, 0, 0, {"-v"}},
+        {1, 0, 0, 0, {"--enterprise"}},
+        {0, 0, 0, 0, {"-z", "192.0.2.0/24", "-a"}},
+        {0, 3, 2, 1, {"-L", "-V"}}, /* IPv4 allocation fails. */
+        {0, 3, 1, 2, {"-L", "-V"}}  /* IPv6 allocation fails. */
+    };
+    for (unsigned i = 0; i < sizeof(cases)/sizeof(cases[0]); ++i) {
+        fflush(NULL); pid_t child = fork(); assert(child >= 0);
+        if (!child) {
+            dedup_expected = cases[i].dedup;
+            network_expected = cases[i].ready;
+            allocation_fail_at = cases[i].fail_at;
+            char *argv[8] = {"argos"}; int argc = 1;
+            for (unsigned j = 0; cases[i].args[j]; ++j)
+                argv[argc++] = (char *)cases[i].args[j];
+            assert(argos_program_main(argc, argv) == 0);
+            int owner_allocations = !!(cases[i].requested & 1) + !!(cases[i].requested & 2);
+            assert(allocations == cases[i].dedup + owner_allocations);
+            assert(!live_heap && !network_state.owner4 && !network_state.owner6);
             for (unsigned j = 0; j < 64; ++j) assert(!live_fd[j]);
             exit(0);
         }
@@ -196,6 +247,7 @@ static void check_case(int f, const char *option, const char *value,
 }
 int main(void) {
     dedup_policy();
+    network_policy();
     const char *invalid[][2] = {
         {"--sensor-name", "bad|name"}, {"--inside", "invalid"},
         {"--identity=bad", NULL}, {"--wireguard-port", "0"},
