@@ -98,9 +98,47 @@ re-read exact heads/open PRs before deletion and keep merged PR recovery referen
   is required, request activation and return; prepare resources at a lifecycle
   boundary, never retry allocations for every packet. This is a design target,
   not current implementation.
-- SYN state is a module-static pointer, and runtime destruction is currently
-  single-use. Multi-instance ownership, repeated destroy and partial initialization
-  require tests before declaring the lifecycle API reusable.
+- At the PR #19 baseline SYN state was module-static; repeated enable leaked old
+  tables and destruction left dangling pointers. The lifecycle candidate below
+  addresses this owner API, not every process-startup/sink cleanup path.
+
+#### SYN/DNS lifecycle candidate — from `6d697023…` (gates pending)
+
+`argos_runtime_state_t` owns `syn_track` and `dns_track` independently of other
+instances. Initialize to zero and never copy a live owner. Preparation/destruction
+run only outside packet processing. Repeated successful enable preserves tables
+and evidence without allocating. Preparation commits both tables only on success;
+failure frees newly allocated scratch ownership immediately and preserves any
+pre-existing table. A retry is explicit lifecycle work, never packet-time retry.
+Destroy accepts NULL, frees owned SYN/DNS/dedup, and zeros the whole owner so a
+restart cannot inherit fixed TCP DONE/UDP state. Borrowed entry pointers expire
+at destruction. This API is not concurrent shutdown or thread synchronization.
+
+`argos_syn_track_find` now takes the explicit owner; its caller must have gated
+extended metrics and successfully prepared it. The four existing main calls
+retain their `opt_syn`/`opt_ext_metrics` gates, with no new lookup guard or allocation.
+SYN and DNS keys, probes, TTL and correlation behavior are unchanged. The DNS
+parser/API, wire output, rate policy, CLI and staging integration are unchanged.
+
+`test_state_lifecycle.c` intercepts allocation/free: both failure sites, immediate
+rollback, preserved partial owners, retry, repeated enable/destroy, two independent
+owners, fixed-state reset, first IPv4/IPv6 SYN/DNS evidence and zero allocations
+during lookup/expiry. Optional SYN/DNS heap remains 65536 + 212992 bytes on native
+64-bit; disabled ownership allocates neither. The owner grows one pointer while
+the former global pointer disappears; total native BSS remains 80304/80296.
+Main stack remains 84960 bytes; these are static measurements, not total RAM.
+
+Alternatives measured: passing the table adds lookup argument overhead; passing
+the owner allows compiler specialization. Inline preparation gives full text
+156537, cold-hinted preparation 156489; explicit out-of-line startup preparation
+gives 156433 (stub 143818), within unchanged full cap 156441. Versus PR #19:
++200/+124 text, no BSS increase. Native optimized SYN lookup has the same 303
+instructions after relocation normalization. Permanent native/sanitizer/ARM64
+gates are required before promotion; ARM64 fixtures compile only.
+
+Remaining C2/C8 work includes main's post-prepare capture-failure exits and sink
+cleanup, enabled-capacity selection, packet-time dedup/network/QUIC allocations,
+and complete lifecycle/clock/saturation/budget testing. This does not freeze C2.
 
 ### Packet reachability
 

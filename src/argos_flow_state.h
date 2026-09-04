@@ -70,17 +70,15 @@ typedef struct {
     uint8_t valid;
 } argos_udp_suppress_entry_t;
 
-/* One lifecycle facade, five independent state machines. */
+/* One lifecycle facade, five independent state machines. Initialize with zero;
+ * do not copy a live owner. Prepare/destroy only while packet handling is stopped. */
 typedef struct {
     argos_flow_state_t application;
     argos_udp_suppress_entry_t udp_suppress[ARGOS_UDP_SUPPRESS_SLOTS];
+    argos_syn_track_t *syn_track;
     argos_dns_track_t *dns_track;
     argos_dedup_state_t dedup;
 } argos_runtime_state_t;
-
-/* Kept module-private so SYN lookup retains its original calling convention;
- * allocation and destruction still belong exclusively to this subsystem. */
-static argos_syn_track_t *argos_syn_track_table;
 
 static inline uint64_t argos_flow_hash_update(uint64_t h, const void *data, size_t len) {
     const uint8_t *p = (const uint8_t *)data;
@@ -124,11 +122,13 @@ static inline int argos_syn_track_matches(const argos_syn_track_t *e,
            memcmp(e->dst_addr, dst_addr, addr_len) == 0;
 }
 
-static inline argos_syn_track_t *argos_syn_track_find(
+/* Caller has gated extended metrics and successfully prepared this table.
+ * No lifecycle checks, allocation or shared mutable owner on the packet path. */
+static inline argos_syn_track_t *argos_syn_track_find(const argos_runtime_state_t *state,
         const uint8_t mac[6], uint16_t sport, uint16_t dport, uint8_t ip_version,
         const uint8_t *src_addr, const uint8_t *dst_addr,
         uint64_t now_usec, int create) {
-    argos_syn_track_t *table = argos_syn_track_table;
+    argos_syn_track_t *table = state->syn_track;
     const uint32_t base = argos_syn_track_key(mac, sport, dport, ip_version,
                                                src_addr, dst_addr) &
                           (ARGOS_SYN_TRACK_SLOTS - 1U);
@@ -328,18 +328,37 @@ static inline int argos_udp_suppress_recent(argos_udp_suppress_entry_t table[ARG
     return 0;
 }
 
-static inline int argos_runtime_state_enable_extended_metrics(argos_runtime_state_t *state) {
-    argos_syn_track_table = (argos_syn_track_t *)calloc(ARGOS_SYN_TRACK_SLOTS,
-                                                         sizeof(*argos_syn_track_table));
-    state->dns_track = (argos_dns_track_t *)calloc(ARGOS_RUNTIME_DNS_SLOTS,
-                                                    sizeof(*state->dns_track));
-    return argos_syn_track_table != NULL && state->dns_track != NULL;
+/* Startup-only preparation stays out-of-line; it is not packet work. The unused
+ * annotation allows consumers of other header APIs to omit this lifecycle entry. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline, unused))
+#endif
+static int argos_runtime_state_enable_extended_metrics(argos_runtime_state_t *state) {
+    if (!state) return 0;
+    if (state->syn_track && state->dns_track) return 1;
+    /* Commit together; a failed attempt leaves pre-existing state untouched. */
+    argos_syn_track_t *syn = state->syn_track;
+    if (!syn) syn = (argos_syn_track_t *)calloc(ARGOS_SYN_TRACK_SLOTS, sizeof(*syn));
+    if (!syn) return 0;
+    argos_dns_track_t *dns = state->dns_track;
+    if (!dns) dns = (argos_dns_track_t *)calloc(ARGOS_RUNTIME_DNS_SLOTS, sizeof(*dns));
+    if (!dns) {
+        if (!state->syn_track) free(syn);
+        return 0;
+    }
+    state->syn_track = syn;
+    state->dns_track = dns;
+    return 1;
 }
 
+/* Repeat-safe, also after partial initialization. Borrowed table entries expire
+ * here. Clear fixed inline state as well so a reused owner cannot inherit DONE. */
 static inline void argos_runtime_state_destroy(argos_runtime_state_t *state) {
-    free(argos_syn_track_table);
+    if (!state) return;
+    free(state->syn_track);
     free(state->dns_track);
     argos_dedup_destroy(&state->dedup);
+    memset(state, 0, sizeof(*state));
 }
 
 
