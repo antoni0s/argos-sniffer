@@ -168,7 +168,7 @@ Remaining C2/C8 work includes enabled-capacity selection, packet-time dedup/netw
 QUIC allocations and lifecycle, sink setup extraction, and complete clock/saturation/
 budget/backpressure testing. This does not freeze C2 or C8.
 
-#### Dedup preparation candidate — PR #22, NOT production; size approval pending
+#### Dedup preparation candidate — PR #22, approved candidate; fresh gate pending
 
 Baseline `6b186c4b16e80f25e65eaeb9060b85b320a54390`. Candidate
 `argos_dedup_prepare` initializes the existing 2048-slot/eight-probe cache outside
@@ -195,14 +195,15 @@ Alternatives (native full text): inline 156921; bitwise demand 157033;
 out-of-line prepare 157065; shared lookup 156581; cold prepare/shared lookup 156801.
 Selected shared lookup retains the prior native shared-call boundary and removes
 its allocator branch. Full/stub 156581/144106 (+272/+84 from baseline), unchanged
-BSS 80304/80296; main stack 84960 (+16). The full cap remains 156441: candidate
-is 140 bytes over and must not merge without explicit approval. No staged protocol
-row becomes exact/ready from this lifecycle-only candidate.
+BSS 80304/80296; main stack 84960 (+16). User approved the 140-byte cap revision
+156441 -> 156581, prioritizing CPU/latency and code quality over tiny text changes.
+The structural benefit is removal of packet-time allocation/retry; no measured
+capture-throughput gain is claimed. No staged protocol row becomes ready.
 Candidate `b42b352336d5dd98f14f6cad61bc54f1c3eb1595`: core 33896102915 passes
 native full/stub, ASan/UBSan/LSan and ARM64 full/stub/fixture compilation; it fails
 only the unchanged text cap. L2 33896102897 and staging 33896102861 PASS.
-The task remains unchecked and production dedup remains lazy until approval,
-a newly passing gate and production promotion. No ARM64 hardware execution claim.
+The task remains unchecked and production dedup remains lazy until a newly
+passing approved gate and production promotion. No ARM64 hardware execution claim.
 
 ### Packet reachability
 
