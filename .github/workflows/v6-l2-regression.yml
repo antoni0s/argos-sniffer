@@ -4,7 +4,7 @@ on:
   push:
     branches: [version-6]
   pull_request:
-    branches: [main]
+    branches: [main, version-6]
   workflow_dispatch:
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
       - name: Strict parser fixtures
         run: |
           set -eu
-          for t in lldp_med lacp stp rstp mstp; do
+          for t in lldp_med lacp stp rstp mstp stp_path; do
             cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "tests/test_${t}.c" -o "/tmp/test-${t}"
             "/tmp/test-${t}"
           done
@@ -32,7 +32,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -eu
-          for t in lldp_med lacp stp rstp mstp; do
+          for t in lldp_med lacp stp rstp mstp stp_path; do
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
               -fsanitize=address,undefined -fno-omit-frame-pointer \
               "tests/test_${t}.c" -o "/tmp/test-${t}-san"
@@ -51,6 +51,8 @@ jobs:
           assert src.count('l3_proto <= 1500U') >= 3
           assert 'BPF_JGT | BPF_K, 1500' in bpf
           assert 'argos_rstp_parse' in l2 and 'argos_mstp_parse' in l2
+          for parser, result in (('stp', 'stp'), ('rstp', 'stp'), ('mstp', 'mstp')):
+              assert f'argos_{parser}_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &{result})' in src
           assert '32-byte MST configuration name is intentionally not emitted' in l2
           assert 'subtype == 3U' not in l2
           assert '#include "argos_l2.h"' in src

@@ -91,6 +91,17 @@ static inline int argos_packet_strip_l2(argos_packet_view_t *v) {
 
         /* Preserve the existing LLC/SNAP protocol discriminators. */
         if (eth_type <= 1500U) {
+            /* STP-family parsers consume the LLC prefix themselves. Retain it,
+             * and exclude Ethernet padding using the declared 802.3 length.
+             * Unknown LLC formats remain rejected; this is not generic DPI. */
+            if (len >= offset + 3 && buffer[offset] == 0x42U &&
+                buffer[offset + 1] == 0x42U && buffer[offset + 2] == 0x03U) {
+                if (eth_type < 3U || (int)eth_type > len - offset) return 0;
+                v->l3_proto = eth_type;
+                v->l3_offset = offset;
+                v->packet_end = offset + (int)eth_type;
+                return 1;
+            }
             if (len >= offset + 8 && buffer[offset] == 0xaaU && buffer[offset + 1] == 0xaaU &&
                 buffer[offset + 2] == 0x03U && buffer[offset + 3] == 0x00U &&
                 buffer[offset + 4] == 0xe0U && buffer[offset + 5] == 0x2bU &&

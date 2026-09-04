@@ -1,0 +1,33 @@
+name: V6 core architecture regression
+on:
+  pull_request:
+    branches: [version-6]
+  push:
+    branches: [version-6]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strict standalone matrix and native full/stub
+        run: |
+          set -eu
+          for source in tests/test_*.c; do
+            binary="/tmp/$(basename "$source" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -lm -o "$binary"
+            "$binary"
+          done
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/full
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/stub
+          size /tmp/full /tmp/stub
+          # Capture baseline text=155549; bounded STP reachability repair.
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 155677
+          test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80304
+      - name: ARM64 full/stub
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror src/argos-sniffer.c -lm -o /tmp/arm-full
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror -DARGOS_QUIC_STUB src/argos-sniffer.c -lm -o /tmp/arm-stub

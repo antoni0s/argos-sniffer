@@ -1385,18 +1385,18 @@ int main(int argc, char *argv[]) {
             }
             if (runtime_cfg.enterprise_enabled && l3_proto <= 1500U) {
                 argos_stp_result_t stp;
-                if (argos_stp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
+                if (argos_stp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &stp)) {
                     if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|STP|%s\n", mac_str, stp.detail);
                     continue;
                 }
-                if (argos_rstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &stp)) {
+                if (argos_rstp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &stp)) {
                     if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|RSTP|%s\n", mac_str, stp.detail);
                     continue;
                 }
                 argos_mstp_result_t mstp;
-                if (argos_mstp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &mstp)) {
+                if (argos_mstp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &mstp)) {
                     if (!dedup_should_suppress(mac_str, "ENT", mstp.detail, runtime_cfg.enterprise_rate_limited))
                         emit_telemetry("ENT|%s|-|-|MSTP|%s\n", mac_str, mstp.detail);
                     continue;
