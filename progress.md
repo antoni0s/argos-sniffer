@@ -37,8 +37,10 @@ Branch: `version-6`. Verified production checkpoint: `c2c06dfa…` (PR #10).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Explicit direction/ownership/routed context; raw/cooked/unsupported link semantics;
-  AUX VLAN-to-observation reconciliation; remaining fragment/extension-chain boundary tests;
+- [ ] **NOW:** Network direction/context API fixtures and sink-owned legacy VLAN projection; promote after gates.
+- [ ] Runtime adoption of network context (candidate exceeds existing text-size gate; optimize before promotion).
+  Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
+  remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
 - [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
@@ -196,7 +198,7 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** C1 direction/ownership and VLAN-to-observation context; then remaining reachability tests.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending PR:** none; #10 merged. Gates: core 33843660310, L2 33843660206,
-staging 33843660244 PASS. ARM64 fixtures compile only; real hardware remains open.
+**Pending gate:** context API + legacy VLAN projection; network runtime adoption not promoted.
+Previous production #10 gates passed. ARM64 fixtures compile only; real hardware remains open.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

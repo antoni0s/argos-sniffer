@@ -26,6 +26,24 @@ static char sensor_observation_iface[SENSOR_IFACE_MAX] = {0};
 static uint16_t sensor_observation_outer_vlan = 0;
 static uint16_t sensor_observation_inner_vlan = 0;
 
+/* Copy capture provenance into sink-owned bounded storage. Call only in sensor
+ * mode. Preserve the legacy two-VID projection, including zero/absent ambiguity
+ * and equal-tag coalescing; lossless VLAN semantics need a separate schema gate. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
+static inline void argos_telemetry_capture_context(const char *iface,
+                                                    uint16_t outer, uint16_t inner,
+                                                    int aux_valid, uint16_t aux_vlan) {
+    if (aux_valid) {
+        if (outer == 0U) outer = aux_vlan;
+        else if (aux_vlan != outer) { inner = outer; outer = aux_vlan; }
+    }
+    snprintf(sensor_observation_iface, sizeof(sensor_observation_iface), "%s", iface);
+    sensor_observation_outer_vlan = outer;
+    sensor_observation_inner_vlan = inner;
+}
+
 
 /* ============================================================================
  * SECTION: Telemetry Output Engine

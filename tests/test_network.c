@@ -73,6 +73,33 @@ int main(void) {
     assert(argos_network_prefix_context(4, 9) == 4);
     assert(argos_network_prefix_context(0, 9) == 9);
 
+    /* Match the former main-loop policy across both directions, configured /
+     * learned prefixes, off-link sources and unknown capture interfaces. */
+    const uint32_t v4[] = {direct4, routed4, public4, configured4};
+    const struct in6_addr v6[] = {direct6, routed6, unrelated6, configured6};
+    for (int ifindex = 0; ifindex <= 8; ++ifindex)
+    for (unsigned src = 0; src < 4; ++src) for (unsigned dst = 0; dst < 4; ++dst) {
+        argos_network_packet_context_t ctx = {0};
+        int sl = argos_network_is_lan4(&state, v4[src]);
+        int dl = argos_network_is_lan4(&state, v4[dst]);
+        int routed = argos_network_routed4(&state, v4[src], ifindex);
+        int visible = argos_network_context4(&state, v4[src], v4[dst], ifindex, &ctx);
+        assert(visible == (sl || dl || routed));
+        if (visible) assert(ctx.source_side == (sl || routed) && ctx.routed == routed);
+        sl = argos_network_is_lan6(&state, &v6[src]);
+        dl = argos_network_is_lan6(&state, &v6[dst]);
+        routed = argos_network_routed6(&state, &v6[src], ifindex);
+        visible = argos_network_context6(&state, &v6[src], &v6[dst], ifindex, &ctx);
+        assert(visible == (sl || dl || routed));
+        if (visible) assert(ctx.source_side == (sl || routed) && ctx.routed == routed);
+    }
+    argos_network_packet_context_t ctx = {0};
+    assert(sizeof(ctx) == 2 * sizeof(int));
+    assert(argos_network_context4(&state, public4, direct4, 7, &ctx));
+    assert(!ctx.source_side && !ctx.routed); /* Inbound is not routed-source evidence. */
+    assert(argos_network_context4(&state, routed4, public4, 7, &ctx));
+    assert(ctx.source_side && ctx.routed);
+
     argos_network_destroy(&state);
     assert(state.owner4 == NULL && state.owner6 == NULL);
     puts("network context engine fixtures: PASS");

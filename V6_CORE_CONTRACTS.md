@@ -75,6 +75,21 @@ size measurements, not proof of zero runtime performance overhead.
 
 ### Packet reachability
 
+Network context preparation: `argos_network_context4/6` and an eight-byte
+`argos_network_packet_context_t` express source-side selection and source-routed
+evidence. This is not capture-socket direction. Equivalence fixtures cover both
+directions, configured/learned prefixes and unknown interfaces. These functions
+are NOT yet called from main: the trial runtime adoption exceeded the existing
+native text cap (155793 > 155677) and was not promoted. No core-freeze claim.
+
+`argos_telemetry_capture_context` owns the current legacy VLAN projection and
+copies interface provenance into bounded sink storage, only in sensor mode.
+It preserves equal-VID coalescing, two-VID truncation, VID-zero/absent ambiguity,
+and the configured capture name (including `any`), without a schema change.
+250 golden combinations plus reset/copy-lifetime fixtures protect existing OBS
+output. Lossless VLAN presence, equal nested tags and actual per-packet interface
+provenance remain explicit future decisions, not silently corrected here.
+
 PR #10: core 33843660310, L2 33843660206, staging 33843660244 PASS.
 Native full text 155629 (+108), stub 143160 (+380); BSS unchanged 80304/80296.
 Size cap was not relaxed. These are correctness bounds/cleanup changes, not

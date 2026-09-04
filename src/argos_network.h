@@ -288,6 +288,42 @@ static inline int argos_network_prefix_context(int capture_ifindex, int packet_i
     return capture_ifindex > 0 ? capture_ifindex : packet_ifindex;
 }
 
+/* Per-packet policy, not packet bytes, flow state or observation storage.
+ * source_side means the source belongs to the monitored side, not PACKET_OUTGOING.
+ * routed is source evidence, initially off-link and later optionally confirmed
+ * by the existing gated owner-cache lookup. L2 callers start with both zero. */
+typedef struct {
+    int source_side;
+    int routed;
+} argos_network_packet_context_t;
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
+static inline int argos_network_context4(const argos_network_state_t *state,
+                                         uint32_t src, uint32_t dst, int ifindex,
+                                         argos_network_packet_context_t *out) {
+    int src_lan = argos_network_is_lan4(state, src);
+    int dst_lan = argos_network_is_lan4(state, dst);
+    out->routed = argos_network_routed4(state, src, ifindex);
+    out->source_side = src_lan || out->routed;
+    return out->source_side || dst_lan;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
+static inline int argos_network_context6(const argos_network_state_t *state,
+                                         const struct in6_addr *src,
+                                         const struct in6_addr *dst, int ifindex,
+                                         argos_network_packet_context_t *out) {
+    int src_lan = argos_network_is_lan6(state, src);
+    int dst_lan = argos_network_is_lan6(state, dst);
+    out->routed = argos_network_routed6(state, src, ifindex);
+    out->source_side = src_lan || out->routed;
+    return out->source_side || dst_lan;
+}
+
 static inline int argos_network_add_iface(argos_network_state_t *state,
                                            const char *name, int ifindex) {
     if (!state || !name || state->iface_count >= ARGOS_NETWORK_MAX_INTERFACES) return 0;
