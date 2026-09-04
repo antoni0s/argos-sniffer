@@ -52,12 +52,15 @@ jobs:
           from pathlib import Path
           b=Path('bench/capture_batch_bench.c').read_text()
           s=Path('src/argos-sniffer.c').read_text()
-          assert 'recvmsg(current_iface->fd, &msg, MSG_TRUNC)' in s
-          assert 'epoll_wait(epoll_fd' in s
+          c=Path('src/argos_capture.h').read_text()
+          assert 'recvmsg(iface->fd, &msg, MSG_TRUNC)' in c
+          assert 'epoll_wait(capture.epoll_fd' in s
+          assert 'argos_capture_receive(current_iface, buffer' in s
           assert 'BENCH_MAX_BATCH 32U' in b
           assert '{4U, 8U, 16U, 32U}' in b
           assert 'recvmmsg(' in b and 'recvmsg(' in b
           assert 'SO_TIMESTAMPNS' in b
           assert 'MSG_TRUNC' in b
+          assert 'MSG_TRUNC' in c and 'recvmmsg(' not in c
           print('Capture benchmark contract invariants: PASS')
           PY

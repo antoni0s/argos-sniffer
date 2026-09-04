@@ -7,15 +7,15 @@
 static void test_tls13_enrichment_flags(void)
 {
     const uint8_t record[] = {
-        0x16,0x03,0x01,0x00,0x50,
-        0x01,0x00,0x00,0x4c,
+        0x16,0x03,0x01,0x00,0x4a,
+        0x01,0x00,0x00,0x46,
         0x03,0x03,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         0x00,
         0x00,0x02, 0x13,0x01,
         0x01,0x00,
-        0x00,0x21,
+        0x00,0x1b,
         0x00,0x2b,0x00,0x05, 0x04,0x03,0x04,0x03,0x03,
         0x00,0x2d,0x00,0x02, 0x01,0x01,
         0x00,0x29,0x00,0x00,
@@ -24,6 +24,10 @@ static void test_tls13_enrichment_flags(void)
     };
 
     argos_tls_client_enrichment_staging_result_t out;
+    /* Presence-only synthetic extensions, not a complete RFC-valid PSK offer.
+     * Framing must nevertheless account for every byte. */
+    assert(sizeof(record) == 5U + 0x4aU);
+    assert(sizeof(record) == 9U + 0x46U);
     assert(argos_tls_client_enrichment_parse(record, sizeof(record), &out) == 1);
     assert(out.legacy_version == 0x0303U);
     assert(out.has_supported_versions == 1U);
@@ -34,6 +38,8 @@ static void test_tls13_enrichment_flags(void)
     assert(out.has_pre_shared_key == 1U);
     assert(out.has_early_data == 1U);
     assert(out.has_ech == 1U);
+    for (size_t n = 0; n < sizeof(record); ++n)
+        assert(argos_tls_client_enrichment_parse(record, n, &out) == 0);
 }
 
 static void test_truncated_extensions_rejected(void)

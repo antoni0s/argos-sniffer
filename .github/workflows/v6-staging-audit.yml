@@ -1,6 +1,8 @@
 name: V6 staging module audit
 
 on:
+  pull_request:
+    branches: [version-6]
   push:
     branches: [version-6]
     paths:
@@ -43,6 +45,9 @@ on:
       - 'src/argos_winrm.h'
       - 'tests/test_staging_headers.c'
       - 'tests/test_staging_semantics.c'
+      - 'src/*_staging.h'
+      - 'tests/test_*_staging.c'
+      - 'src/argos-sniffer.c'
       - '.github/workflows/v6-staging-audit.yml'
   workflow_dispatch:
 
@@ -69,6 +74,15 @@ jobs:
             tests/test_staging_semantics.c -o /tmp/test-staging-semantics
           /tmp/test-staging-semantics
 
+      - name: Isolated enrichment fixtures
+        run: |
+          set -eu
+          for source in tests/test_*_staging.c; do
+            binary="/tmp/$(basename "$source" .c)"
+            cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror "$source" -o "$binary"
+            "$binary"
+          done
+
       - name: ASan + UBSan boundary validation
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -82,11 +96,18 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_staging_semantics.c -o /tmp/test-staging-semantics-san
           /tmp/test-staging-semantics-san
+          for source in tests/test_*_staging.c; do
+            binary="/tmp/$(basename "$source" .c)-san"
+            cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+              -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -o "$binary"
+            "$binary"
+          done
 
       - name: Staging architecture invariants
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           headers = sorted(Path('src').glob('argos_*.h'))
           staging = {
@@ -100,8 +121,24 @@ jobs:
               'argos_vnc.h','argos_winrm.h'
           }
           present = {p.name for p in headers}
+          staging.update(p.name for p in Path('src').glob('*_staging.h'))
           missing = staging - present
           assert not missing, f'missing staging headers: {sorted(missing)}'
+
+          # Follow all quoted project includes, not just direct main includes.
+          # Runtime isolation is independent of standalone parser test success.
+          visited = set()
+          pending = [Path('src/argos-sniffer.c')]
+          while pending:
+              source = pending.pop()
+              if source in visited:
+                  continue
+              visited.add(source)
+              assert source.name not in staging, f'runtime imports staging: {source}'
+              for name in re.findall(r'^\s*#\s*include\s*"([^"]+)"', source.read_text(), re.M):
+                  dependency = source.parent / name
+                  assert dependency.is_file(), f'missing include: {dependency}'
+                  pending.append(dependency)
 
           forbidden = ('malloc(', 'calloc(', 'realloc(', 'emit_telemetry(',
                        'dedup_should_suppress', 'sendto(', 'write(')
