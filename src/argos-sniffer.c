@@ -1149,6 +1149,16 @@ int main(int argc, char *argv[]) {
         opt_v6 = 1;
     }
 
+    /* Compile legacy dedup demand once, after defaults/option precedence.
+     * Live inspector bypasses emission; -f 0 and wholly unrated modes need none. */
+    if (!filter_mode1.is_active && rate_limit_ttl > 0 &&
+        (opt_syn_rl || opt_multi_rl || opt_dhcp_rl || opt_netbios_rl || opt_dns_rl ||
+         opt_http_rl || opt_tls_rl || opt_l2_rl ||
+         (runtime_cfg.enterprise_enabled && runtime_cfg.enterprise_rate_limited))) {
+        if (!argos_dedup_prepare(&runtime_state.dedup))
+            fprintf(stderr, "warning: dedup cache unavailable; telemetry remains unsuppressed.\n");
+    }
+
     argos_bpf_config_t bpf_cfg = {
         .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
         .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),

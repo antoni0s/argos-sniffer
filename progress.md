@@ -216,7 +216,10 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 network/QUIC allocation outside packet handling. C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate; remaining C2/C8 work is not complete.
+**Pending:** dedup candidate, not production: explicit enabled-only prepare and
+allocation-free fail-open lookup; lifecycle/equivalence/CLI-policy fixtures.
+Full text 156581 exceeds cap 156441 by 140 bytes after five measured alternatives;
+no budget change or runtime promotion without approval. Remaining C2/C8 stays open.
 PR #21: core 33894580958, L2 33894580816, staging 33894580782 PASS.
 Native full/stub text 156309/144022 (-124/+204), within unchanged budgets;
 BSS unchanged; main stack 84944 (-16); packet loop unchanged.

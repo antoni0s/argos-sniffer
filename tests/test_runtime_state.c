@@ -32,6 +32,7 @@ int main(void) {
     assert(argos_syn_track_find(&state, mac, 50000, 443, 4, a, b,
                                 1000 + ARGOS_SYN_TRACK_TTL_USEC + 1, 0) == NULL);
 
+    assert(argos_dedup_prepare(&state.dedup));
     assert(!argos_dedup_should_suppress_at(&state.dedup, "aa", "TLS", "x",
                                            1, 35, 1, 100));
     assert(state.dedup.table != NULL);

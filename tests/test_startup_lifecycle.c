@@ -22,6 +22,8 @@ enum { NONE, UNIX_FAIL, UDP_FAIL, RESOLVE_FAIL, EPOLL_FAIL, LIST_FAIL,
 static int fault, next_fd = 10, live_fd[64], domains[64], allocations, live_heap;
 static int capture_attempts, waits;
 static int unix_calls, udp_calls, resolve_calls;
+static int dedup_expected = -1, dedup_fail;
+static void check_dedup_packet(void);
 static void *owned[8];
 static int fake_close(int fd) {
     assert(fd >= 0 && fd < 64 && live_fd[fd]);
@@ -65,6 +67,7 @@ static int fake_ctl(int ep, int op, int fd, struct epoll_event *ev) {
 }
 static int fake_wait(int ep, struct epoll_event *ev, int n, int timeout) {
     (void)ev; (void)n; (void)timeout; assert(live_fd[ep]); ++waits;
+    check_dedup_packet();
     assert(raise(SIGTERM) == 0); errno = EINTR; return -1;
 }
 static int fake_setopt(int fd, int level, int opt, const void *p, socklen_t n) {
@@ -91,6 +94,7 @@ static int fake_resolve(const char *host, const char *port,
 static void fake_freeaddr(struct addrinfo *p) { (void)p; }
 static void *fake_calloc(size_t n, size_t s) {
     ++allocations;
+    if (dedup_fail) return NULL;
     if ((fault == SYN_FAIL && allocations == 1) ||
         (fault == DNS_FAIL && allocations == 2)) return NULL;
     void *p = calloc(n, s); assert(p);
@@ -125,6 +129,47 @@ static void fake_free(void *p) {
 #undef main
 #undef free
 
+static void check_dedup_packet(void) {
+    if (dedup_expected < 0) return;
+    assert((runtime_state.dedup.table != NULL) == (dedup_expected && !dedup_fail));
+    int before = allocations;
+    assert(!dedup_should_suppress_for("aa", "TLS", "x", 1, 35, 1));
+    assert(dedup_should_suppress_for("aa", "TLS", "x", 1, 35, 1) ==
+           (dedup_expected && !dedup_fail));
+    assert(allocations == before);
+}
+
+static void dedup_policy(void) {
+    const struct { int need; const char *args[8]; } cases[] = {
+        {1, {"-i", "any"}}, {1, {"any"}}, {1, {"-a"}}, {0, {"-A"}},
+        {1, {"-A", "-s"}}, {0, {"-s", "-A"}}, {0, {"-s", "-S"}},
+        {1, {"-S", "-s"}}, {0, {"-a", "-f", "0"}},
+        {1, {"-a", "-f", "0", "-f", "35"}},
+        {1, {"--enterprise"}}, {0, {"--enterprise-verbose"}},
+        {1, {"--enterprise-verbose", "-t"}},
+        {0, {"--enterprise", "--enterprise-verbose"}},
+        {1, {"--enterprise-verbose", "--enterprise"}},
+        {0, {"-z", "192.0.2.0/24", "-a", "--enterprise"}},
+        {1, {"-Z", "192.0.2.0/24", "-a"}}, {1, {"-W"}}, {1, {"-v"}}
+    };
+    for (unsigned i = 0; i < sizeof(cases)/sizeof(cases[0]); ++i)
+    for (int fail = 0; fail <= cases[i].need; ++fail) {
+        fflush(NULL); pid_t child = fork(); assert(child >= 0);
+        if (!child) {
+            dedup_expected = cases[i].need; dedup_fail = fail;
+            char *argv[10] = {"argos"}; int argc = 1;
+            for (unsigned j = 0; cases[i].args[j]; ++j) argv[argc++] = (char *)cases[i].args[j];
+            assert(argos_program_main(argc, argv) == 0);
+            assert(allocations == cases[i].need && !live_heap && waits == 1);
+            assert(!runtime_state.dedup.table);
+            for (unsigned j = 0; j < 64; ++j) assert(!live_fd[j]);
+            exit(0);
+        }
+        int status; assert(waitpid(child, &status, 0) == child);
+        assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    }
+}
+
 static void check_case(int f, const char *option, const char *value,
                        int expected, int capture, int loop, int fd_zero) {
     fflush(NULL);
@@ -150,6 +195,7 @@ static void check_case(int f, const char *option, const char *value,
     assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
 int main(void) {
+    dedup_policy();
     const char *invalid[][2] = {
         {"--sensor-name", "bad|name"}, {"--inside", "invalid"},
         {"--identity=bad", NULL}, {"--wireguard-port", "0"},
