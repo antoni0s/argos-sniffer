@@ -123,13 +123,28 @@ Merged as `5c88814f68f778aba66234508c5c5c0873a805f1`; core 33865643412,
 L2 33865643350 and staging 33865643383 PASS. Native strict/full/stub and sanitizers
 ran; ARM64 builds/fixtures compiled only. Full C1 is not frozen.
 
-Next reconciliation must preserve deliberate inspector/dispatch differences:
-the debug printer is best-effort and reparses IPv4, including nonfirst fragments;
-its UDP output prints the declared length without full datagram validation.
-The router DNS exception checks capture length, not declared IP end; later UDP
-dispatch validates bounds. Do not replace these with a stricter transport entry
-without separately testing/deciding the malformed-input behavior. PPPoE/legacy
-LLC declared-length validation and lossless VLAN output remain open.
+Header-peek candidate from `cd4c370a…`: the inspector now consumes the successful
+normalized view rather than reparsing IP. Shared TCP header-length framing lives
+in `argos_packet.h`; fragment admission remains a separate dispatch policy.
+Actual-printer golden tests preserve nonfirst IPv4 diagnostics, short-header
+fallbacks, invalid UDP declared-length output, and IPv6 base next-header display.
+22,719 output cases compare everything except the live timestamp; the golden
+fixture was also executed against the pre-change printer before refactoring.
+
+`argos_network_router_exception(protocol, l4, available, source_side)` owns the
+cheap DNS-source/forwarded-SYNACK admission policy, without packet/state storage
+or new packet-header dependencies. Main passes declared IP bounds behind existing
+Ethernet/router/is_ip gates. 2,027,520 cases compare the old aligned-header
+predicates: the sole changed admission is UDP source 53 with fewer than eight
+declared IP payload bytes, formerly read from capture padding. Such input already
+fails the later transport gate. Malformed TCP doff, UDP lengths and nonfirst IPv4
+remain subject to their existing later dispatch checks, not extra early parsing.
+No BPF, telemetry grammar, privacy, state or staging integration change.
+
+Main shrinks 1491 source bytes. Local native full text 156281 (−160), stub 143740
+(−196); BSS 80304/80296 unchanged. New helpers inline in optimized full/stub builds.
+Permanent CI/ARM64 gates pending; no full capture-throughput or core-freeze claim.
+PPPoE/legacy LLC declared-length validation and lossless VLAN output remain open.
 
 Runtime network context: `argos_network_context4/6` and an eight-byte
 `argos_network_packet_context_t` express source-side selection and source-routed

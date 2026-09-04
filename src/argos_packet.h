@@ -53,6 +53,14 @@ static inline uint16_t read_be16(const unsigned char *p) {
     return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
 }
 
+/* Framing only, shared by transport dispatch and the best-effort inspector.
+ * p covers available bytes; fragment admission remains the caller's policy. */
+static inline int argos_packet_tcp_header_length(const unsigned char *p, int available) {
+    if (available < 20) return 0;
+    int header = (int)(p[12] >> 4) * 4;
+    return header >= 20 && header <= available ? header : 0;
+}
+
 /* Invoke only when a transport view is needed, not for every disabled engine.
  * Success validates framing/bounds, not checksums or application semantics.
  * First fragments retain legacy behavior if a complete transport header fits;
@@ -74,9 +82,8 @@ static inline int argos_packet_transport_normalized(const argos_packet_view_t *v
     int header = 0, length = available;
     const unsigned char *p = v->frame + v->l4_offset;
     if (protocol == 6U) {
-        if (available < 20) return 0;
-        header = (int)(p[12] >> 4) * 4;
-        if (header < 20 || header > available) return 0;
+        header = argos_packet_tcp_header_length(p, available);
+        if (!header) return 0;
     } else if (protocol == 17U) {
         if (available < 8) return 0;
         length = (int)read_be16(p + 4);
