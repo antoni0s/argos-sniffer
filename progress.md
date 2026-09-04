@@ -41,8 +41,8 @@ Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Runtime network context adoption: single-scan routing candidate passes local equivalence;
-  complete CI and review measured +812-byte native text tradeoff before promotion (limit unchanged).
+- [ ] **NOW:** Runtime network context adoption — PR #12: correctness/sanitizer/native/ARM64 checks pass;
+  approve measured +812-byte native text tradeoff and rerun size gate before promotion (limit unchanged).
   Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
   remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
@@ -189,8 +189,9 @@ fixtures and gates; fold/remove temporary staging headers only after canonical o
 ## Release gates
 
 - [ ] Repository hygiene: delete obsolete merged branches; retain `main` and active `version-6`.
-  PR #1–11 heads verified merged and unchanged; deletion blocked by unavailable authenticated
-  branch-delete access. No branches deleted. Final `version-6` → `main` only after release gates.
+  PR #1–11 heads were verified merged; PR #4 branch is now reused by active PR #12 and must be kept.
+  Other deletions await authenticated branch-delete access; none deleted.
+  Final `version-6` → `main` only after release gates.
 - [ ] Legacy/canonical golden corpus and sanitized real-PCAP optional/vendor-field acceptance.
 - [ ] Native Linux gateway; SPAN/TAP including VLAN/QinQ/unnumbered NIC; real constrained OpenWrt ARM64.
 - [ ] Long-run bounded memory/expiry and burst/drop comparison to pre-architecture baseline.
@@ -203,10 +204,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** Decide network context size tradeoff after CI; then remaining C1 reachability tests.
+**Next:** Approve/reject network context size tradeoff; then remaining C1 reachability tests.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending gate:** runtime network context candidate on reused `v6-network-production-gate`;
-not merged. Existing production PR #11 gates passed. ARM64 fixtures compile only;
-real hardware remains open. Branch cleanup also awaits authenticated deletion access.
+**Pending PR:** #12 on reused `v6-network-production-gate`, not merged. Core 33863375209:
+correctness/sanitizers/native/ARM64 PASS, size FAIL; L2 33863375161 and staging 33863375177 PASS.
+ARM64 fixtures compile only; real hardware remains open. Branch cleanup awaits deletion access.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

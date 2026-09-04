@@ -76,9 +76,19 @@ ownership, not merely shorter source. Existing 155677-byte cap remains unchanged
 CI executes correctness/sanitizer/ARM64 checks before reporting budget rejection.
 Do not promote until the tradeoff is accepted and all required gates pass.
 
+PR #12 tested candidate `348e6dbc71d3e0cdee680d39eb96f561a2ef4ec9`:
+core 33863375209 passed strict standalone/native full+stub, ASan/UBSan and ARM64
+full+stub/fixture compilation; only the unchanged text-size budget failed.
+L2 33863375161 and staging 33863375177 passed. CI confirmed full text 156441,
+stub 143936 (+796), unchanged BSS 80304/80296; focused benchmark ratios 0.60–0.83.
+No ARM64 fixture execution or real capture throughput claim. Recommendation:
+accept the small explicit text increase for fewer repeated scans and testable
+policy ownership, subject to user approval and a rerun of the revised budget gate.
+
 Repository hygiene audit: remote heads for merged PRs #1–11 matched their PR heads.
 `main` and `version-6` are retained. No deletion occurred: git write authentication
 was unavailable, and the connected GitHub API exposes no branch-delete operation.
+The old PR #4 branch is now reused for active PR #12 and must be retained.
 Re-read exact heads before any later deletion; retain merged PR/commit recovery references.
 
 ### Allocation and lifecycle
