@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `c2c06dfa…` (PR #10).
-**Now:** direction/ownership and VLAN context. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `223720c9…` (PR #11).
+**Now:** runtime network context adoption. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -15,6 +15,7 @@ Branch: `version-6`. Verified production checkpoint: `c2c06dfa…` (PR #10).
 - [x] Core audit, master matrix and persistent progress/update instructions.
 - [x] Bounded transport API and TCP/UDP runtime adoption; equivalence/frame/sanitizer/native/ARM64 gates — PR #8–9.
 - [x] Capture ancillary bounds, startup failure cleanup and repeat-safe close — PR #10.
+- [x] Sink-owned legacy VLAN/OBS context and tested network policy API — PR #11; runtime policy adoption remains open.
 
 ## How to update — mandatory
 
@@ -37,8 +38,7 @@ Branch: `version-6`. Verified production checkpoint: `c2c06dfa…` (PR #10).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** Network direction/context API fixtures and sink-owned legacy VLAN projection; promote after gates.
-- [ ] Runtime adoption of network context (candidate exceeds existing text-size gate; optimize before promotion).
+- [ ] **NOW:** Runtime adoption of network context within the existing size/performance gate.
   Raw/cooked/unsupported link semantics; lossless VLAN presence/equal-tag/overflow policy needs schema approval;
   remaining fragment/extension-chain boundary tests;
   reconcile debug-dump and router-exception header peeks without changing their behavior.
@@ -196,9 +196,9 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 direction/ownership and VLAN-to-observation context; then remaining reachability tests.
+**Next:** C1 runtime network context adoption; then remaining reachability tests.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending gate:** context API + legacy VLAN projection; network runtime adoption not promoted.
-Previous production #10 gates passed. ARM64 fixtures compile only; real hardware remains open.
+**Pending PR:** none for this step. PR #11 merged; core 33845034267, L2 33845034214,
+staging 33845034207 PASS. ARM64 fixtures compile only; real hardware remains open.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

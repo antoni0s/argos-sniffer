@@ -5,6 +5,7 @@ Capture production commit: `aacdf45d867e13a1b382661bace53aa905fe1331` (PR #6).
 Transport API production commit: `136d772e17a02421624a9942cf7e2ba73e6cccb4` (PR #8).
 Runtime transport adoption: `181e1ec8c63971fcb915e938eac8257c7c3cb321` (PR #9).
 Capture metadata/lifecycle hardening: `c2c06dfaa9813472143e28662514b1e73393b2db` (PR #10).
+Legacy VLAN/OBS context and network API preparation: `223720c9a3a42800e9bc84fba9cf7bea4bbf73c0` (PR #11).
 This is an **interim audit, not integration approval**.
 The protocol integration matrix remains the master blueprint. Its planned fields
 are not evidence of runtime reachability or collector compatibility.
@@ -89,6 +90,13 @@ and the configured capture name (including `any`), without a schema change.
 250 golden combinations plus reset/copy-lifetime fixtures protect existing OBS
 output. Lossless VLAN presence, equal nested tags and actual per-packet interface
 provenance remain explicit future decisions, not silently corrected here.
+
+PR #11: core 33845034267, L2 33845034214, staging 33845034207 PASS.
+Native full text 155629 (unchanged), stub 143140 (-20); BSS unchanged 80304/80296.
+The existing text cap was not relaxed. Strict native standalone tests and
+ASan/UBSan passed, including network and telemetry fixtures. ARM64 full/stub and
+fixtures compiled; no ARM64 fixture execution or end-to-end throughput claim.
+Main's network predicates, owner-cache gating and identity selection remain unchanged.
 
 PR #10: core 33843660310, L2 33843660206, staging 33843660244 PASS.
 Native full text 155629 (+108), stub 143160 (+380); BSS unchanged 80304/80296.
