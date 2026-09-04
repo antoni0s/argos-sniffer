@@ -247,6 +247,21 @@ must not be written into that column as though they were independent protocol bi
 Membership remains specified by the canonical taxonomy, not runtime-verified masks.
 No collector mapping was verified by this checkpoint.
 
+### Encapsulation field verification — PR #16 production `18b21557…`
+
+`src/argos_packet.h:argos_packet_decode` retains the existing CDP OUI 00000c/PID
+2000, FDP OUI 00e052/PID 2000, EDP OUI 00e02b/PID 00bb and IS-IS FE:FE:03
+discriminators. These normalize to 2000/f200/00bb/00fe respectively. The runtime
+owner/entry is `src/argos_enterprise.h:argos_enterprise_parse_l2`, behind
+`runtime_cfg.enterprise_enabled`; main emits legacy ENT using that result.
+Its input now ends at the declared 802.3 boundary, not capture padding.
+`src/argos_bpf.h:argos_bpf_build` keeps the existing enterprise-enabled <=1500
+length admission and unconditional VLAN/QinQ/PPPoE conservative fallbacks.
+`tests/test_encapsulation.c` verifies framing bounds and canonical CDP/FDP/EDP
+padding exclusion; `tests/check_network_adoption.py` guards the runtime consumer.
+These are exact owner/entry/trigger/input-bound facts only: canonical bits,
+complete protocol budgets, schema and collector mapping remain unverified.
+
 For each row, the integrating change must replace any generic/planned wording with exact current-source facts:
 
 ```text

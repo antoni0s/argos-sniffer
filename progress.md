@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified production checkpoint: `5940804b…` (PR #15).
-**Now:** PPPoE/LLC declared-length bounds. **Not yet:** full core freeze or staging runtime integration.
+Branch: `version-6`. Verified production checkpoint: `18b21557…` (PR #16).
+**Now:** non-port dispatch/AH/PTP contract and reachability fixtures. **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
 
@@ -21,6 +21,7 @@ Branch: `version-6`. Verified production checkpoint: `5940804b…` (PR #15).
 - [x] User removed obsolete merged branches; exact remote check retained only main/version-6 before the next gate.
 - [x] Live link-type/receive ownership matrix and SLL address identity bounds; red→green/permanent gates — PR #14.
 - [x] Normalized inspector/shared TCP framing and network-owned bounded router admission; golden/equivalence gates — PR #15.
+- [x] PPPoE/LLC declared-length bounds and canonical discovery padding exclusion; exhaustive fixtures/permanent gates — PR #16.
 
 ## How to update — mandatory
 
@@ -46,9 +47,8 @@ Branch: `version-6`. Verified production checkpoint: `5940804b…` (PR #15).
 
 ### C1. Packet / capture / normalization
 
-- [ ] **NOW:** PPPoE/LLC declared-length bounds and malformed/padding fixtures.
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval.
-- [ ] No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
+- [ ] **NOW:** No-port IPv4/IPv6 dispatch/BPF, preserving AH's own header; PTP native EtherType + UDP
   reach one engine. Thread stays HOLD until raw IEEE802.15.4/6LoWPAN capture is defined.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
 
@@ -204,12 +204,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C1 encapsulation bounds, then no-port dispatch/AH/PTP reachability; VLAN schema decision remains open.
+**Next:** C1 no-port dispatch/AH/PTP design and reachability fixtures before runtime wiring; VLAN schema decision remains open.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** PPPoE/LLC candidate awaiting permanent gates on reused `v6-core-gate`.
-Local 3,444,174 encapsulation cases and packet/transport/STP/inspector fixtures PASS;
-full/stub text 156217/143676 (−64 each), BSS unchanged. Local LeakSanitizer cannot
-read sandbox `/proc`; leak checking remains required in CI. Task is not checked complete.
+**Pending PR:** none. PR #16 merged; core 33869462769, L2 33869462741, staging 33869462750 PASS.
+Full/stub text 156217/143676 (−64 each), BSS unchanged. Keep reusable `v6-core-gate` until final use.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

@@ -35,7 +35,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
-| 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input; network owner supplies source-side/routed classification and router admission (PR #12/#15). | PPPoE/LLC bounds, complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
+| 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate state. | Eliminate packet-time allocation, explicit prepare/destroy contracts, partial-init cleanup, byte budgets, clock behavior and cache-eviction semantics. |
 | 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
@@ -149,7 +149,7 @@ ran; ARM64 full/stub and fixtures compiled only. The focused transport benchmark
 binary is byte-identical to baseline (SHA256 recorded in the merge commit), so
 its observed timing variation is not changed test code. No full capture-throughput
 or core-freeze claim.
-PPPoE/legacy LLC candidate (not yet production): normalization bounds all existing
+PPPoE/legacy LLC PR #16 (`18b215571e6ba6065ff660d03b551607c26f3edd`): normalization bounds all existing
 LLC/SNAP discriminators by the 802.3 declaration and inner IP by PPPoE payload
 length. The existing enterprise L2 consumer uses normalized `packet_end`, so
 padding cannot supply discovery TLVs. No new parser, state, BPF or wire schema.
@@ -160,8 +160,10 @@ it is length framing, not complete PPPoE semantic validation or discovery suppor
 The new fixture fails on the baseline and passes 3,444,174 boundary cases after
 repair, plus canonical CDP/FDP/EDP padding-evidence checks. Existing malformed
 positive PPPoE/CDP test frames now carry valid declared lengths. Full/stub text
-156217/143676 (−64 each), BSS unchanged. Permanent gates pending; lossless VLAN
-output and full frame-to-observation coverage remain open.
+156217/143676 (−64 each), BSS unchanged. Core 33869462769, L2 33869462741 and
+staging 33869462750 PASS: strict native matrix/full/stub, ASan/UBSan/LSan and
+ARM64 full/stub/fixture compilation (not execution). Lossless VLAN output and
+full frame-to-observation coverage remain open. No throughput claim.
 
 Runtime network context: `argos_network_context4/6` and an eight-byte
 `argos_network_packet_context_t` express source-side selection and source-routed
