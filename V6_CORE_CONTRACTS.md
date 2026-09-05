@@ -235,7 +235,7 @@ PR #36), data 3832 and BSS 80360/78760 unchanged. Core 33970823850, L2 339708238
 staging 33970823831 PASS, including LeakSanitizer and ARM64 compilation. BPF and remaining
 TCP/UDP callers stay open; no isolated staging parser became reachable.
 
-### Canonical classic-BPF projection — C4 candidate
+### Canonical classic-BPF projection — PR #39
 
 `argos_bpf_config_compile` is the single startup projection from the fixed dispatch plan.
 Classic BPF now consumes canonical L2/L3/L4 route flags: ARP, LLDP/LLDP-MED, LLC/SNAP,
@@ -251,7 +251,25 @@ from 287 to 183 instructions and interpreted work across that corpus falls from
 189,935,226 to 188,153,978 instructions. Dedicated fixtures pin independent canonical
 ARP/LLDP/OSPF routes, configured WireGuard gating and all conservative fallbacks.
 The BPF config grows from 12 to 16 startup-only bytes; program capacity, data and BSS do
-not grow. Full LeakSanitizer and ARM64 execution/compile evidence remains the PR CI gate.
+not grow. Core 33972559406, L2 33972559421 and staging 33972559401 passed, including
+LeakSanitizer and ARM64 compilation. No staged parser became reachable.
+
+### Canonical TCP/UDP engine gates — candidate
+
+Every current TCP/UDP production caller now derives demand from the fixed dispatch plan before
+parser or application-state work. Bounded port switches replace repeated enterprise-port scans;
+the two former reserved bytes hold TCP/UDP owner-demand flags, so the plan remains 48 bytes.
+HTTP, DNS, DHCP/DHCPv6, discovery, QUIC, WireGuard, HSRP, enterprise and identity calls use
+their exact bits and rate modes. UDP/623 resolves the RMCP class before IPMI/ASF parsing. TLS and
+DoT share one bounded parse on port 853 but keep independent emission and rate gates.
+
+The local fixed-port benchmark (12 million calls per path) measured active TCP/UDP dispatch at
+0.334–0.357 of the frozen linear scan and disabled dispatch at 0.182–0.242. This is structural
+CPU evidence, not an AF_PACKET throughput claim. Full/stub text is 168810/156756 (+2521/+2513
+from PR #39), data 3832 and BSS 80360/78760 unchanged. All 75 strict tests and six focused
+ASan/UBSan runs pass locally; CI LeakSanitizer and ARM64 execution/compile gates remain required.
+The temporary coarse TCP/UDP BPF port-family projection is the immediate next C4 slice. Qualified
+selectors remain unexposed until that gate passes. No staged parser became reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 

@@ -9,8 +9,8 @@ for name in ("decrypt_quic_sni", "decrypt_quic_sni_stateful"):
     body = quic.split(f"{name}(", 1)[1].split("\n}", 1)[0]
     assert "calloc(" not in body and "free(" not in body
 
-startup = main.split("/* Compile legacy dedup demand once", 1)[1].split("argos_bpf_config_t bpf_cfg", 1)[0]
-assert "!filter_mode1.is_active && opt_tls" in startup
+startup = main.split("/* Compile canonical dedup demand once", 1)[1].split("argos_bpf_config_t bpf_cfg", 1)[0]
+assert "!filter_mode1.is_active &&\n        argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_QUIC)" in startup
 assert "argos_quic_prepare(&quic_state, opt_quic_heavy)" in startup
 assert main.count("argos_quic_prepare(&quic_state") == 1
 assert "uint8_t fake_tls_buf[8192]" not in main

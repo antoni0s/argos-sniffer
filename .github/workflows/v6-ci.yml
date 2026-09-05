@@ -366,8 +366,11 @@ jobs:
           assert 'ARGOS_TLS_TCP_PORTS' in bpf
           assert 'ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT)' in bpf
           assert src.count('argos_tls_tcp_port(dport)') >= 3
-          assert src.count('(opt_tls && dport == 443U)') == 1
-          assert src.count('else if (opt_tls && dport == 443)') == 1
+          assert 'ARGOS_PROTOCOL_DOT' in src
+          assert 'ARGOS_PROTOCOL_TLS' in src
+          assert 'int tls_tcp =' in src
+          assert 'int dot_tcp =' in src
+          assert '(opt_tls' not in src
           assert 'dport == 853U' in src
           assert 'DOT|%s|%s|%s|%s|%s|%s%s' in src
           print('TLS port policy / DoT regression: PASS')
