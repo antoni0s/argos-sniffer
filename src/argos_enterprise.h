@@ -99,6 +99,186 @@ static inline void ae_set(argos_enterprise_result_t *r, const char *proto,
     r->emit = r->detail[0] ? 1U : 0U;
 }
 
+static inline void ae_exporter_token(const unsigned char *p, size_t n,
+                                     char *out, size_t cap) {
+    size_t o = 0;
+    if (!out || cap == 0U) return;
+    for (size_t i = 0; p && i < n && o + 1U < cap; ++i) {
+        unsigned char c = p[i];
+        out[o++] = (c >= 33U && c <= 126U && c != '|') ? (char)c : '_';
+    }
+    out[o] = '\0';
+}
+
+static inline int ae_syslog_token(const unsigned char *p, size_t n,
+                                  size_t *pos, size_t *off, size_t *len) {
+    size_t start;
+    if (!p || !pos || *pos >= n) return 0;
+    start = *pos;
+    while (*pos < n && p[*pos] != ' ' && p[*pos] != '\r' && p[*pos] != '\n')
+        ++*pos;
+    if (*pos == start) return 0;
+    if (off) *off = start;
+    if (len) *len = *pos - start;
+    if (*pos < n && p[*pos] == ' ') ++*pos;
+    return 1;
+}
+
+/* Exporter parsers retain only bounded header identity. They never inspect a
+ * Syslog message body, NetFlow records, IPFIX set bodies, or sFlow samples. */
+static inline int ae_syslog(const unsigned char *p, int len,
+                            argos_enterprise_result_t *r) {
+    size_t n, pos = 1U, off = 0U, tok_len = 0U;
+    unsigned pri = 0U, digits = 0U;
+    char hostname[96] = "-", appname[64] = "-";
+    if (!p || !r || len < 3 || len > 4096 || p[0] != '<') return 0;
+    n = (size_t)len;
+    while (pos < n && p[pos] >= '0' && p[pos] <= '9' && digits < 3U) {
+        pri = pri * 10U + (unsigned)(p[pos++] - '0');
+        ++digits;
+    }
+    if (digits == 0U || pos >= n || p[pos++] != '>' || pri > 191U) return 0;
+
+    if (pos < n && p[pos] >= '1' && p[pos] <= '9') {
+        unsigned version = 0U;
+        size_t version_off = pos, version_len;
+        while (pos < n && p[pos] >= '0' && p[pos] <= '9' && pos - version_off < 3U)
+            version = version * 10U + (unsigned)(p[pos++] - '0');
+        version_len = pos - version_off;
+        if (version_len == 0U || version == 0U || pos >= n || p[pos++] != ' ')
+            return 0;
+        if (!ae_syslog_token(p, n, &pos, NULL, NULL) ||
+            !ae_syslog_token(p, n, &pos, &off, &tok_len)) return 0;
+        ae_exporter_token(p + off, tok_len, hostname, sizeof(hostname));
+        if (!ae_syslog_token(p, n, &pos, &off, &tok_len)) return 0;
+        ae_exporter_token(p + off, tok_len, appname, sizeof(appname));
+        if (!ae_syslog_token(p, n, &pos, NULL, NULL) ||
+            !ae_syslog_token(p, n, &pos, NULL, NULL) || pos >= n) return 0;
+        if (p[pos] == '-') {
+            ++pos;
+            if (pos < n && p[pos] != ' ' && p[pos] != '\r' && p[pos] != '\n') return 0;
+            ae_set(r, "syslog", 1,
+                   "format=rfc5424 facility=%u severity=%u version=%u hostname=%s appname=%s structured_data=0",
+                   pri / 8U, pri % 8U, version, hostname, appname);
+            return 1;
+        }
+        if (p[pos] == '[') {
+            int depth = 0, escaped = 0;
+            size_t walked = 0U;
+            do {
+                unsigned char c = p[pos++];
+                if (++walked > 512U) return 0;
+                if (escaped) escaped = 0;
+                else if (c == '\\') escaped = 1;
+                else if (c == '[') ++depth;
+                else if (c == ']') --depth;
+                if (depth < 0) return 0;
+            } while (pos < n && (depth > 0 || p[pos] == '['));
+            if (depth != 0) return 0;
+            ae_set(r, "syslog", 1,
+                   "format=rfc5424 facility=%u severity=%u version=%u hostname=%s appname=%s structured_data=1",
+                   pri / 8U, pri % 8U, version, hostname, appname);
+            return 1;
+        }
+        return 0;
+    }
+
+    /* RFC 3164's timestamp is optional in observed traffic. When present, it
+     * has the fixed "Mmm dd hh:mm:ss" shape and is skipped without retention. */
+    if (n - pos >= 16U && p[pos + 3U] == ' ' && p[pos + 6U] == ' ' &&
+        p[pos + 9U] == ':' && p[pos + 12U] == ':' && p[pos + 15U] == ' ')
+        pos += 16U;
+    if (ae_syslog_token(p, n, &pos, &off, &tok_len)) {
+        ae_exporter_token(p + off, tok_len, hostname, sizeof(hostname));
+        if (pos < n) {
+            size_t start = pos;
+            while (pos < n && p[pos] != ':' && p[pos] != '[' &&
+                   p[pos] != ' ' && p[pos] != '\r' && p[pos] != '\n') ++pos;
+            if (pos > start) ae_exporter_token(p + start, pos - start, appname, sizeof(appname));
+        }
+    }
+    ae_set(r, "syslog", 1,
+           "format=rfc3164 facility=%u severity=%u version=- hostname=%s appname=%s structured_data=0",
+           pri / 8U, pri % 8U, hostname, appname);
+    return 1;
+}
+
+static inline int ae_netflow(const unsigned char *p, int len,
+                             argos_enterprise_result_t *r) {
+    uint16_t version, count;
+    if (!p || !r || len < 4 || len > 4096) return 0;
+    version = ae_be16(p); count = ae_be16(p + 2);
+    if (version == 9U) {
+        if (len < 20) return 0;
+        ae_set(r, "netflow", 1,
+               "version=9 count=%u sequence=%u engine_type=- engine_id=- source_id=%u uptime=%u",
+               count, ae_be32(p + 12), ae_be32(p + 16), ae_be32(p + 4));
+        return 1;
+    }
+    if (version == 5U) {
+        if (len < 24) return 0;
+        ae_set(r, "netflow", 1,
+               "version=5 count=%u sequence=%u engine_type=%u engine_id=%u source_id=- uptime=%u",
+               count, ae_be32(p + 16), p[20], p[21], ae_be32(p + 4));
+        return 1;
+    }
+    if (version == 7U) {
+        if (len < 24) return 0;
+        ae_set(r, "netflow", 1,
+               "version=7 count=%u sequence=%u engine_type=- engine_id=- source_id=- uptime=%u",
+               count, ae_be32(p + 16), ae_be32(p + 4));
+        return 1;
+    }
+    return 0;
+}
+
+static inline int ae_ipfix(const unsigned char *p, int len,
+                           argos_enterprise_result_t *r) {
+    uint16_t declared;
+    size_t pos = 16U;
+    unsigned sets = 0U;
+    if (!p || !r || len < 16 || len > 4096 || ae_be16(p) != 10U) return 0;
+    declared = ae_be16(p + 2);
+    if (declared < 16U || declared > (uint16_t)len) return 0;
+    while (pos < declared) {
+        uint16_t set_len;
+        if ((size_t)declared - pos < 4U) return 0;
+        set_len = ae_be16(p + pos + 2U);
+        if (set_len < 4U || set_len > (size_t)declared - pos) return 0;
+        pos += set_len; ++sets;
+    }
+    ae_set(r, "ipfix", 1,
+           "version=10 length=%u sequence=%u observation_domain=%u export_time=%u sets=%u",
+           declared, ae_be32(p + 8), ae_be32(p + 12), ae_be32(p + 4), sets);
+    return 1;
+}
+
+static inline int ae_sflow(const unsigned char *p, int len,
+                           argos_enterprise_result_t *r) {
+    uint32_t type;
+    size_t off;
+    char agent[48];
+    if (!p || !r || len < 28 || len > 4096 || ae_be32(p) != 5U) return 0;
+    type = ae_be32(p + 4);
+    if (type == 1U) {
+        off = 12U;
+        snprintf(agent, sizeof(agent), "%u.%u.%u.%u", p[8], p[9], p[10], p[11]);
+    } else if (type == 2U) {
+        off = 24U;
+        if (len < 40) return 0;
+        snprintf(agent, sizeof(agent),
+                 "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                 p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15],
+                 p[16],p[17],p[18],p[19],p[20],p[21],p[22],p[23]);
+    } else return 0;
+    if ((size_t)len < off + 16U) return 0;
+    ae_set(r, "sflow", 1,
+           "version=5 agent_type=%s agent=%s sub_agent=%u sequence=%u samples=%u",
+           type == 1U ? "ipv4" : "ipv6", agent, ae_be32(p + off),
+           ae_be32(p + off + 4U), ae_be32(p + off + 12U));
+    return 1;
+}
+
 static inline int argos_enterprise_tcp_port(uint16_t sport, uint16_t dport) {
     for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i)
         if (sport == ARGOS_ENTERPRISE_TCP_PORTS[i] || dport == ARGOS_ENTERPRISE_TCP_PORTS[i]) return 1;
@@ -604,6 +784,7 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
         case 179: return ae_bgp(p, len, r);
         case 445: return ae_smb2(p, len, r);
         case 502: return ae_modbus(p, len, r);
+        case 514: return ae_syslog(p, len, r);
         case 631: return ae_ipp(p, len, r);
         case 1433: return ae_tds(p, len, r);
         case 1521: return ae_tns(p, len, r);
@@ -612,6 +793,7 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
         case 3260: return ae_iscsi(p, len, r);
         case 3306: return ae_mysql(p, len, r);
         case 3389: return ae_rdp(p, len, r);
+        case 4739: return ae_ipfix(p, len, r);
         case 5060: return ae_sip(p, len, r);
         case 5432: return ae_postgres(p, len, r);
         case 9100: return ae_pjl(p, len, r);
@@ -1301,12 +1483,16 @@ static inline int argos_enterprise_parse_udp(uint16_t sport, uint16_t dport,
         case 161: case 162: return ae_snmp(p, len, r);
         case 389: return ae_cldap(p, len, r);
         case 427: return ae_slp(p, len, r);
+        case 514: return ae_syslog(p, len, r);
         case 623: return ae_ipmi(p, len, r);
         case 1812: case 1813: return ae_radius(p, len, port, r);
+        case 2055: case 9995: case 9996: return ae_netflow(p, len, r);
         case 3478: return ae_stun_turn(p, len, r);
+        case 4739: return ae_ipfix(p, len, r);
         case 5060: return ae_sip(p, len, r);
         case 5678: return ae_mndp(p, len, r);
         case 5683: return ae_coap(p, len, r);
+        case 6343: return ae_sflow(p, len, r);
         case 47808: return ae_bacnet(p, len, r);
         case 44818: return ae_cip(p, len, r);
         default: return 0;

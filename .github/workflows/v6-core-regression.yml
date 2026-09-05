@@ -41,7 +41,7 @@ jobs:
       - name: Packet, transport and capture contract sanitizers
         run: |
           set -eu
-          for source in tests/test_config_catalog.c tests/test_dispatch_plan.c tests/test_help.c tests/test_state_capacity.c tests/test_core_budget.c tests/test_app_flow.c tests/test_udp_suppress.c tests/test_dns_track.c tests/test_dedup_lifecycle.c tests/test_dedup.c tests/test_network_owner_lifecycle.c tests/test_quic_lifecycle.c tests/test_startup_lifecycle.c tests/test_runtime_state.c tests/test_state_lifecycle.c tests/test_packet.c tests/test_packet_ah.c tests/test_bpf_capacity.c tests/test_nonport_contract.c tests/test_encapsulation.c tests/test_packet_fragments.c tests/test_link_contract.c tests/test_inspector.c tests/test_router_exception.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
+          for source in tests/test_config_catalog.c tests/test_dispatch_plan.c tests/test_help.c tests/test_exporters.c tests/test_state_capacity.c tests/test_core_budget.c tests/test_app_flow.c tests/test_udp_suppress.c tests/test_dns_track.c tests/test_dedup_lifecycle.c tests/test_dedup.c tests/test_network_owner_lifecycle.c tests/test_quic_lifecycle.c tests/test_startup_lifecycle.c tests/test_runtime_state.c tests/test_state_lifecycle.c tests/test_packet.c tests/test_packet_ah.c tests/test_bpf_capacity.c tests/test_nonport_contract.c tests/test_encapsulation.c tests/test_packet_fragments.c tests/test_link_contract.c tests/test_inspector.c tests/test_router_exception.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
             binary="/tmp/$(basename "$source" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -lm -o "$binary"
             ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$binary"
@@ -74,6 +74,7 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_nonport_contract.c -lm -o /tmp/arm-nonport
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ptp.c -o /tmp/arm-ptp
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_rip.c -o /tmp/arm-rip
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_exporters.c -o /tmp/arm-exporters
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_encapsulation.c -lm -o /tmp/arm-encapsulation
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_packet_fragments.c -o /tmp/arm-packet-fragments
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_link_contract.c -o /tmp/arm-link-contract
@@ -90,10 +91,10 @@ jobs:
           set -eu
           # C3/C4: qualified selectors compile once before capture into the same
           # fixed masks already consumed by runtime and classic BPF. Pulling the
-          # selector/profile compiler plus fixed no-port/PTP readiness routes and
-          # canonical RIP/RIPng parsing/output produce 175698 bytes of full text.
-          # RIP adds no data, retained state or BSS; the reviewed ceiling keeps a
-          # two-byte compiler-stability margin over the measured native build.
+          # selector/profile compiler plus canonical network and management
+          # exporter parsing/output produce 180908 bytes of full text. Exporters
+          # add no data, retained state or BSS; the reviewed ceiling keeps a
+          # 52-byte compiler-stability margin over the measured native build.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 175700
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 180960
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360

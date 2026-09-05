@@ -111,7 +111,7 @@ For each production or staged protocol document:
 - database handshakes;
 - LDAP / LDAPS;
 - RTSP / RTP / RTCP;
-- Syslog / NetFlow / IPFIX / sFlow;
+- Syslog / NetFlow / IPFIX / sFlow — production header-only budgets verified;
 - industrial control protocols;
 - VPN control protocols.
 

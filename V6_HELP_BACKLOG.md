@@ -108,7 +108,7 @@ ENTERPRISE
 
   --management
       snmp, ipmi, rmcp, asf, vmware-slp,
-      syslog*, netflow*, ipfix*, sflow*
+      syslog, netflow, ipfix, sflow
 
   * proposed / not currently implemented
 ```

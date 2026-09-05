@@ -77,6 +77,14 @@ int main(void) {
     assert(!strstr(output, "rip*"));
     assert(output_has_protocol(output, output + strlen(output), "ptp"));
     assert(!strstr(output, "ptp*"));
+    render_topic(ARGOS_HELP_ENTERPRISE, output, sizeof(output));
+    for (const char *name = "syslog"; name; name = !strcmp(name, "syslog") ? "netflow" :
+         !strcmp(name, "netflow") ? "ipfix" : !strcmp(name, "ipfix") ? "sflow" : NULL) {
+        assert(output_has_protocol(output, output + strlen(output), name));
+        char staged[24];
+        snprintf(staged, sizeof(staged), "%s*", name);
+        assert(!strstr(output, staged));
+    }
 
     length = render_topic(ARGOS_HELP_PROFILES, output, sizeof(output));
     for (unsigned profile = 0; profile < ARGOS_PROFILE_COUNT; ++profile) {

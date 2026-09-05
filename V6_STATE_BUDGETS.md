@@ -54,12 +54,19 @@ unbounded payload.
 | Sensor OBS envelope | 1,280 bytes | Per-call stack buffer only in sensor mode. No telemetry queue exists. Datagram sinks are nonblocking; stdout policy remains a C8 contract. |
 | LLDP-MED parse result | 768-byte detail within bounded automatic result storage | One L2 frame only; no heap, retained state, location, serial or asset identifier. The bound holds the frozen inventory vector without silent truncation. |
 | RIP/RIPng parse result | 144 bytes automatic storage; max 4,096-byte datagram / 204 RTE slots | One allocation-free linear scan; no retained state. Only auth type and bounded route shape survive parsing—never password, digest, key-id, sequence or route prefixes. |
+| Management exporter parse result | 538-byte shared automatic result; max one payload / 4,096 bytes | Syslog reads PRI and bounded header identity only; NetFlow/sFlow read fixed exporter headers; IPFIX performs a bounded set-length walk. No message body, record, template, sampled payload, packet pointer or exporter state is retained. |
 
 TLS, enterprise, L2, identity and the remaining network protocol parsers do not
 own retained flow tables in current production. Their result structures and
 parser scratch are bounded automatic storage. Stack/compiler frame budgets stay
 under the permanent native/ARM64 size and build gates and must be remeasured when
 an engine adds significant scratch.
+
+Syslog and IPFIX over TCP use the existing application-generation table only to
+stop after the first successfully parsed complete header/message. NetFlow, IPFIX
+and sFlow UDP inspect exactly one datagram; no exporter-specific flow table,
+timeout or retry state exists. Oversized exporter payloads above 4,096 bytes are
+rejected before parsing.
 
 ## Verified semantics and remaining byte work
 

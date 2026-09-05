@@ -219,6 +219,8 @@ jobs:
           /tmp/test-network
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_rip.c -o /tmp/test-rip
           /tmp/test-rip
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_exporters.c -o /tmp/test-exporters
+          /tmp/test-exporters
           python3 - <<'PY'
           from pathlib import Path
           src = Path('src/argos-sniffer.c').read_text()
@@ -255,6 +257,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_rip.c -o /tmp/test-rip-san
           /tmp/test-rip-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_exporters.c -o /tmp/test-exporters-san
+          /tmp/test-exporters-san
 
       - name: Dynamic BPF functional matrix
         run: |

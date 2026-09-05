@@ -217,7 +217,8 @@ dependency must be resolved before integration, not that the protocol is dropped
 - [x] PTP native/UDP integration; canonical network owner and obsolete staging cleanup.
 - [x] RIP/RIPng: canonical `argos_network.h` owner, exact UDP 520/521 dispatch/BPF,
   native privacy-safe `RIP|...` output, permanent fixtures and staging-header removal.
-- [ ] Syslog/NetFlow/IPFIX/sFlow.
+- [x] Syslog/NetFlow/IPFIX/sFlow: canonical enterprise owner, native non-`ENT`
+  signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
 - [ ] HTTP proxy/Telnet/VNC/WinRM/LPD.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
 - [ ] FTP/NVMe-TCP/MongoDB/Redis/TACACS+/LDAP/LDAPS.
@@ -267,21 +268,23 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** integrate Syslog/NetFlow/IPFIX/sFlow through the canonical enterprise owner.
+**Next:** integrate HTTP proxy/Telnet/VNC/WinRM/LPD through the canonical application owner.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** RIP/RIPng uses the canonical network owner, exact IPv4 UDP/520 and IPv6 UDP/521
-runtime/BPF gates, and the frozen protocol-native signature. The obsolete staging header and its
-staging test/workflow references are removed after unique fixtures moved to `tests/test_rip.c`.
+**Pending:** the management exporter candidate uses the canonical enterprise owner and exact
+TCP/UDP dispatch/BPF gates. Its frozen native signatures never use `ENT`; Syslog message bodies,
+NetFlow records, IPFIX set bodies and sFlow samples are not emitted. Unique bounds/privacy fixtures
+moved to `tests/test_exporters.c`, and all four obsolete staging headers/references were removed.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
 PR #44: core 33977277636, L2 33977277545, staging 33977277630 PASS.
-Current RIP integration full/stub text is 175698/163704; data remains 3992 and BSS 80360/78760.
-The RIP/RIPng result is 144 bytes of automatic storage and the parser caps input at 4,096 bytes;
-there is no new retained state or packet-time allocation. The reviewed native full-text ceiling
-is 175700, two bytes above the measured build; this replaces the pre-RIP 175294 ceiling.
+Current exporter candidate full/stub text is 180908/168986; data remains 3992 and BSS
+80360/78760. The shared result is 538 bytes of automatic storage and exporter payloads are capped
+at 4,096 bytes; there is no new retained state or packet-time allocation. The reviewed native
+full-text ceiling is 180960, with a 52-byte compiler-stability margin over the measured build.
 Optimized main stack is 84,992 bytes (+48 from the last 84,944-byte checkpoint).
-Local evidence: all 76 strict test files and ten relevant ASan/UBSan paths pass; local
+Local evidence: all 78 strict test files and five focused exporter/dispatch/BPF/catalog/help
+ASan/UBSan paths pass; local
 LeakSanitizer is unavailable under ptrace, so CI leak coverage remains the merge gate. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
@@ -290,7 +293,8 @@ runtime slices now cover native-L2, NDP/RA/IGMP/MLD/OSPF/VRRP and every current 
 production caller. Canonical BPF route projection passes 7,239,680-packet legacy equivalence
 and kernel verifier coverage; exact per-engine port projection is merged.
 Protocol inspection byte ceilings remain C5/C10.
-ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
+ARM64 fixtures compile only; real hardware remains open. Remaining staging protocols are not
+runtime-selectable until each is migrated through the same canonical integration gate.
 **Model:** stay on Sol for C4; use Astra for the final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
