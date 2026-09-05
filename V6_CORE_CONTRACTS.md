@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), and argv-order selector compilation semantics (PR #33). Main still owns legacy booleans and does not consume the new selection. | Complete help paths and controlled runtime CLI adoption. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), and argv-order selector compilation semantics (PR #33). Generated help owns presentation (PR #34). Main still owns legacy booleans and does not consume the new selection. | Controlled runtime CLI/dispatch adoption with legacy equivalence. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -165,6 +165,22 @@ identity disambiguation, case/rate order and invalid no-op behavior. All 73 loca
 standalone tests passed; full/stub text and BSS remain 157560/144886 and 80360/78760.
 Core 33961749975, L2 33961749932 and staging 33961750077 PASS, including sanitizers
 and ARM64 compilation. Thematic help and controlled runtime CLI adoption remain open.
+
+### Generated bounded help — PR #34, `b9b62ca7ebb5a724b513a425f467568d8361e464`
+
+`argos_help.h` owns base, six canonical super-group/profile screens and focused
+capture/output/rate/identity/performance topics. Membership and staging markers come
+from the config catalogs and profile masks; the former 102-line main help literal was
+deleted. Base help is 29 lines/1140 bytes and the generic `--help-protocols` path is a
+bounded error. A preflight scan handles help/version before getopt or any Argos state,
+capture, BPF or sink setup, independent of argument order.
+
+Generated bounded-width help adds 6214 bytes full text and 2424 bytes data; full/stub
+are 163774/152580 text, 3832 data and unchanged 80360/78760 BSS. This startup-only
+cost prevents duplicate membership truth and does not enter packet processing. All 74
+local strict tests passed; core 33962384705, L2 33962384687 and staging 33962384695
+PASS with sanitizer and ARM64 compile gates. Runtime selector/dispatcher adoption and
+executing-ARM64 byte-parity remain open; no staged parser became reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 

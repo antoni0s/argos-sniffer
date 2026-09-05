@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `2d0e41d1…` (PR #33).
-**Now:** one-screen base help, generated thematic help and cheap version paths (C3).
+Branch: `version-6`. Verified checkpoint: `b9b62ca7…` (PR #34).
+**Now:** controlled runtime CLI selection adoption and legacy equivalence (C4).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -40,6 +40,7 @@ Branch: `version-6`. Verified checkpoint: `2d0e41d1…` (PR #33).
 - [x] Production-only compile-once no-rate-limit targets for all/super-group/group — PR #31.
 - [x] Exact production-only profile masks and CLI namespace/compatibility policy — PR #32.
 - [x] Startup selector compiler contract with explicit-feature/profile precedence — PR #33.
+- [x] Generated bounded help owner and pre-runtime help/version paths — PR #34.
 
 ## How to update — mandatory
 
@@ -102,17 +103,17 @@ Branch: `version-6`. Verified checkpoint: `2d0e41d1…` (PR #33).
   profile stays separate from deployment mode; no implicit identity/heavy/staged activation.
 - [x] Startup compiler API covers profile/super-group/group/protocol/legacy/no-rate order,
   `--group identity` namespace and default/explicit-feature precedence. Runtime CLI adoption is C4.
-- [ ] **NOW:** One-screen base help with measured line/byte budget; no `--help-protocols`.
+- [x] One-screen base help (29 lines/1140 bytes); no `--help-protocols`.
   Generate `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn` from the same runtime tables.
-- [ ] Operational help: `--help-capture` (interfaces, -r/-R, promisc/count, sensor/filter/encapsulation);
+- [x] Operational help: `--help-capture` (interfaces, -r/-R, promisc/count, sensor/filter/encapsulation);
   `--help-output` (Unix/UDP/stdout fan-out, approved grammar/JSONL/compatibility);
   `--help-rate` (actual compiled -f default, dedup/unrated);
   `--help-identity` (modes/allowed fields/prohibited secrets);
   `--help-performance` (-E/-W, defaults/allocation costs, promoted flow-shape only).
-- [ ] Help tests: exact per-screen/profile membership; valid case-sensitive examples and no drift;
-  real defaults; generated/removed staging * markers; bounded unknown-option error; native/ARM64
-  output parity; cheap `--version`; help/version never initialize capture/BPF/state/sinks.
+- [x] Help tests: exact per-screen/profile membership/no drift, real defaults, generated staging
+  markers, bounded unknown-topic error, cheap `--version`, and zero Argos capture/state/sink setup.
+- [ ] Native/ARM64 help-output byte parity on an executing ARM64 runner; release-time marker audit.
 
 ### C4. Cheap dispatch / gates
 
@@ -237,16 +238,16 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish C3 startup CLI/help contracts, then startup cheap dispatch/gates (C4).
+**Next:** adopt the startup masks in CLI/cheap dispatch with legacy equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; staging runtime integration remains blocked on the core review.
-PR #33: core 33961749975, L2 33961749932, staging 33961750077 PASS.
-Native full/stub text 157560/144886; BSS 80360/78760, unchanged. Current listed
+PR #34: core 33962384705, L2 33962384687, staging 33962384695 PASS.
+Native full/stub text 163774/152580; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
-capture/kernel/transient stack. The profile masks add zero production binary bytes until runtime
-adoption; protocol inspection byte ceilings remain C5/C10.
+capture/kernel/transient stack. Help/catalog code is startup-only and does not enter packet
+processing; protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;

@@ -188,11 +188,11 @@ blueprint. Preserve all special holds and all privacy rules above.
   startup selection contract; runtime CLI adoption remains open.
 - [x] Add startup-only `--no-rate-limit=<all|super-group|group>` target compilation without
   per-packet string lookups; runtime CLI adoption remains open.
-- [ ] Keep `--help` to one screen and add thematic help screens:
+- [x] Keep `--help` to one screen and add thematic help screens:
   `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn`, `--help-capture`, `--help-output`,
   `--help-rate`, `--help-identity`, `--help-performance`.
-- [ ] Generate help membership from the same canonical tables used by the enable bitmap so help
+- [x] Generate help membership from the same canonical tables used by the enable bitmap so help
   and runtime behavior cannot drift.
 
 ### Phase 4 — Cheap dispatcher and BPF gating

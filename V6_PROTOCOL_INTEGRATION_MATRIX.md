@@ -262,8 +262,11 @@ namespace while preserving broad `--enterprise`, privacy-mode `--identity` and d
 `--sensor` compatibility semantics. None of these APIs are wired into packet processing.
 PR #33 adds the exact argv-order startup selector compiler, including profile replacement,
 additive qualified selectors, explicit-feature preservation and identity-group disambiguation.
-It is not yet consumed by main/getopt. Help, BPF/dispatcher consumption and per-row collector mappings
-remain C3/C4/C10 work. No staging parser became enabled.
+It is not yet consumed by main/getopt. PR #34 generates bounded profile and thematic
+membership help from these same tables and derives staging markers from source status;
+informational paths run before all capture/state/sink setup. BPF/dispatcher consumption,
+runtime selectors and per-row collector mappings remain C4/C10 work. No staging parser
+became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 

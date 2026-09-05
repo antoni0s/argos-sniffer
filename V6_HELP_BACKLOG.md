@@ -307,31 +307,31 @@ Before the final v6 release, this marker must be generated from actual engine im
 
 ## Implementation requirements
 
-- [ ] Base `--help` stays approximately one terminal screen.
-- [ ] No generic giant `--help-protocols` screen.
-- [ ] One thematic help screen per super-group.
-- [ ] Dedicated operational help for capture, output, rate, identity and performance.
-- [ ] Help membership generated from the same canonical tables as the engine-enable bitmap.
-- [ ] Profile membership generated from canonical profile masks/tables.
-- [ ] Lowercase/UPPERCASE rate semantics documented consistently everywhere.
-- [ ] `-f` default shown from the real compiled/configured default rather than duplicated magic text if practical.
-- [ ] `--no-rate-limit` targets validated against canonical super-group/group names.
-- [ ] Proposed/staged `*` marker derived from implementation status or removed before release.
-- [ ] Unknown thematic help option exits with a clear bounded error and no protocol dump.
-- [ ] `--version` remains cheap and does not initialize capture/state engines.
-- [ ] Help paths must not initialize AF_PACKET, BPF, flow state, telemetry sinks or other runtime subsystems.
+- [x] Base `--help` stays approximately one terminal screen.
+- [x] No generic giant `--help-protocols` screen.
+- [x] One thematic help screen per super-group.
+- [x] Dedicated operational help for capture, output, rate, identity and performance.
+- [x] Help membership generated from the same canonical tables as the engine-enable bitmap.
+- [x] Profile membership generated from canonical profile masks/tables.
+- [x] Lowercase/UPPERCASE rate semantics documented consistently everywhere.
+- [x] `-f` default shown from the real compiled/configured default rather than duplicated magic text.
+- [x] `--no-rate-limit` targets documented against canonical super-group/group names.
+- [x] Proposed/staged `*` marker derived from implementation status.
+- [x] Unknown thematic help option exits with a clear bounded error and no protocol dump.
+- [x] `--version` remains cheap and does not initialize capture/state engines.
+- [x] Help paths do not initialize AF_PACKET, BPF, flow state, telemetry sinks or other runtime subsystems.
 
 ## Regression tests
 
-- [ ] `--help` contains all top-level categories and remains under the agreed line/byte budget.
-- [ ] `--help-network` lists only network groups/protocols.
-- [ ] `--help-enterprise` lists only enterprise groups/protocols.
-- [ ] Each super-group help matches canonical group membership exactly.
-- [ ] Profiles shown by `--help-profiles` match the actual enable masks exactly.
-- [ ] Lowercase and uppercase protocol examples remain valid parser inputs.
-- [ ] `--help-rate` shows the actual default dedup interval.
+- [x] `--help` contains all top-level categories and remains under the agreed line/byte budget.
+- [x] `--help-network` lists only network groups/protocols.
+- [x] `--help-enterprise` lists only enterprise groups/protocols.
+- [x] Each super-group help matches canonical group membership exactly.
+- [x] Profiles shown by `--help-profiles` match the actual enable masks exactly.
+- [x] Lowercase and uppercase protocol examples remain valid parser inputs.
+- [x] `--help-rate` shows the actual default dedup interval.
 - [ ] Help output is identical in native and ARM64 builds for the same feature set.
-- [ ] Help execution performs no packet capture/state allocation.
+- [x] Help execution performs no Argos packet capture/state/sink allocation.
 
 ## Promotion gate
 
