@@ -173,19 +173,21 @@ blueprint. Preserve all special holds and all privacy rules above.
 - [ ] Freeze protocol/vector names. Vector names must not encode protocol variants:
   `SMB2 -> SMB`, `SMB2-NTLM -> NTLM`, `ORACLE-TNS -> ORACLE`, `SNMPV3-USM -> SNMP`.
 - [ ] Freeze the observable-identity/privacy field policy per vector.
-- [ ] Freeze PROFILE -> SUPER GROUP -> GROUP -> PROTOCOL membership.
-- [ ] Define conflict and precedence rules for profile, group and individual protocol flags.
-- [ ] Decide and document the legacy short-flag compatibility window.
+- [x] Freeze PROFILE -> SUPER GROUP -> GROUP -> PROTOCOL membership.
+- [x] Define conflict and precedence rules for profile, group and individual protocol flags.
+- [x] Decide and document the v6 legacy flag/qualified-selector compatibility policy.
 
 ### Phase 3 — Configuration and help system
 
-- [ ] Add an engine-enable bitmap with one bit per protocol and derived masks for groups,
+- [x] Add an engine-enable bitmap with one bit per protocol and derived masks for groups,
   super-groups and profiles.
 - [ ] Compile CLI selections once at startup; packet processing must never walk CLI strings.
-- [ ] Add profiles: `core`, `standard`, `full`, `home`, `enterprise`, `sensor`.
-- [ ] Add super-groups: `network`, `application`, `enterprise`, `industrial`, `iot`, `vpn`.
-- [ ] Preserve lowercase = normal/deduplicated and uppercase = unrated behavior.
-- [ ] Add `--no-rate-limit=<all|super-group|group>` without per-packet string lookups.
+- [x] Add profiles: `core`, `standard`, `full`, `home`, `enterprise`, `sensor`.
+- [x] Add super-groups: `network`, `application`, `enterprise`, `industrial`, `iot`, `vpn`.
+- [x] Preserve lowercase = normal/deduplicated and uppercase = unrated behavior in the
+  startup selection contract; runtime CLI adoption remains open.
+- [x] Add startup-only `--no-rate-limit=<all|super-group|group>` target compilation without
+  per-packet string lookups; runtime CLI adoption remains open.
 - [ ] Keep `--help` to one screen and add thematic help screens:
   `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn`, `--help-capture`, `--help-output`,

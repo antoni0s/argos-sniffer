@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), and production-filtered no-rate targets (PR #31). Main still owns legacy booleans and does not consume the new selection. | Freeze profile contents, resolve the `--enterprise` compatibility/name conflict and complete startup-only CLI compilation before runtime adoption. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), and exact production-only profiles (PR #32). Main still owns legacy booleans and does not consume the new selection. | Complete startup-only CLI/help compilation before runtime adoption. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -126,8 +126,27 @@ selection convention rather than becoming rate-target names.
 Tests pin target kind, case rejection, production filtering, invalid-target no-op and
 identity/enterprise/all scope. Main, CLI, BPF and packet processing do not consume the
 API yet; native full/stub text and BSS remain 157560/144886 and 80360/78760. Core
-33948366691, L2 33948366700 and staging 33948366715 PASS. Profile contents, CLI
-name compatibility and runtime adoption remain open; no staging parser is active.
+33948366691, L2 33948366700 and staging 33948366715 PASS. Runtime CLI/help
+adoption remains open; no staging parser is active.
+
+### Production profile and CLI namespace policy — PR #32, `4d9585fb0f1580ada1de39d5dfa4ab47dda8fd3f`
+
+The six profiles now have exact production-filtered masks: core 7, standard 16,
+full 67, home 36, enterprise 50 and sensor 67 protocols. Core and standard preserve
+the existing default and `-a` bundles; enterprise preserves the current broad
+50-protocol compatibility bundle instead of silently redefining it as the canonical
+enterprise super-group. Stateful QUIC, sensor deployment and observed-identity modes
+remain separate explicit controls. No profile can activate staging/HOLD protocols.
+
+The namespace policy keeps `--enterprise`/`--enterprise-verbose` as v6 compatibility
+options, uses `--profile enterprise` for the profile and `--super-group enterprise`
+for the canonical super-group. Likewise `--group identity` selects identity protocols,
+while `--identity[=hash|raw]` retains its privacy-mode meaning; `--profile sensor` does
+not imply `--sensor` deployment mode. Tests pin exact counts, membership boundaries,
+production filtering and invalid-name rejection. Main, BPF and packet processing remain
+unchanged; full/stub text and BSS remain 157560/144886 and 80360/78760. Core
+33961234603, L2 33961234596 and staging 33961234609 PASS. Startup CLI/help compilation
+and runtime dispatcher adoption remain open; no staged parser became reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 

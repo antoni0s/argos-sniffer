@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `da957069…` (PR #31).
-**Now:** exact production-only profile masks and CLI naming/compatibility policy (C3).
+Branch: `version-6`. Verified checkpoint: `4d9585fb…` (PR #32).
+**Now:** startup-only canonical CLI compiler, identity selector and thematic help (C3).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -38,6 +38,7 @@ Branch: `version-6`. Verified checkpoint: `da957069…` (PR #31).
 - [x] Production-only enabled/unrated masks, last-overlap precedence and safe no-rate-limit semantics — PR #29.
 - [x] Exact legacy short/default/all/enterprise bundles and separate non-protocol feature controls — PR #30.
 - [x] Production-only compile-once no-rate-limit targets for all/super-group/group — PR #31.
+- [x] Exact production-only profile masks and CLI namespace/compatibility policy — PR #32.
 
 ## How to update — mandatory
 
@@ -95,10 +96,11 @@ Branch: `version-6`. Verified checkpoint: `da957069…` (PR #31).
   IPv6, extended metrics, stateful QUIC and sensor deployment; no runtime wiring yet.
 - [x] `--no-rate-limit=<all|super-group|group>` target compilation is exact lowercase,
   production-only and can modify only already-enabled protocols; no runtime wiring yet.
-- [ ] **NOW:** Exact production-only profile contents and naming/conflict policy for the current broad
-  `--enterprise` bundle versus the canonical enterprise super-group. No per-packet string lookups.
-- [ ] Resolve identity-group selector while preserving `--identity[=hash|raw]`/legacy alias;
-  separate sensor profile from deployment mode; no implicit raw identity or staged protocol activation.
+- [x] Exact production-only profile contents and naming/conflict policy: broad compatibility
+  `--enterprise`, canonical `--super-group enterprise`, and `--profile enterprise`. Sensor evidence
+  profile stays separate from deployment mode; no implicit identity/heavy/staged activation.
+- [ ] **NOW:** Compile profile/super-group/group/protocol selections once at startup; resolve
+  `--group identity` while preserving `--identity[=hash|raw]`/legacy alias. No packet-time strings.
 - [ ] One-screen base help with measured line/byte budget; no `--help-protocols`.
   Generate `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn` from the same runtime tables.
@@ -234,15 +236,15 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish C3 legacy/profile/help contracts, then startup cheap dispatch/gates (C4).
+**Next:** finish C3 startup CLI/help contracts, then startup cheap dispatch/gates (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; staging runtime integration remains blocked on the core review.
-PR #31: core 33948366691, L2 33948366700, staging 33948366715 PASS.
+PR #32: core 33961234603, L2 33961234596, staging 33961234609 PASS.
 Native full/stub text 157560/144886; BSS 80360/78760, unchanged. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
-capture/kernel/transient stack. The config masks add zero production binary bytes until runtime
+capture/kernel/transient stack. The profile masks add zero production binary bytes until runtime
 adoption; protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.

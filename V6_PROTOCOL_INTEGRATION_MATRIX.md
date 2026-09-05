@@ -255,10 +255,13 @@ the current runtime behavior. PR #30 now characterizes their exact canonical pro
 bundles and keeps SYN/IPv6/extended-metrics/stateful-QUIC/sensor controls outside the
 protocol bitmap; this remains startup-only and is not a runtime adoption. The current
 `--enterprise` bundle spans 50 production semantics and is not the canonical enterprise
-super-group. PR #31 also compiles production-only `all`/super-group/group rate targets,
-but does not wire them into CLI or packet processing. Profile contents, the enterprise
-CLI compatibility conflict, BPF/dispatcher consumption and help generation remain C3/C4
-work. No collector mapping was verified and no staging parser became enabled.
+super-group. PR #31 also compiles production-only `all`/super-group/group rate targets.
+PR #32 freezes production-only profile masks (core 7, standard 16, full 67, home 36,
+enterprise 50, sensor 67) and the qualified `--profile`/`--super-group`/`--group`
+namespace while preserving broad `--enterprise`, privacy-mode `--identity` and deployment
+`--sensor` compatibility semantics. None of these APIs are wired into packet processing.
+Startup CLI/help compilation, BPF/dispatcher consumption and per-row collector mappings
+remain C3/C4/C10 work. No staging parser became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 
