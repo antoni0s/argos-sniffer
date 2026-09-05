@@ -104,8 +104,7 @@ jobs:
               'argos_matter.h','argos_mongodb.h','argos_nvmeof.h',
               'argos_opcua.h','argos_openvpn.h','argos_redis.h',
               'argos_rtcp.h','argos_rtp.h','argos_rtsp.h','argos_s7.h',
-              'argos_tacacs.h','argos_thread.h',
-              'argos_winrm.h'
+              'argos_tacacs.h','argos_thread.h'
           }
           present = {p.name for p in headers}
           staging.update(p.name for p in Path('src').glob('*_staging.h'))
