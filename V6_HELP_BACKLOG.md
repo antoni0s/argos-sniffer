@@ -33,7 +33,7 @@ QUICK START
 SUPER GROUPS
   --network
   --application
-  --enterprise
+  --super-group enterprise
   --industrial
   --iot
   --vpn
@@ -86,7 +86,7 @@ MORE HELP
 ```text
 ENTERPRISE
 
-  --enterprise
+  --super-group enterprise
       Enable all enterprise groups.
 
   --fileshare
@@ -178,16 +178,40 @@ RATE LIMITING
 
 ### `--help-profiles`
 
-Must list every profile and its exact canonical membership:
+Must list every profile and its exact canonical membership. The frozen
+production-only profile policy is:
 
-- `core`
-- `standard`
-- `full`
-- `home`
-- `enterprise`
-- `sensor`
+- `core`: current default — SYN, IPv6, mDNS/SSDP/UPnP/WSD, DHCPv4/v6 and NBNS.
+- `standard`: current `-a` protocol/capability bundle, rate-limited.
+- `full`: every production protocol plus SYN and IPv6.
+- `home`: production members of addressing, discovery, L2 discovery, multicast,
+  time, name-services, encrypted, web, realtime, printing, voice, messaging,
+  smart-home and modern-vpn, plus SYN and IPv6.
+- `enterprise`: the existing 50-protocol enterprise/control-plane compatibility
+  bundle plus IPv6 handling; it is intentionally narrower than `full`.
+- `sensor`: every production protocol plus SYN, IPv6 and extended metrics.
 
 Profile membership must come from the same canonical enable tables as runtime selection.
+No profile enables a staging/HOLD protocol, raw/hashed observed-identity mode,
+stateful QUIC or SPAN/TAP deployment mode. `--profile sensor` selects evidence;
+`--sensor` remains a separate deployment option requiring interface/name validation.
+
+## CLI namespace and compatibility
+
+For v6, preserve existing scripts while making ambiguous selectors explicit:
+
+- `--enterprise` and `--enterprise-verbose` retain their current broad 50-protocol
+  compatibility bundle for the documented legacy window.
+- `--super-group enterprise` selects only the canonical enterprise super-group.
+- `--profile enterprise` selects the frozen enterprise profile above.
+- `--group identity` selects the canonical identity group; `--identity[=hash|raw]`
+  remains exclusively the observed-identity privacy mode.
+- `--profile sensor` never implies `--sensor`, and `--sensor` never silently expands
+  protocol membership.
+
+Other unambiguous super-groups may retain their direct long aliases. Help must label
+the two legacy enterprise flags as compatibility aliases and must not describe them as
+the canonical enterprise super-group.
 
 ### `--help-application`
 
