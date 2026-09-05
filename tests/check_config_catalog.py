@@ -70,7 +70,31 @@ for marker in required_main_markers:
 assert "opt_syn = opt_multi = opt_dhcp" not in main_source
 packet_loop = main_source.split("argos_capture_open(&capture", 1)[1]
 assert "cli_selection" not in packet_loop, "selection compiler leaked into packet processing"
-assert "dispatch_plan" not in packet_loop, "startup dispatch plan leaked into packet processing"
+assert "argos_cli_selection_" not in packet_loop, "selection API leaked into packet processing"
+assert "dispatch_plan" in packet_loop, "fixed dispatch plan is not consumed by packet processing"
 assert "argos_protocol_catalog" not in packet_loop, "protocol catalog leaked into packet processing"
 assert "argos_dispatch_plan_compile" in dispatch
+
+# First fine-grained consumer slice: every native-L2/non-port parser must have
+# its canonical engine gate in the immediately enclosing source region.
+parser_gates = {
+    "parse_lldp(": "ARGOS_PROTOCOL_LLDP",
+    "argos_lldp_med_parse(": "ARGOS_PROTOCOL_LLDP_MED",
+    "argos_stp_parse(": "ARGOS_PROTOCOL_STP",
+    "argos_lacp_parse(": "ARGOS_PROTOCOL_LACP",
+    "argos_enterprise_parse_l2(": "l2_engine",
+    "parse_arp_vector(": "ARGOS_PROTOCOL_ARP",
+    "argos_mld_parse(": "ARGOS_PROTOCOL_MLD",
+    "parse_ndp_vector(": "nd_engine",
+    "argos_igmp_parse(": "ARGOS_PROTOCOL_IGMP",
+    "argos_vrrp_parse(": "ARGOS_PROTOCOL_VRRP",
+    "argos_enterprise_parse_ipproto(": "ARGOS_PROTOCOL_OSPF",
+}
+for parser, gate in parser_gates.items():
+    call = packet_loop.index(parser)
+    assert gate in packet_loop[max(0, call - 1400):call], f"{parser} lacks {gate} gate"
+assert "runtime_cfg.enterprise_enabled && l3_proto" not in packet_loop
+assert "runtime_cfg.enterprise_enabled && protocol == 2U" not in packet_loop
+assert "runtime_cfg.enterprise_enabled && protocol == 112U" not in packet_loop
+assert "runtime_cfg.enterprise_enabled && protocol == 89U" not in packet_loop
 print("Canonical config catalog matches V6_BACKLOG taxonomy: PASS")

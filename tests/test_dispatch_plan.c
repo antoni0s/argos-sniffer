@@ -35,6 +35,8 @@ int main(void)
     assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_UDP));
     assert(!argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
     assert(argos_dispatch_l3_enabled(&plan, ARGOS_DISPATCH_L3_IPV4));
+    assert(argos_dispatch_protocol_rate_limited(&plan, ARGOS_PROTOCOL_DNS));
+    assert(!argos_dispatch_l2_frame_enabled(&plan, 0x88ccU));
 
     for (unsigned protocol = 0; protocol < ARGOS_PROTOCOL_COUNT; ++protocol)
         attempt_engine(&plan, (argos_protocol_id_t)protocol, &counts);
@@ -67,6 +69,8 @@ int main(void)
         &cli, ARGOS_CLI_SELECTOR_PROTOCOL, "lldp"));
     argos_dispatch_plan_compile(&plan, &cli);
     assert(argos_dispatch_l2_enabled(&plan, ARGOS_DISPATCH_L2_LLDP));
+    assert(argos_dispatch_l2_frame_enabled(&plan, 0x88ccU));
+    assert(!argos_dispatch_l2_frame_enabled(&plan, 0x0806U));
     assert(!argos_dispatch_l3_enabled(&plan, ARGOS_DISPATCH_L3_IPV4));
     assert(!argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
     assert(!argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_UDP));
@@ -82,6 +86,23 @@ int main(void)
     assert(argos_dispatch_l2_enabled(&plan, ARGOS_DISPATCH_L2_LLC));
     assert(argos_dispatch_l3_enabled(&plan, ARGOS_DISPATCH_L3_OSPF));
     assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
+    assert(argos_dispatch_l2_frame_enabled(&plan, 0x00feU));
+    assert(!argos_dispatch_l2_frame_enabled(&plan, 0x888eU));
+
+    static const struct {
+        uint16_t wire_protocol;
+        argos_protocol_id_t engine;
+    } l2_engines[] = {
+        {0x0806U, ARGOS_PROTOCOL_ARP}, {0x8809U, ARGOS_PROTOCOL_LACP},
+        {0x888eU, ARGOS_PROTOCOL_EAPOL}, {0x8892U, ARGOS_PROTOCOL_PROFINET},
+        {0x2000U, ARGOS_PROTOCOL_CDP}, {0x00feU, ARGOS_PROTOCOL_ISIS},
+        {0x00bbU, ARGOS_PROTOCOL_EDP}, {0xf200U, ARGOS_PROTOCOL_FDP},
+        {100U, ARGOS_PROTOCOL_STP},
+    };
+    for (size_t i = 0; i < sizeof(l2_engines) / sizeof(l2_engines[0]); ++i)
+        assert(argos_dispatch_l2_protocol(l2_engines[i].wire_protocol) ==
+               l2_engines[i].engine);
+    assert(argos_dispatch_l2_protocol(0x0800U) == ARGOS_PROTOCOL_COUNT);
 
     argos_cli_selection_init(&cli);
     argos_cli_selection_apply_legacy_all(&cli, 0);
@@ -111,6 +132,11 @@ int main(void)
             &plan, (argos_legacy_category_id_t)category));
         assert(!argos_dispatch_legacy_rate_limited(
             &plan, (argos_legacy_category_id_t)category));
+        for (unsigned protocol = 0; protocol < ARGOS_PROTOCOL_COUNT; ++protocol) {
+            if (argos_dispatch_protocol_enabled(&plan, (argos_protocol_id_t)protocol))
+                assert(!argos_dispatch_protocol_rate_limited(
+                    &plan, (argos_protocol_id_t)protocol));
+        }
     }
 
     memset(&plan, 0xa5, sizeof(plan));
