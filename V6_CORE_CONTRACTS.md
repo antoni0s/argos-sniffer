@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), and exact legacy bundles with separate non-protocol features (PR #30). Main still owns legacy booleans and does not consume the new selection. | Freeze profile contents, resolve the `--enterprise` compatibility/name conflict and complete startup-only CLI compilation before runtime adoption. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), and production-filtered no-rate targets (PR #31). Main still owns legacy booleans and does not consume the new selection. | Freeze profile contents, resolve the `--enterprise` compatibility/name conflict and complete startup-only CLI compilation before runtime adoption. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -113,6 +113,21 @@ production filtering, default/all exclusions and rate precedence. No main/BPF/pa
 consumer changed, so native full/stub text and BSS remain 157560/144886 and 80360/78760.
 Core 33948114721, L2 33948114726 and staging 33948114731 PASS. Profile policy,
 CLI conflict resolution and runtime wiring remain open; no staging parser is active.
+
+### Rate-target compilation — PR #31, `da957069e07f833dd0450dec0ea6fa04c3a2d619`
+
+`--no-rate-limit` target names now compile once into fixed protocol masks for exact
+lowercase `all`, super-group or group names. Masks are filtered to current production
+status, so staging/HOLD entries cannot be selected. Applying a target intersects it
+with the already-enabled mask: it changes emission policy only and cannot activate a
+parser or relax inspection/state budgets. Individual protocols retain the uppercase
+selection convention rather than becoming rate-target names.
+
+Tests pin target kind, case rejection, production filtering, invalid-target no-op and
+identity/enterprise/all scope. Main, CLI, BPF and packet processing do not consume the
+API yet; native full/stub text and BSS remain 157560/144886 and 80360/78760. Core
+33948366691, L2 33948366700 and staging 33948366715 PASS. Profile contents, CLI
+name compatibility and runtime adoption remain open; no staging parser is active.
 
 ## Concrete blockers, not hypothetical architecture work
 

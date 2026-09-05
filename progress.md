@@ -1,6 +1,6 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `01cb582d…` (PR #30).
+Branch: `version-6`. Verified checkpoint: `da957069…` (PR #31).
 **Now:** exact production-only profile masks and CLI naming/compatibility policy (C3).
 **Not yet:** full core freeze or staging runtime integration.
 
@@ -37,6 +37,7 @@ Branch: `version-6`. Verified checkpoint: `01cb582d…` (PR #30).
 - [x] Canonical 101-protocol IDs, fixed bitmap and 6-super-group/28-group membership catalog — PR #28.
 - [x] Production-only enabled/unrated masks, last-overlap precedence and safe no-rate-limit semantics — PR #29.
 - [x] Exact legacy short/default/all/enterprise bundles and separate non-protocol feature controls — PR #30.
+- [x] Production-only compile-once no-rate-limit targets for all/super-group/group — PR #31.
 
 ## How to update — mandatory
 
@@ -88,9 +89,10 @@ Branch: `version-6`. Verified checkpoint: `01cb582d…` (PR #30).
   unrated last-overlap precedence, and no-rate-limit affecting only already-enabled protocols.
 - [x] Exact legacy short-category/default/`-a`/`-A` mappings and separate controls for SYN,
   IPv6, extended metrics, stateful QUIC and sensor deployment; no runtime wiring yet.
+- [x] `--no-rate-limit=<all|super-group|group>` target compilation is exact lowercase,
+  production-only and can modify only already-enabled protocols; no runtime wiring yet.
 - [ ] **NOW:** Exact production-only profile contents and naming/conflict policy for the current broad
-  `--enterprise` bundle versus the canonical enterprise super-group; validate
-  `--no-rate-limit=<all|super-group|group>` startup compilation. No per-packet string lookups.
+  `--enterprise` bundle versus the canonical enterprise super-group. No per-packet string lookups.
 - [ ] Resolve identity-group selector while preserving `--identity[=hash|raw]`/legacy alias;
   separate sensor profile from deployment mode; no implicit raw identity or staged protocol activation.
 - [ ] One-screen base help with measured line/byte budget; no `--help-protocols`.
@@ -232,7 +234,7 @@ C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; staging runtime integration remains blocked on the core review.
-PR #30: core 33948114721, L2 33948114726, staging 33948114731 PASS.
+PR #31: core 33948366691, L2 33948366700, staging 33948366715 PASS.
 Native full/stub text 157560/144886; BSS 80360/78760, unchanged. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. The config masks add zero production binary bytes until runtime
