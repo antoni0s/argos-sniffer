@@ -113,6 +113,14 @@ int main(void) {
     assert(decrypt_quic_sni_stateful(&a, packet, (int)packet_len, 6, 8,
                                      a.fake_tls, ARGOS_QUIC_FAKE_TLS_CAP, &out_len) == 1);
     hot = 0; assert(calls == 2);
+    /* Completion releases the DCID immediately; the same DCID starts a fresh
+     * generation rather than inheriting completed reassembly bytes. */
+    assert(quic_heavy_find_session(&a, ARGOS_QUIC_VERSION_V1,
+                                   packet + 6, 8) == -1);
+    int reused = quic_heavy_get_or_create_session(&a, ARGOS_QUIC_VERSION_V1,
+                                                   packet + 6, 8);
+    assert(reused >= 0 && a.sessions[reused].used);
+    memset(&a.sessions[reused], 0, sizeof(a.sessions[reused]));
 
     fail_call = calls + 1; assert(!argos_quic_prepare(&b, 0)); fail_call = 0;
     hot = 1;
