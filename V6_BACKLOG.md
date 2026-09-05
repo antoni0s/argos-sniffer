@@ -187,14 +187,15 @@ v6 requires an explicit user decision.
 
 - [x] Add an engine-enable bitmap with one bit per protocol and derived masks for groups,
   super-groups and profiles.
-- [x] Compile existing legacy CLI selections once at startup; packet processing never walks CLI
-  strings or accesses selection state. Qualified selectors remain blocked on fine-grained dispatch.
+- [x] Compile legacy and qualified CLI selections once at startup; packet processing never walks
+  CLI strings or accesses selection state. Qualified selectors became runtime-visible only after
+  fine-grained dispatch and exact BPF projection were merged.
 - [x] Add profiles: `core`, `standard`, `full`, `home`, `enterprise`, `sensor`.
 - [x] Add super-groups: `network`, `application`, `enterprise`, `industrial`, `iot`, `vpn`.
 - [x] Preserve lowercase = normal/deduplicated and uppercase = unrated behavior in the
   startup selection contract and existing legacy runtime options.
-- [x] Add startup-only `--no-rate-limit=<all|super-group|group>` target compilation without
-  per-packet string lookups; exposing the qualified option remains blocked on fine-grained dispatch.
+- [x] Add and expose startup-only `--no-rate-limit=<all|super-group|group>` target compilation
+  without per-packet string lookups; it modifies only protocols enabled earlier in argv order.
 - [x] Keep `--help` to one screen and add thematic help screens:
   `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn`, `--help-capture`, `--help-output`,
@@ -263,8 +264,9 @@ must be folded into the appropriate cohesive engine facade during integration ra
 permanent one-protocol public modules. HOLD dependencies must be solved, not used to silently omit
 the protocol from the release.
 
-1. **Low-rate network control plane**
-   - [ ] RIP, PTP.
+1. **Low-rate network control and discovery**
+   - [ ] LLMNR, RIP, PTP. LLMNR requires a real UDP/TCP 5355 discovery owner and exact BPF
+     route; its earlier production label was corrected rather than exposing a no-op selector.
 2. **Management exporters**
    - [ ] Syslog, NetFlow, IPFIX, sFlow.
 3. **Application control protocols**

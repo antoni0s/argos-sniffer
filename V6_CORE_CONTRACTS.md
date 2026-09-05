@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose the qualified selectors through getopt now that fine-grained runtime/BPF gates exist; preserve legacy equivalence. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Merge qualified-selector getopt adoption and preserve legacy equivalence; staging names must remain visible but unavailable. |
 | 4 | Cheap dispatch / gating | A fixed 48-byte plan owns canonical protocol/features plus bounded L2/L3/L4 and transport demand. Current production callers consume individual bits before parser/state work; a 32-byte startup BPF projection builds exact protocol ports while preserving conservative encapsulation fallbacks. | Complete full no-port IPv4/IPv6 reachability and hardware throughput/drop gates. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -272,7 +272,7 @@ passed, including CI LeakSanitizer and ARM64 compile gates.
 The temporary coarse TCP/UDP BPF port-family projection is the immediate next C4 slice. Qualified
 selectors remain unexposed until that gate passes. No staged parser became reachable.
 
-### Exact TCP/UDP classic-BPF ports — candidate
+### Exact TCP/UDP classic-BPF ports — PR #41, `bce1ce93a29ef4e90ab1992524bbfd7ec58f36e2`
 
 The 32-byte startup BPF config now retains the fixed production protocol mask rather than eight
 coarse family booleans. Before capture, the builder derives exact HTTP, TLS, DoT, QUIC, discovery,
@@ -285,8 +285,30 @@ fixtures pin DoT versus TLS, TLS versus QUIC, NTLM direction, unrelated-port rej
 aliases. The frozen legacy matrix remains identical across 7,239,680 packets, with maximum BPF
 length 287→183 and total interpreted work 189,935,226→188,153,978. The kernel verifier accepts all
 1,024 legacy configurations. Full/stub text is 169297/157275 (+487/+519 from PR #40), data 3832
-and BSS 80360/78760 unchanged; the BPF config grows by 16 startup-only bytes. Full strict,
-sanitizer and ARM64 CI remain the merge gate. No staged/HOLD bit becomes selectable or reachable.
+and BSS 80360/78760 unchanged; the BPF config grows by 16 startup-only bytes. Core 33974908442,
+L2 33974908456 and staging 33974908441 passed, including sanitizer and ARM64 compile gates.
+No staged/HOLD bit became selectable or reachable.
+
+### Qualified runtime selectors — candidate
+
+`--profile`, `--super-group`, `--group`, `--protocol` and `--no-rate-limit` now feed the existing
+startup selector compiler directly in argv order. They complete before dispatch/BPF compilation and
+capture setup; packet processing still receives only fixed masks. Protocol case preserves
+lowercase rate-limited versus uppercase unrated behavior, while group/rate target names remain exact
+lowercase. Lifecycle fixtures cover valid selectors, ordering, allocation demand, invalid names and
+staged-protocol rejection.
+
+The exact-source audit found that LLMNR had no runtime parser or BPF owner despite a production
+catalog label. It is therefore staging—not removed from taxonomy or v6 scope—until the mandatory
+UDP/TCP 5355 integration gate is delivered. Current production-only profile counts are core 7,
+standard 16, full 66, home 35, enterprise 50 and sensor 66. Help derives `llmnr*` from that same
+status and direct `--protocol llmnr` activation fails before capture.
+
+All 75 strict standalone tests and the native full/stub builds pass locally. Full/stub text is
+172841/160863 (+3544/+3588 from PR #41), data is 3992 (+160), and BSS remains 80360/78760.
+The growth is startup-only selector/profile code and five fixed `getopt_long` entries; no catalog
+scan, string lookup or selection state enters packet processing. Three focused ASan/UBSan runs pass;
+local LeakSanitizer is unavailable under the runner's ptrace environment and remains a CI gate.
 
 ## Concrete blockers, not hypothetical architecture work
 

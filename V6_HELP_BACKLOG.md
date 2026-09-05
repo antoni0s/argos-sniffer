@@ -1,6 +1,8 @@
 # Argos Sniffer v6 — Help System Backlog
 
-This document defines the v6 CLI help layout. It is a documentation/implementation contract only and does not authorize runtime CLI wiring until the active config/bitmap contracts are stable.
+This document defines the v6 CLI help layout. The config/bitmap and fine-grained dispatch gates are
+now stable enough for the qualified runtime selectors; staged `*` entries remain visible but
+unselectable until their individual integration gates pass.
 
 ## Design goal
 
@@ -332,6 +334,8 @@ Before the final v6 release, this marker must be generated from actual engine im
 - [x] `--help-rate` shows the actual default dedup interval.
 - [ ] Help output is identical in native and ARM64 builds for the same feature set.
 - [x] Help execution performs no Argos packet capture/state/sink allocation.
+- [x] Qualified profile/super-group/group/protocol/no-rate options compile through the same
+  startup selection owner advertised by help; staging markers remain unselectable.
 
 ## Promotion gate
 

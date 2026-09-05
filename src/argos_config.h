@@ -78,7 +78,7 @@ enum {
     X(MDNS, NETWORK, "mdns", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
     X(SSDP, NETWORK, "ssdp", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
     X(UPNP, NETWORK, "upnp", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
-    X(LLMNR, NETWORK, "llmnr", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
+    X(LLMNR, NETWORK, "llmnr", ARGOS_PROTOCOL_STATUS_STAGING) \
     X(WSD, NETWORK, "wsd", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
     X(NBNS, NETWORK, "nbns", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
     X(LLDP, NETWORK, "lldp", ARGOS_PROTOCOL_STATUS_PRODUCTION) \
@@ -849,11 +849,11 @@ static inline void argos_cli_selection_apply_legacy_all(
     selection->has_explicit_protocol_selection = 1U;
 }
 
-/* Startup-only compatibility projection. It lets the current coarse dispatch
- * consume the canonical masks without packet-time catalog scans. A category is
+/* Startup-only legacy compatibility query. It lets tests and compatibility
+ * owners compare canonical masks without packet-time catalog scans. A category is
  * rate-limited when at least one of its enabled members remains rated. This is
  * exact for legacy selectors, whose category members always share rate mode;
- * fine-grained canonical runtime selectors wait for the C4 dispatcher. */
+ * qualified runtime selectors retain exact per-protocol rate bits. */
 static inline int argos_cli_legacy_category_enabled(
     const argos_cli_selection_t *selection, argos_legacy_category_id_t category) {
     if (!selection || (unsigned)category >= ARGOS_LEGACY_CATEGORY_COUNT) return 0;

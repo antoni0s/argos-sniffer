@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `72f03839…` (PR #40).
-**Now:** validate and merge exact per-engine TCP/UDP classic-BPF port demand (C4).
+Branch: `version-6`. Verified checkpoint: `bce1ce93…` (PR #41).
+**Now:** validate qualified profile/super-group/group/protocol/no-rate CLI adoption (C3/C4).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -47,6 +47,8 @@ protocol listed for v6 must be integrated before the v6 release after its readin
 - [x] Native-L2 and non-port network callers use individual canonical bits before parser work; ARP/NDP owner allocation and per-engine rate mode follow the fixed plan — PR #37. BPF and port-driven callers remain open.
 - [x] Canonical dispatch routes project once into classic BPF with independent L2/L3 admission,
   frozen legacy decisions and conservative encapsulation fallbacks — PR #39.
+- [x] Exact enabled-engine TCP/UDP ports replace coarse BPF families; frozen legacy matrix,
+  lower verifier length/work and independent shared-port aliases — PR #41.
 
 ## How to update — mandatory
 
@@ -104,13 +106,13 @@ protocol listed for v6 must be integrated before the v6 release after its readin
   IPv6, extended metrics, stateful QUIC and sensor deployment; existing options consume them once
   before capture through the canonical selection owner.
 - [x] `--no-rate-limit=<all|super-group|group>` target compilation is exact lowercase,
-  production-only and can modify only already-enabled protocols; no runtime wiring yet.
+  production-only, runtime-exposed and can modify only already-enabled protocols.
 - [x] Exact production-only profile contents and naming/conflict policy: broad compatibility
   `--enterprise`, canonical `--super-group enterprise`, and `--profile enterprise`. Sensor evidence
   profile stays separate from deployment mode; no implicit identity/heavy/staged activation.
 - [x] Startup compiler API covers profile/super-group/group/protocol/legacy/no-rate order,
-  `--group identity` namespace and default/explicit-feature precedence. Existing legacy options are
-  runtime-adopted; qualified selectors wait for the fine-grained C4 dispatcher.
+  `--group identity` namespace and default/explicit-feature precedence. Existing legacy options and
+  qualified selectors are runtime-adopted before capture through the fine-grained C4 dispatcher.
 - [x] One-screen base help (29 lines/1140 bytes); no `--help-protocols`.
   Generate `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn` from the same runtime tables.
@@ -258,22 +260,25 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** expose qualified profile/super-group/group/protocol/no-rate selectors through the
-already-fixed startup compiler, with CLI lifecycle and exact BPF/runtime reachability gates (C3/C4).
-C1 non-port/PTP depends on C3/C4;
+**Next:** finish and merge qualified profile/super-group/group/protocol/no-rate selectors through
+the fixed startup compiler, then begin the C1 no-port/PTP reachability slice.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c4-exact-bpf-ports` is active; implementation and local exact/legacy gates pass.
+**Pending:** `v6-c3-qualified-selectors` is active. The source audit corrected LLMNR from production
+to staging because no UDP/TCP 5355 runtime/BPF owner exists; it remains mandatory in Phase 8.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
-PR #40: core 33974018459, L2 33974018398, staging 33974018417 PASS.
-Native full/stub text 168810/156756; data 3832; BSS 80360/78760. Current listed
+PR #41: core 33974908442, L2 33974908456, staging 33974908441 PASS.
+Qualified-selector candidate full/stub text 172841/160863; data 3992; BSS 80360/78760.
+The +3544/+3588 text and +160 data are startup-only compiler/getopt cost with no hot-path or
+persistent-state growth. Local strict matrix is 75/75 and three focused ASan/UBSan runs pass;
+LeakSanitizer remains a CI gate because the local ptrace runner cannot execute it. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first
 runtime slices now cover native-L2, NDP/RA/IGMP/MLD/OSPF/VRRP and every current TCP/UDP
 production caller. Canonical BPF route projection passes 7,239,680-packet legacy equivalence
-and kernel verifier coverage; the exact per-engine port projection is the active merge candidate.
+and kernel verifier coverage; exact per-engine port projection is merged.
 Protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C4; use Astra for the final cross-contract C10 audit.
