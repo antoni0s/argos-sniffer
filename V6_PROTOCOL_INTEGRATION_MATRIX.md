@@ -92,6 +92,12 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | voice | rtp | staging | application facade/section | negotiated/dynamic UDP + RTP version bits | `RTP`: version, payload_type, marker, sequence, timestamp, ssrc, csrc_count, extension; fingerprint = payload-type/SSRC behavior only as session evidence | first valid RTP packets then complete/drop | never inspect media payload |
 | voice | rtcp | staging | application facade/section | paired RTP/RTCP ports + RTCP packet types | `RTCP`: version, packet_type, report_count, ssrc, compound; fingerprint = report/profile evidence | one compound RTCP packet | no media payload |
 | media | rtsp | staging | application facade/section | TCP 554/8554 + RTSP methods | `RTSP`: type, method, status, cseq, transport, username, server, user_agent, auth; fingerprint = UA/server/transport/auth-scheme profile | after SETUP/response headers or budget | never emit Authorization secret |
+
+RTP/RTCP promotion gate: the current sources are isolated staging parsers and no
+runtime/dispatcher/BPF owner admits their negotiated UDP ports. Promotion must not
+fall back to arbitrary-UDP capture. Freeze either signaling-derived bounded port
+ownership or an explicit configured range, then validate RTP extension/padding and
+RTCP compound framing before moving fixtures or deleting the staging files.
 | media | cast | staging | application facade/section | Cast framing/ports as verified | `CAST`: transport, framing, frame_length, encrypted; fingerprint = framing/transport profile | framing evidence only | no protobuf/media payload retention |
 | media | airplay | staging | application facade/section | HTTP-like AirPlay ports/magic | `AIRPLAY`: protocol, method, username, server, user_agent, feature_present, pairing_present; fingerprint = feature/UA/server profile | control headers only | never emit pairing secrets |
 | media | dlna | staging | application facade/section | HTTP/UPnP AV headers | `DLNA`: dlna, upnp_av, profile_present, server, user_agent, transfer_mode; fingerprint = DLNA profile + UA/server | headers only | no media payload |

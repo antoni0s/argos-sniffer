@@ -1,12 +1,16 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `8fe74987317f2d704450894be89548456febe59a` (PR #52).
-**Now:** WinRM production integration and local validation on `v6-winrm-canonical-integration`; push/CI/merge pending.
-LPD, HTTP proxy, Telnet and VNC runtime slices are merged; WinRM is locally integrated.
+Branch: `version-6`. Verified checkpoint: `cc526e5e8fae89b61d0d052758101122024073a6` (PR #53).
+**Now:** RTP/RTCP trigger, owner and privacy audit on `v6-rtp-canonical-integration`; dynamic-port admission must be frozen before parser wiring.
+The application-control milestone (LPD, HTTP proxy, Telnet, VNC and WinRM) is merged.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
+
+- [x] WinRM native HTTP/HTTPS observation, exact TCP 5985/5986 gates,
+  credential/body exclusion, generated help and staging cleanup — PR #53.
+  Core 33992514050, network 33992514060, L2 33992514107 and staging 33992514174 PASS.
 
 - [x] VNC/RFB 3.3/3.7/3.8 cross-direction handshake, native privacy-safe
   signatures, optional bounded context, generated help and staging cleanup — PR #52.
@@ -247,7 +251,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   remains open under C7/C10.
 - [x] VNC runtime slice merged in PR #52; deployed collector mapping remains
   open under C7/C10.
-- [ ] WinRM.
+- [x] WinRM runtime slice merged in PR #53; deployed collector mapping remains
+  open under C7/C10.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
@@ -298,9 +303,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish WinRM strict/sanitizer verification, push/CI/merge/cleanup, then
-handoff the completed application-control milestone to realtime/media starting
-with RTP. Preserve progress/help/naming/cleanup at the milestone boundary.
+**Next:** freeze RTP/RTCP dynamic-port admission, ownership, native field/privacy
+and completion policy before wiring. Do not broaden UDP capture merely to find
+RTP; prefer signaling-derived or another bounded startup/runtime gate with measured
+disabled/enabled cost. Preserve progress/help/naming/cleanup.
 **Blocked:** full freeze, deployed collector compatibility and hardware acceptance;
 Thread, ESP/AH and TLS enrichment retain their recorded gates.
 **Delivery:** VNC is integrated in the existing handshake/control owner with
@@ -328,11 +334,8 @@ max instructions still 287→183 and lower aggregate interpreted work. Kernel ga
 pass 1,024 legacy plus six proxy/Telnet/VNC/full combinations. The full 82-test
 strict matrix and five adoption checks pass; CI LSan/ARM64 and all four PR #52
 workflows pass.
-**Cleanup:** unique staging VNC fixtures moved to permanent test_vnc.c; obsolete
-source/includes/workflow entries are deleted. The remote HTTP proxy/Telnet branches
-still need user deletion because Git authentication and connector delete-ref remain
-unavailable:
-`git push origin --delete v6-http-proxy-canonical-integration v6-telnet-canonical-integration`.
+**VNC cleanup:** unique staging fixtures moved to permanent test_vnc.c; obsolete
+source/includes/workflow entries are deleted. Remote-branch state is tracked below.
 **WinRM delivery:** the existing handshake/control owner now emits only native
 `WINRM` records in the frozen field order. Plain TCP 5985 requires a complete
 HTTP/1.0/1.1 request to exact `/wsman`; TCP 5986 requires a structurally valid
@@ -350,9 +353,24 @@ is 196690/184674 (+3356/+3288 from PR #52), data 3992 and BSS 80360/78760 unchan
 Main stack is 85,040 (+16); WinRM parser frame is 176. Reviewed full-text ceiling
 is 196750. No throughput improvement is claimed; the growth buys bounded framing,
 privacy classification and independent capture gating.
-**Handoff:** VNC is merged at `8fe74987317f2d704450894be89548456febe59a`;
-the active application-control milestone is WinRM final verification and delivery.
-**Model:** Astra through WinRM CI/merge; switch to Sol for the initial RTP source/
-fixture audit after the application-control milestone handoff.
+**WinRM CI/merge:** PR #53 merged at `cc526e5e8fae89b61d0d052758101122024073a6`;
+core 33992514050, network 33992514060, L2 33992514107 and staging 33992514174 pass.
+**Cleanup:** local WinRM/VNC integration branches are deleted. Remote HTTP proxy
+and Telnet branches are already absent. Remote VNC/WinRM deletion is blocked by
+Git HTTPS authentication; run:
+`git push origin --delete v6-vnc-canonical-integration v6-winrm-canonical-integration`.
+**Handoff:** application control is complete; the active milestone is realtime/media,
+starting with the coupled RTP/RTCP trigger and privacy audit.
+**RTP/RTCP audit:** current files are isolated staging parsers with no runtime,
+dispatcher or BPF consumer. RTP parses only the fixed/CSRC prefix and does not yet
+validate extension or padding framing; RTCP parses only the first common packet and
+does not establish compound validity. Their negotiated/dynamic UDP ports cannot be
+captured by widening the disabled-path filter to arbitrary UDP. Integration remains
+gated on a bounded port-owner source (for example verified SIP/RTSP negotiation) or
+an explicit configured port range with measured enabled cost; the decision must
+also freeze which sequence/timestamp/SSRC fields are session evidence rather than
+stable device fingerprints.
+**Model:** Astra for dynamic-port/ownership freeze; Sol after the RTP/RTCP gate is
+frozen and implementation becomes bounded parser/test work.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

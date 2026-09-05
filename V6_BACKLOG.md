@@ -289,9 +289,10 @@ the protocol from the release.
      remains open under C7/C10.
    - [x] VNC runtime slice merged in PR #52 with native signatures, bounded
      cross-direction state, generated help and staging cleanup.
-   - [ ] WinRM.
-   - [ ] LPD runtime slice: PR #49 (checks/merge tracked there); full protocol
-     acceptance retains deployed collector mapping under C7/C10. Folded into the existing printing section.
+   - [x] WinRM merged in PR #53 with native output, bounded HTTP/TLS-prefix
+     classification, exact TCP 5985/5986 gates and staging cleanup.
+   - [x] LPD runtime slice merged in PR #49 and folded into the existing printing
+     section; deployed collector mapping remains open under C7/C10.
 4. **Realtime and media negotiation**
    - [ ] RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 5. **Enterprise storage, database and directory**
