@@ -90,14 +90,12 @@ static inline int argos_network_ptp_parse(const unsigned char *p, size_t n,
         "%02x%02x%02x.%02x%02x.%02x%02x%02x",
         p[20], p[21], p[22], p[23], p[24], p[25], p[26], p[27]);
     (void)snprintf(r->detail, sizeof(r->detail),
-        "version=2;type=%s;type_id=0x%x;transport=%u;domain=%u;len=%u;flags=0x%04x;"
-        "clock=%s;port=%u;seq=%u;control=%u;log_interval=%d;correction=%lld",
-        argos_network_ptp_message_name(r->message_type), (unsigned)r->message_type,
-        (unsigned)r->transport_specific, (unsigned)r->domain_number,
-        (unsigned)r->message_length, (unsigned)r->flags, clock_id,
-        (unsigned)r->source_port_number, (unsigned)r->sequence_id,
-        (unsigned)r->control_field, (int)r->log_message_interval,
-        (long long)r->correction_field);
+        "version=2 message=%s domain=%u sequence=%u transport_specific=%u "
+        "two_step=%u clock_identity=%s",
+        argos_network_ptp_message_name(r->message_type),
+        (unsigned)r->domain_number, (unsigned)r->sequence_id,
+        (unsigned)r->transport_specific,
+        (unsigned)((r->flags & 0x0200U) != 0U), clock_id);
     return 1;
 }
 

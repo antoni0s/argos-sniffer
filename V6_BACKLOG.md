@@ -343,6 +343,11 @@ All proposed records follow:
 VECTOR|src_mac|src_ip|dst_ip|key=value key=value ...[|routed]
 ```
 
+Before a staged protocol is runtime-wired, its vector name, field names and field order must be
+frozen here. Every newly integrated protocol emits its own named `VECTOR`; `ENT` is not a permitted
+envelope for these outputs. Existing legacy `ENT` records may remain only until their own planned
+canonical migration.
+
 The schema-freeze phase must finalize ordering, escaping, missing values and maximum field lengths.
 Candidate vectors and their required metadata are:
 
@@ -404,6 +409,16 @@ Candidate vectors and their required metadata are:
 | IKE | version, exchange, username, flags, message_id, initiator_spi, responder_spi, natt |
 | ESP | spi, sequence |
 | AH | next_header, payload_length, spi, sequence |
+
+PTP's frozen output is:
+
+```text
+PTP|src_mac|src_ip|dst_ip|version=2 message=<message> domain=<domain> sequence=<sequence> transport_specific=<transport_specific> two_step=<0|1> clock_identity=<clock_identity>[|routed]
+```
+
+The PTP vector and dedup namespace are both `PTP`; PTP must never be serialized through the
+legacy `ENT` envelope. Native EtherType 0x88f7 uses `-` for unavailable IP positions, while UDP
+319/320 supplies normalized source and destination IPs.
 
 ## Completion definition for one protocol
 

@@ -166,4 +166,7 @@ assert "if (emit_dot && dport == 853U" in main_source
 assert "argos_network_ptp_parse(" in main_source
 assert "argos_dispatch_ptp_udp_enabled(&dispatch_plan, sport, dport)" in main_source
 assert "l3_proto == 0x88f7U" in main_source
+assert 'dedup_should_suppress(mac, "PTP",' in main_source
+assert 'emit_telemetry("PTP|%s|%s|%s|%s%s\\n"' in main_source
+assert 'emit_telemetry("ENT|%s|%s|%s|PTP|' not in main_source
 print("Canonical config catalog matches V6_BACKLOG taxonomy: PASS")

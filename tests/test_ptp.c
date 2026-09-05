@@ -14,7 +14,9 @@ int main(void) {
     assert(r.version == 2U && r.domain_number == 7U && r.flags == 0x0201U);
     assert(r.source_port_number == 3U && r.sequence_id == 9U);
     assert(r.control_field == 5U && r.log_message_interval == -1);
-    assert(strstr(r.detail, "type=announce") && strstr(r.detail, "clock=020000.0000.000001"));
+    assert(!strcmp(r.detail,
+        "version=2 message=announce domain=7 sequence=9 transport_specific=2 "
+        "two_step=1 clock_identity=020000.0000.000001"));
     assert(!argos_network_ptp_parse(NULL, 34U, &r));
     assert(!argos_network_ptp_parse(p, 33U, &r));
     p[1] = 1; assert(!argos_network_ptp_parse(p, 34U, &r));

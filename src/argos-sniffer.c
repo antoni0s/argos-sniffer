@@ -758,9 +758,9 @@ static void emit_ptp_vector(const unsigned char *payload, size_t payload_len,
     argos_network_ptp_result_t ptp;
     if (!argos_network_ptp_parse(payload, payload_len, &ptp)) return;
     char signature[768];
-    (void)snprintf(signature, sizeof(signature), "%s|PTP|%s", src_ip, ptp.detail);
-    if (!dedup_should_suppress(mac, "ENT", signature, rate_limited))
-        emit_telemetry("ENT|%s|%s|%s|PTP|%s%s\n",
+    source_dedup_signature(signature, sizeof(signature), src_ip, ptp.detail, routed);
+    if (!dedup_should_suppress(mac, "PTP", signature, rate_limited))
+        emit_telemetry("PTP|%s|%s|%s|%s%s\n",
                        mac, src_ip, dst_ip, ptp.detail, routed);
 }
 
