@@ -63,7 +63,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | redundancy | vrrp | production | network owner | IP proto 112 | VRRP: version/type/VRID/priority/address count | one packet | bounded addresses |
 | redundancy | hsrp | production | network owner | UDP 1985/2029 as verified | HSRP: version/state/group/priority/virtual IP | one message | version fixtures |
 | time | ntp | production | network/time owner | UDP 123 | NTP: version/mode/stratum/refid class; fingerprint = mode/version/implementation hints only if stable | one request/response | never treat timestamps as device identity |
-| time | ptp | staging | fold into `argos_network.h` | EtherType 0x88f7 and UDP 319/320 | `PTP`: version, message, domain, sequence, transport_specific, two_step, clock_identity; fingerprint = version/domain/transport/two-step profile | one PTP control message | dual EtherType+UDP reachability fixtures |
+| time | ptp | production | `argos_network.h` | EtherType 0x88f7 and UDP 319/320 | `PTP`: bounded v2 common-header version, type, domain, flags, clock/port, sequence, control, interval and correction metadata | one common header; no payload/TLV retention | native/VLAN/QinQ + UDP4/UDP6 bounds, BPF, runtime and malformed fixtures |
 
 ---
 
@@ -221,7 +221,7 @@ This checklist is mandatory v6 delivery scope. Complete every group in order; a 
 until the prerequisite is implemented but does not remove it from the release.
 
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP.
-2. **Low-rate network control** — RIP, PTP.
+2. **Low-rate network control** — RIP. PTP is integrated in the canonical network owner.
 3. **Management exporters** — Syslog, NetFlow, IPFIX, sFlow.
 4. **Application control** — HTTP proxy, Telnet, VNC, WinRM, LPD.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
@@ -244,7 +244,7 @@ This verifies individual fields only, **not whole-row integration readiness**.
 | LLDP-MED | `src/argos_l2.h`: `argos_lldp_med_parse` | Enterprise gate, EtherType 0x88cc, legacy `ENT|...|LLDP-MED|...` | Standalone staging reconciliation, canonical bit/vector and collector mapping |
 | LACP | `src/argos_l2.h`: `argos_lacp_parse` | Enterprise gate, EtherType 0x8809, legacy `ENT|...|LACP|...` | Standalone staging reconciliation and complete per-row audit |
 | STP family | `src/argos_l2.h`: `argos_stp_parse`, `argos_rstp_parse`, `argos_mstp_parse` | Baseline LLC defect repaired in PR #7: native/VLAN/QinQ BPF→normalization→canonical parser fixture; declared 802.3 length bounds input | Canonical bit, staging reconciliation, full protocol budgets and collector mapping remain open; no full-row readiness claim |
-| PTP | Isolated `src/argos_ptp.h`, no runtime call from main | Fixed dispatch/BPF readiness admits native 0x88f7 and UDP 319/320 only when a manually characterized staging bit is present; production CLI cannot set it | Main adapter, observation/state/collector contracts, then promotion/fold |
+| PTP | Canonical `argos_network.h:argos_network_ptp_parse`; obsolete staging header removed | Native 0x88f7 and UDP 319/320 share one runtime helper, exact bit/rate/BPF gates and bounded `ENT|...|PTP` output | Production; retain collector golden coverage in C7/C10 |
 | ESP / AH | Isolated `src/argos_esp.h` / `src/argos_ah.h`, no runtime calls | Fixed userspace owner switches and IPv4 BPF gates exist behind unselectable HOLD bits; IPv6 remains conservative and normalization skips AH to the following header | Hold: main adapters plus AH sidecar ownership/readiness review |
 | Thread | Isolated `src/argos_thread.h`, no runtime call | No raw IEEE802.15.4 link type in current capture contract | Hold: capture/link-type semantics |
 
@@ -312,7 +312,7 @@ Non-port checkpoint at `5af8df48…` (characterization only):
 |---|---|---|
 | AH | `argos_ah.h:argos_ah_parse`, >=12 bytes, declared `(payload_len+2)*4` within slice, nonzero SPI | IPv6 walker loses own offset and accepts framing rejected by staging; IP-version alignment adapter needed. Untagged IPv4 BPF lacks 51. No runtime call. |
 | ESP | `argos_esp.h:argos_esp_parse`, >=8 bytes, nonzero SPI; terminal transport has no ports | Untagged IPv4 BPF lacks 50; no runtime call even when fallback admits capture. |
-| PTP | `argos_ptp.h:argos_ptp_parse`, v2, common header >=34, message_length 34..slice length | Same isolated entry accepts native/UDP fixtures. Fixed EtherType/UDP dispatch and BPF readiness gates exist, but no main runtime call or selectable staging bit. |
+| PTP | `argos_network.h:argos_network_ptp_parse`, v2 common header >=34, message_length 34..slice length | Native and UDP adapters share the same canonical entry; production selector, rate, BPF and legacy ENT output are wired. Payload/TLVs are not inspected. |
 
 `tests/test_nonport_contract.c` verifies these boundaries without runtime wiring.
 `V6_CORE_CONTRACTS.md` records the optional first-AH sidecar API (PR #19) and the

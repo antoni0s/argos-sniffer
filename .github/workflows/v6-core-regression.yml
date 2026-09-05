@@ -72,6 +72,7 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/bench_packet_ah.c -o /tmp/arm-bench-packet-ah
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_bpf_capacity.c -lm -o /tmp/arm-bpf-capacity
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_nonport_contract.c -lm -o /tmp/arm-nonport
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ptp.c -o /tmp/arm-ptp
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_encapsulation.c -lm -o /tmp/arm-encapsulation
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_packet_fragments.c -o /tmp/arm-packet-fragments
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_link_contract.c -o /tmp/arm-link-contract
@@ -89,8 +90,8 @@ jobs:
           # C3/C4: qualified selectors compile once before capture into the same
           # fixed masks already consumed by runtime and classic BPF. Pulling the
           # selector/profile compiler plus fixed no-port/PTP readiness routes cost
-          # +4329 full text and +160 data; there is no packet-time work for
-          # unavailable staging/HOLD bits or persistent-state/BSS growth.
+          # +5997 full text and +160 data including canonical PTP native/UDP
+          # parsing and output; there is no new state or BSS growth.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 173626
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 175294
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360

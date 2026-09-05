@@ -28,7 +28,6 @@ on:
       - 'src/argos_nvmeof.h'
       - 'src/argos_opcua.h'
       - 'src/argos_openvpn.h'
-      - 'src/argos_ptp.h'
       - 'src/argos_redis.h'
       - 'src/argos_rip.h'
       - 'src/argos_rtcp.h'
@@ -115,7 +114,7 @@ jobs:
               'argos_esp.h','argos_ftp.h','argos_http_proxy.h','argos_ike.h','argos_ipfix.h',
               'argos_knx.h','argos_lacp.h','argos_ldap.h','argos_ldaps.h','argos_lldp_med.h',
               'argos_lpd.h','argos_matter.h','argos_mongodb.h','argos_netflow.h','argos_nvmeof.h',
-              'argos_opcua.h','argos_openvpn.h','argos_ptp.h','argos_redis.h','argos_rip.h',
+              'argos_opcua.h','argos_openvpn.h','argos_redis.h','argos_rip.h',
               'argos_rtcp.h','argos_rtp.h','argos_rtsp.h','argos_s7.h','argos_sflow.h',
               'argos_stp.h','argos_syslog.h','argos_tacacs.h','argos_telnet.h','argos_thread.h',
               'argos_vnc.h','argos_winrm.h'

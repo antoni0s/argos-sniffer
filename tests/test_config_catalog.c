@@ -247,7 +247,7 @@ int main(void) {
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
 
     static const size_t expected_profile_counts[ARGOS_PROFILE_COUNT] = {
-        7U, 16U, 66U, 35U, 50U, 66U
+        7U, 16U, 67U, 36U, 50U, 67U
     };
     for (unsigned profile_id = 0; profile_id < ARGOS_PROFILE_COUNT; ++profile_id) {
         assert(argos_profile_selection((argos_profile_id_t)profile_id,
@@ -272,6 +272,7 @@ int main(void) {
     assert(argos_profile_selection(ARGOS_PROFILE_HOME, &selection, &feature_selection));
     assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_COAP));
     assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_WIREGUARD));
+    assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_PTP));
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_LLMNR));
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_BGP));
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_SMB));
@@ -309,9 +310,9 @@ int main(void) {
 
     argos_cli_selection_init(&cli);
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROFILE, "home"));
-    assert(bit_count(&cli.protocols.enabled) == 35U);
+    assert(bit_count(&cli.protocols.enabled) == 36U);
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_GROUP, "routing"));
-    assert(bit_count(&cli.protocols.enabled) == 38U);
+    assert(bit_count(&cli.protocols.enabled) == 39U);
     assert(!argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_RIP));
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "DNS"));
     assert(argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));

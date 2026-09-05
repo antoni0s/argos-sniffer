@@ -35,6 +35,72 @@
 #define ARGOS_NETWORK_MAX_INTERFACES 8
 #define ARGOS_NETWORK_IFNAME_SIZE 16
 
+/* IEEE 1588-2008 PTPv2 common-header evidence. Native Ethernet and UDP
+ * adapters supply the same bounded message slice; payloads/TLVs stay out. */
+typedef struct {
+    uint8_t transport_specific, message_type, version, domain_number;
+    uint16_t message_length, flags, source_port_number, sequence_id;
+    int64_t correction_field;
+    unsigned char source_clock_identity[8];
+    uint8_t control_field;
+    int8_t log_message_interval;
+    char detail[512];
+} argos_network_ptp_result_t;
+
+static inline uint16_t argos_network_ptp_be16(const unsigned char *p) {
+    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+
+static inline uint64_t argos_network_ptp_be64(const unsigned char *p) {
+    return ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
+           ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
+           ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
+           ((uint64_t)p[6] << 8) | (uint64_t)p[7];
+}
+
+static inline const char *argos_network_ptp_message_name(uint8_t type) {
+    switch (type) {
+        case 0x0U: return "sync"; case 0x1U: return "delay-req";
+        case 0x2U: return "pdelay-req"; case 0x3U: return "pdelay-resp";
+        case 0x8U: return "follow-up"; case 0x9U: return "delay-resp";
+        case 0xaU: return "pdelay-resp-follow-up"; case 0xbU: return "announce";
+        case 0xcU: return "signaling"; case 0xdU: return "management";
+        default: return "reserved";
+    }
+}
+
+static inline int argos_network_ptp_parse(const unsigned char *p, size_t n,
+                                          argos_network_ptp_result_t *r) {
+    if (!p || !r || n < 34U) return 0;
+    memset(r, 0, sizeof(*r));
+    r->transport_specific = (uint8_t)((p[0] >> 4) & 0x0fU);
+    r->message_type = (uint8_t)(p[0] & 0x0fU);
+    r->version = (uint8_t)(p[1] & 0x0fU);
+    if (r->version != 2U) return 0;
+    r->message_length = argos_network_ptp_be16(p + 2);
+    if (r->message_length < 34U || r->message_length > n) return 0;
+    r->domain_number = p[4]; r->flags = argos_network_ptp_be16(p + 6);
+    r->correction_field = (int64_t)argos_network_ptp_be64(p + 8);
+    memcpy(r->source_clock_identity, p + 20, 8);
+    r->source_port_number = argos_network_ptp_be16(p + 28);
+    r->sequence_id = argos_network_ptp_be16(p + 30);
+    r->control_field = p[32]; r->log_message_interval = (int8_t)p[33];
+    char clock_id[24];
+    (void)snprintf(clock_id, sizeof(clock_id),
+        "%02x%02x%02x.%02x%02x.%02x%02x%02x",
+        p[20], p[21], p[22], p[23], p[24], p[25], p[26], p[27]);
+    (void)snprintf(r->detail, sizeof(r->detail),
+        "version=2;type=%s;type_id=0x%x;transport=%u;domain=%u;len=%u;flags=0x%04x;"
+        "clock=%s;port=%u;seq=%u;control=%u;log_interval=%d;correction=%lld",
+        argos_network_ptp_message_name(r->message_type), (unsigned)r->message_type,
+        (unsigned)r->transport_specific, (unsigned)r->domain_number,
+        (unsigned)r->message_length, (unsigned)r->flags, clock_id,
+        (unsigned)r->source_port_number, (unsigned)r->sequence_id,
+        (unsigned)r->control_field, (int)r->log_message_interval,
+        (long long)r->correction_field);
+    return 1;
+}
+
 /* Cheap router-source admission only, not a transport/parser success result.
  * Caller supplies the normalized IP L4 span (never capture padding), behind
  * Ethernet/router-MAC and is_ip gates. Later dispatch still validates framing

@@ -236,7 +236,9 @@ jobs:
               assert bound in engine
           assert 'static inline int argos_network_routed4' in engine
           assert 'static inline int argos_network_routed6' in engine
-          assert len(engine) < 20000
+          # Canonical PTP ownership replaces the deleted staging header; source
+          # length is bounded here only to catch accidental bulk growth.
+          assert len(engine) <= 24165
           print('Network engine architecture/bounds: PASS')
           PY
 

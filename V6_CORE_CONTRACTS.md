@@ -311,7 +311,7 @@ scan, string lookup or selection state enters packet processing. Three focused A
 core 33975658784, L2 33975658739 and staging 33975658786 passed, including CI LeakSanitizer
 and ARM64 compile gates.
 
-### Fixed no-port/PTP readiness routes — candidate
+### Fixed no-port/PTP readiness routes — PR #43, `1b7fd4b699b91115005afdb04b0dae6bbb33632c`
 
 The fixed dispatch/BPF owners now model native PTP EtherType 0x88f7, UDP 319/320 in both directions,
 and IPv4 ESP/AH protocol 50/51. A bounded userspace IP-protocol switch resolves IGMP, ESP, AH, OSPF
@@ -325,7 +325,21 @@ runtime. Tests manually construct staging/HOLD masks solely to prove future rout
 the frozen legacy matrix remains identical. Local evidence: 297,940 no-port/PTP checks, 7,239,680
 legacy BPF comparisons, 1,024 kernel verifier configurations, all 75 strict tests and four focused
 ASan/UBSan runs. Full/stub text is 173626/161564 (+785/+701 from PR #42), data 3992 and BSS
-80360/78760 unchanged. LeakSanitizer and ARM64 compilation remain CI gates.
+80360/78760 unchanged. Core 33976100718, L2 33976100721 and staging 33976100714 passed,
+including LeakSanitizer and ARM64 compilation.
+
+### Canonical PTP runtime integration — candidate
+
+PTPv2 common-header parsing is folded into `argos_network.h`; native EtherType 0x88f7 and bounded
+UDP 319/320 payloads call the same parser and emit the existing bounded `ENT|...|PTP` envelope.
+The canonical bit controls runtime, BPF and independent rate mode. Parsing stops at the declared
+common-message slice and retains no payload/TLV or state. Profile counts return to full/sensor 67
+and home 36; thematic help derives an unstarred production entry from the same catalog.
+
+All unique staging fixtures move to permanent `test_ptp.c` and the native/UDP non-port contract.
+`src/argos_ptp.h` plus staging test/workflow references are deleted, leaving one implementation.
+Current full/stub text is 175294/163248 (+1668/+1684 from PR #43), data 3992 and BSS
+80360/78760 unchanged. Full strict, sanitizer, LeakSanitizer and ARM64 gates remain required.
 
 ## Concrete blockers, not hypothetical architecture work
 
@@ -797,16 +811,15 @@ ratio 0.999 (8.113/8.122 ns); optional enabled 14.689 ns, inline alternative
 capture/hardware throughput remain separate release gates. This framing API is
 delivered, but the full packet contract and integration-readiness review remain open.
 
-PTP adapters should supply the same bounded message slice to the existing parser:
-native `[l3_offset,packet_end)` or UDP's declared payload. Use one protocol enable
-bit before parser/state access. A WireGuard custom port of 319 or an unrelated
-enabled port can incidentally admit the tuple today; this is not PTP integration.
-PTP common-header metadata is not full message-specific validity, and its staging
-result's clock/sequence/correction fields are not frozen fingerprint inputs.
+At this historical checkpoint, PTP adapters still needed to supply the same bounded
+message slice to one parser: native `[l3_offset,packet_end)` or UDP's declared payload.
+A WireGuard custom port of 319 could incidentally admit the tuple, which was not PTP
+integration. The canonical integration recorded above now supplies those adapters;
+common-header metadata still does not imply full message-specific validity.
 
 Current fixtures cover all-mask non-port admission and bounded builder failure,
 raw/Ethernet/VLAN/QinQ/PPPoE/SLL compatibility, alignment/truncation/padding,
-AH length fields/mixed chain/header loss/fragments and one isolated PTP parser
+AH length fields/mixed chain/header loss/fragments and the then-isolated PTP parser
 across native/UDP4/UDP6. PR #18 repairs interpreter out-of-range loads and adds
 kernel verifier/filter checks; neither step is AF_PACKET throughput or end-to-end emission coverage.
 Merged as PR #17, `2ac259284e5481d65ba852d943a000d2b24bfd32`. Core 33874404696,

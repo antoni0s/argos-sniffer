@@ -214,8 +214,10 @@ v6 requires an explicit user decision.
   shared ports use bounded owner resolution and TLS/DoT retain independent output/rate bits.
 - [x] Replace temporary coarse TCP/UDP BPF port-family flags with exact enabled-engine port
   projection while preserving safe VLAN, QinQ, PPPoE and IPv6 extension-header fallbacks.
-- [ ] Complete no-port/PTP runtime adoption. Fixed dispatch/BPF readiness covers native PTP,
-  UDP 319/320 and IPv4 ESP/AH; staged/HOLD CLI rejection remains until runtime owner/vector gates.
+- [x] Integrate PTP through one canonical network owner for native EtherType and UDP 319/320,
+  exact CLI/rate/BPF/legacy output, permanent fixtures and obsolete staging-header removal.
+- [ ] Complete ESP/AH no-port runtime adoption; fixed IPv4 routes remain behind HOLD until
+  main adapters and AH sidecar ownership pass readiness review.
 - [x] Keep heavy QUIC reassembly runtime opt-in with enabled-demand startup allocation;
   disabled/default paths remain allocation-free and packet handling never allocates.
 - [x] Add dispatcher fixtures for every current TCP/UDP port owner, both directions, aliases,
@@ -267,8 +269,9 @@ permanent one-protocol public modules. HOLD dependencies must be solved, not use
 the protocol from the release.
 
 1. **Low-rate network control and discovery**
-   - [ ] LLMNR, RIP, PTP. LLMNR requires a real UDP/TCP 5355 discovery owner and exact BPF
+   - [ ] LLMNR, RIP. LLMNR requires a real UDP/TCP 5355 discovery owner and exact BPF
      route; its earlier production label was corrected rather than exposing a no-op selector.
+   - [x] PTP integrated into the canonical network owner; staging header removed after fixture migration.
 2. **Management exporters**
    - [ ] Syslog, NetFlow, IPFIX, sFlow.
 3. **Application control protocols**
