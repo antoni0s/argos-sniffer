@@ -40,7 +40,8 @@ cryptographic keys.
   cohesive lifecycle owner in `argos_capture.h`; packet normalization, filters and BPF
   construction remain separate. This extraction does not freeze the full packet contract.
 - Thirty-seven standalone protocol headers are present as **runtime-isolated staging parsers**.
-  They are test inputs, not permission to add 37 permanent public engine boundaries.
+  They are temporary implementation units that must be integrated into v6 after readiness review,
+  not permission to add 37 permanent public engine boundaries.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
   fixtures.
 
@@ -153,6 +154,11 @@ completed extraction checkboxes do not mean the full contracts are frozen.
 planning/staging. `V6_PROTOCOL_INTEGRATION_MATRIX.md` is the master integration
 blueprint. Preserve all special holds and all privacy rules above.
 
+The readiness review is a sequencing and safety gate, not a scope decision. Every staged protocol
+listed in Phases 7–8 is committed to the v6 release. Known HOLD items remain in scope and require
+their stated capture/dispatch dependency to be resolved before promotion; removing a protocol from
+v6 requires an explicit user decision.
+
 ### Phase 1 — Finish the engine architecture
 
 - [x] Extract the compile-once userspace filter engine; retain fixed-stack inline matching.
@@ -247,11 +253,13 @@ not connected as duplicate parsers:
 Keep the strongest bounded parser, preserve existing wire output until Phase 6, then remove the
 redundant staging header.
 
-### Phase 8 — Integrate isolated engines by risk/value group
+### Phase 8 — Integrate all isolated engines by risk/value group
 
-Each group gets its own staged gate, port/BPF matrix, flow-complete policy, privacy assertions and
-native/ARM64 validation. The standalone files should be folded into the appropriate cohesive
-engine facade during integration rather than becoming permanent one-protocol public modules.
+Every protocol in this list must be promoted into v6. Each group gets its own staged gate, port/BPF
+matrix, flow-complete policy, privacy assertions and native/ARM64 validation. The standalone files
+must be folded into the appropriate cohesive engine facade during integration rather than becoming
+permanent one-protocol public modules. HOLD dependencies must be solved, not used to silently omit
+the protocol from the release.
 
 1. **Low-rate network control plane**
    - [ ] RIP, PTP.
@@ -401,3 +409,6 @@ A protocol is not considered integrated merely because its parser compiles. Comp
 - collector acceptance and inventory mapping;
 - native, sanitizer and ARM64 gates;
 - removal or folding of the isolated staging header when its owning engine is established.
+
+The v6 release is not complete while any staged protocol above remains only an isolated header,
+unless the user explicitly removes that protocol from v6 scope.

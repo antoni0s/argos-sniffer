@@ -231,7 +231,9 @@ caller to have its canonical gate nearby. The exhaustive dispatch fixture pins e
 discriminator and enabled/unrated behavior. All 75 strict tests and full/stub builds pass;
 transport ratios are 0.931 disabled and 0.914 enabled, network ratios remain 0.621–0.890,
 and AH-disabled decode is 1.018 of frozen. Full/stub text is 166273/154211 (+708/+656 from
-PR #36), data 3832 and BSS 80360/78760 unchanged. BPF and remaining TCP/UDP callers stay open.
+PR #36), data 3832 and BSS 80360/78760 unchanged. Core 33970823850, L2 33970823827 and
+staging 33970823831 PASS, including LeakSanitizer and ARM64 compilation. BPF and remaining
+TCP/UDP callers stay open; no isolated staging parser became reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 
@@ -763,6 +765,10 @@ commit); ARM64 fixtures compiled, not executed. ESP/AH/PTP remain runtime-isolat
 
 ## Preliminary integration readiness (not the final post-freeze review)
 
+All staged protocols in the master matrix are intended for v6 runtime integration. This review
+chooses the safe order, canonical owner and required adaptations; it is not a later decision about
+whether those protocols will be included. HOLD dependencies must be closed before their rows ship.
+
 1. **Immediately runtime-ready staging parsers: none.** Core gates remain open.
 2. LLDP-MED/LACP/STP require reconciliation with the canonical L2 engine. STP
    normalization was repaired in PR #7; keep exactly one runtime parser per protocol.
@@ -785,7 +791,8 @@ After core freeze, use the master matrix's integration order: overlapping L2
 reconciliation → RIP/PTP (subject to reachability) → exporters → application
 control → media → enterprise storage/directory → industrial → IoT → VPN.
 TLS enrichment is a separate bounded step after the TLS/public-observation freeze.
-No dependency is waived by a protocol's position in that sequence.
+No dependency is waived by a protocol's position in that sequence, and no staged protocol may be
+silently omitted from v6 because its integration requires adaptation.
 
 ## Missing acceptance tests before final readiness review
 

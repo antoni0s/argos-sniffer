@@ -1,8 +1,9 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `3ed23e21…` (PR #36).
+Branch: `version-6`. Verified checkpoint: `8d774aad…` (PR #37).
 **Now:** canonical BPF projection, then remaining TCP/UDP per-engine runtime gates (C4).
-**Not yet:** full core freeze or staging runtime integration.
+**Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
+protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
 
@@ -43,7 +44,7 @@ Branch: `version-6`. Verified checkpoint: `3ed23e21…` (PR #36).
 - [x] Generated bounded help owner and pre-runtime help/version paths — PR #34.
 - [x] Existing legacy CLI/default/all/enterprise/features compile through canonical masks once before capture; coarse runtime behavior remains equivalent and selection state cannot enter packet processing — PR #35.
 - [x] Fixed 48-byte startup dispatch plan derives bounded L2/L3/L4 route demand from canonical masks; exhaustive bit/call-counter fixtures keep disabled protocols outside parser/state work — PR #36.
-- [x] Native-L2 and non-port network callers use individual canonical bits before parser work; ARP/NDP owner allocation and per-engine rate mode follow the fixed plan. BPF and port-driven callers remain open.
+- [x] Native-L2 and non-port network callers use individual canonical bits before parser work; ARP/NDP owner allocation and per-engine rate mode follow the fixed plan — PR #37. BPF and port-driven callers remain open.
 
 ## How to update — mandatory
 
@@ -189,12 +190,15 @@ Branch: `version-6`. Verified checkpoint: `3ed23e21…` (PR #36).
   fingerprint_inputs, max_packets, max_bytes, state_bytes, timeout_ms, complete_when, drop_when,
   privacy_assertions, fixtures, collector_mapping. No planned owners/triggers treated as facts.
 - [ ] Eight-part exit review: frozen contracts; exact source/API changes; immediately ready parsers;
-  adaptations; holds; safe order; newly exact matrix entries; missing tests. No mass integration before this.
+  adaptations; holds; safe order; newly exact matrix entries; missing tests. No mass integration before
+  this; the review controls safe order and required adaptations, not whether staged v6 protocols ship.
 
 ## After core freeze — integration order
 
-Each item requires ALL C10 row fields, CLI/help/BPF, budgets/fast-drop/privacy, collector/vector
-fixtures and gates; fold/remove temporary staging headers only after canonical ownership is proven.
+All staged protocol engines below are committed v6 scope, not optional future ideas. Each item requires
+ALL C10 row fields, CLI/help/BPF, budgets/fast-drop/privacy, collector/vector fixtures and gates;
+fold/remove temporary staging headers only after canonical ownership is proven. HOLD means its named
+dependency must be resolved before integration, not that the protocol is dropped from v6.
 
 - [ ] Reconcile LLDP-MED/LACP/STP fixture-by-fixture with canonical L2; one runtime parser, old wire preserved.
 - [ ] RIP/PTP (PTP dual-path prerequisite).
@@ -253,15 +257,16 @@ parser/state gates; retain exact legacy output/equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** PR #37 carries the native-L2/non-port slice; canonical BPF projection is next.
-Staging runtime integration remains blocked on the core review.
-PR #36: core 33970212966, L2 33970212932, staging 33970212929 PASS.
-Native full/stub text 165565/153555; data 3832; BSS 80360/78760. Current listed
+**Pending:** `v6-c4-bpf-projection` is the active branch; its current commit is documentation-only,
+not yet a BPF implementation candidate or PR.
+All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
+review; their current isolation is temporary.
+PR #37: core 33970823850, L2 33970823827, staging 33970823831 PASS.
+Native full/stub text 166273/154211; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
-tests reject selection access in packet processing. The dispatch owner is 48 bytes and the first
-runtime slice covers native-L2 plus NDP/RA/IGMP/MLD/OSPF/VRRP. Local full/stub text is
-166273/154211 (+708/+656), data/BSS unchanged. BPF and TCP/UDP wiring remain open.
+tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first
+runtime slice covers native-L2 plus NDP/RA/IGMP/MLD/OSPF/VRRP. BPF and TCP/UDP wiring remain open.
 Protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.
