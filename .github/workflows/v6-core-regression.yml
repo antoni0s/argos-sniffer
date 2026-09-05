@@ -83,10 +83,10 @@ jobs:
       - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # C3 help candidate: canonical generated membership and preflight paths.
+          # C4 legacy runtime adoption: canonical masks project once before capture.
           # CPU/latency and ownership take priority over tiny text differences.
-          # +6214 text/+2424 data for generated, bounded-width thematic help; no packet-path use,
+          # +936 text for startup projection; unchanged packet-loop source/BSS,
           # no extra headroom and no BSS increase.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 163774
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 164710
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360

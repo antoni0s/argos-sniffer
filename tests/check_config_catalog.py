@@ -5,6 +5,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 backlog = (ROOT / "V6_BACKLOG.md").read_text(encoding="utf-8")
 header = (ROOT / "src/argos_config.h").read_text(encoding="utf-8")
+main_source = (ROOT / "src/argos-sniffer.c").read_text(encoding="utf-8")
 
 taxonomy = backlog.split("## Canonical CLI taxonomy backlog", 1)[1]
 taxonomy = taxonomy.split("## Canonical vector schema backlog", 1)[0]
@@ -51,4 +52,20 @@ for group_id, protocol_id in re.findall(
 assert actual == expected, "V6_BACKLOG taxonomy and argos_config catalog differ"
 assert len(protocols) == 101
 assert len(actual) == 28
+
+# Runtime adoption gate: legacy argv flags must compile through the canonical
+# owner once, then project to the unchanged coarse dispatcher before capture.
+required_main_markers = (
+    "argos_cli_selection_init(&cli_selection)",
+    "argos_cli_selection_apply_legacy(&cli_selection",
+    "argos_cli_selection_apply_legacy_all(&cli_selection",
+    "argos_cli_selection_finalize(&cli_selection)",
+    "argos_cli_legacy_category_enabled(&cli_selection",
+    "argos_cli_legacy_category_rate_limited(&cli_selection",
+)
+for marker in required_main_markers:
+    assert marker in main_source, f"missing runtime config adoption marker: {marker}"
+assert "opt_syn = opt_multi = opt_dhcp" not in main_source
+packet_loop = main_source.split("argos_capture_open(&capture", 1)[1]
+assert "cli_selection" not in packet_loop, "selection compiler leaked into packet processing"
 print("Canonical config catalog matches V6_BACKLOG taxonomy: PASS")
