@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#define ARGOS_DEFAULT_RATE_LIMIT_SECONDS 35
+
 /* Canonical v6 selection taxonomy. This catalog is control-plane data: CLI/help
  * may scan it during startup, while packet processing receives only the fixed
  * bitmap. Protocol status describes current source truth and never enables a
