@@ -356,6 +356,39 @@ int main(void) {
     assert(argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_TLS));
     assert(!argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));
 
+    for (unsigned category = 0; category < ARGOS_LEGACY_CATEGORY_COUNT; ++category) {
+        argos_cli_selection_init(&cli);
+        argos_cli_selection_apply_legacy(&cli, (argos_legacy_category_id_t)category, 0);
+        assert(argos_cli_legacy_category_enabled(&cli,
+                                                (argos_legacy_category_id_t)category));
+        assert(argos_cli_legacy_category_rate_limited(
+            &cli, (argos_legacy_category_id_t)category));
+        argos_cli_selection_apply_legacy(&cli, (argos_legacy_category_id_t)category, 1);
+        assert(argos_cli_legacy_category_enabled(&cli,
+                                                (argos_legacy_category_id_t)category));
+        assert(!argos_cli_legacy_category_rate_limited(
+            &cli, (argos_legacy_category_id_t)category));
+        for (unsigned other = 0; other < ARGOS_LEGACY_CATEGORY_COUNT; ++other)
+            if (other != category)
+                assert(!argos_cli_legacy_category_enabled(
+                    &cli, (argos_legacy_category_id_t)other));
+    }
+
+    argos_cli_selection_init(&cli);
+    argos_cli_selection_apply_legacy_all(&cli, 1);
+    for (unsigned category = ARGOS_LEGACY_CATEGORY_SYN;
+         category <= ARGOS_LEGACY_CATEGORY_L2; ++category) {
+        assert(argos_cli_legacy_category_enabled(
+            &cli, (argos_legacy_category_id_t)category));
+        assert(!argos_cli_legacy_category_rate_limited(
+            &cli, (argos_legacy_category_id_t)category));
+    }
+    assert(!argos_cli_legacy_category_enabled(&cli,
+                                              ARGOS_LEGACY_CATEGORY_ENTERPRISE));
+    argos_cli_selection_apply_legacy(&cli, ARGOS_LEGACY_CATEGORY_TLS, 0);
+    assert(argos_cli_legacy_category_rate_limited(&cli, ARGOS_LEGACY_CATEGORY_TLS));
+    assert(!argos_cli_legacy_category_rate_limited(&cli, ARGOS_LEGACY_CATEGORY_DNS));
+
     puts("Canonical config catalog/bitmap contracts: PASS");
     return 0;
 }

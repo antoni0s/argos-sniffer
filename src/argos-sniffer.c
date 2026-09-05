@@ -867,6 +867,8 @@ int main(int argc, char *argv[]) {
     int max_packets = 0, packet_count = 0;
     int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
+    argos_cli_selection_t cli_selection;
+    argos_cli_selection_init(&cli_selection);
     argos_runtime_config_t runtime_cfg;
     argos_runtime_config_init(&runtime_cfg);
     int opt;
@@ -891,7 +893,11 @@ int main(int argc, char *argv[]) {
      * than telemetry categories, and -x/-z/-Z compile capture filters. */
     while ((opt = getopt_long(argc, argv, "i:r:R:x:z:Z:o:u:U:c:f:sSmMdDnNqQhHtTlLvVpaAWE", long_options, NULL)) != -1) {
         switch (opt) {
-            case OPT_SENSOR: opt_sensor_mode = 1; opt_promisc = 1; break;
+            case OPT_SENSOR:
+                opt_sensor_mode = 1; opt_promisc = 1;
+                argos_cli_selection_apply_feature(&cli_selection,
+                                                  ARGOS_FEATURE_SENSOR_DEPLOYMENT, 0);
+                break;
             case OPT_SENSOR_NAME:
                 if (!valid_sensor_name(optarg)) {
                     fprintf(stderr, "Error: --sensor-name may contain only letters, digits, '.', '_' and '-' (max 63 chars).\n");
@@ -900,8 +906,18 @@ int main(int argc, char *argv[]) {
                 snprintf(sensor_name, sizeof(sensor_name), "%s", optarg);
                 break;
             case OPT_INSIDE: if (!add_inside_prefix(optarg)) goto cleanup_state; break;
-            case OPT_ENTERPRISE: argos_runtime_enable_enterprise(&runtime_cfg, 0); opt_v6 = 1; break;
-            case OPT_ENTERPRISE_VERBOSE: argos_runtime_enable_enterprise(&runtime_cfg, 1); opt_v6 = 1; break;
+            case OPT_ENTERPRISE:
+                argos_runtime_enable_enterprise(&runtime_cfg, 0);
+                argos_cli_selection_apply_legacy(&cli_selection,
+                                                 ARGOS_LEGACY_CATEGORY_ENTERPRISE, 0);
+                argos_cli_selection_apply_feature(&cli_selection, ARGOS_FEATURE_IPV6, 0);
+                break;
+            case OPT_ENTERPRISE_VERBOSE:
+                argos_runtime_enable_enterprise(&runtime_cfg, 1);
+                argos_cli_selection_apply_legacy(&cli_selection,
+                                                 ARGOS_LEGACY_CATEGORY_ENTERPRISE, 1);
+                argos_cli_selection_apply_feature(&cli_selection, ARGOS_FEATURE_IPV6, 0);
+                break;
             case OPT_IDENTITY:
                 if (!argos_identity_mode_parse(optarg, &runtime_cfg.identity_mode)) {
                     fprintf(stderr, "Error: --identity expects hash or raw (use --identity=hash or --identity=raw).\n");
@@ -919,7 +935,10 @@ int main(int argc, char *argv[]) {
                 }
                 runtime_cfg.wireguard_port = (uint16_t)v; runtime_cfg.wireguard_port_explicit = 1; break;
             }
-            case 'E': opt_ext_metrics = 1; break;
+            case 'E':
+                argos_cli_selection_apply_feature(&cli_selection,
+                                                  ARGOS_FEATURE_EXTENDED_METRICS, 0);
+                break;
             case 'i': iface = optarg; break;
             case 'R': 
                 if (hard_exclude_mac_count < MAX_HARD_EXCLUDE_MACS) {
@@ -977,42 +996,37 @@ int main(int argc, char *argv[]) {
             case 'c': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid packet count: %s\n", optarg); goto cleanup_state; } max_packets = (int)v; break; }
             case 'f': { char *end = NULL; long v = strtol(optarg, &end, 10); if (!end || *end || v < 0 || v > INT32_MAX) { fprintf(stderr, "Error: invalid deduplication window: %s\n", optarg); goto cleanup_state; } rate_limit_ttl = (int)v; break; }
             case 'p': opt_promisc = 1; break;
-            case 's': opt_syn = 1; opt_syn_rl = 1; break;
-            case 'S': opt_syn = 1; opt_syn_rl = 0; break;
-            case 'm': opt_multi = 1; opt_multi_rl = 1; break;
-            case 'M': opt_multi = 1; opt_multi_rl = 0; break;
-            case 'd': opt_dhcp = 1; opt_dhcp_rl = 1; break;
-            case 'D': opt_dhcp = 1; opt_dhcp_rl = 0; break;
-            case 'n': opt_netbios = 1; opt_netbios_rl = 1; break;
-            case 'N': opt_netbios = 1; opt_netbios_rl = 0; break;
-            case 'q': opt_dns = 1; opt_dns_rl = 1; break;
-            case 'Q': opt_dns = 1; opt_dns_rl = 0; break;
-            case 'h': opt_http = 1; opt_http_rl = 1; break;
-            case 'H': opt_http = 1; opt_http_rl = 0; break;
-            case 't': opt_tls = 1; opt_tls_rl = 1; break;
-            case 'T': opt_tls = 1; opt_tls_rl = 0; break;
-            case 'l': opt_l2 = 1; opt_l2_rl = 1; break;
-            case 'L': opt_l2 = 1; opt_l2_rl = 0; break;
+            case 's': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_SYN, 0); break;
+            case 'S': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_SYN, 1); break;
+            case 'm': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_MULTI, 0); break;
+            case 'M': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_MULTI, 1); break;
+            case 'd': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_DHCP, 0); break;
+            case 'D': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_DHCP, 1); break;
+            case 'n': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_NETBIOS, 0); break;
+            case 'N': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_NETBIOS, 1); break;
+            case 'q': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_DNS, 0); break;
+            case 'Q': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_DNS, 1); break;
+            case 'h': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_HTTP, 0); break;
+            case 'H': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_HTTP, 1); break;
+            case 't': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_TLS, 0); break;
+            case 'T': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_TLS, 1); break;
+            case 'l': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_L2, 0); break;
+            case 'L': argos_cli_selection_apply_legacy(&cli_selection, ARGOS_LEGACY_CATEGORY_L2, 1); break;
             case 'v':
-            case 'V': opt_v6 = 1; break;
-            case 'a':
-                opt_syn = opt_multi = opt_dhcp = opt_netbios = opt_dns = opt_http = opt_tls = opt_l2 = 1;
-                opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 1;
-                opt_v6 = 1; break;
-            case 'A':
-                opt_syn = opt_multi = opt_dhcp = opt_netbios = opt_dns = opt_http = opt_tls = opt_l2 = 1;
-                opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 0;
-                opt_v6 = 1; break;
-            case 'W': opt_quic_heavy = 1; break;    
+            case 'V': argos_cli_selection_apply_feature(&cli_selection, ARGOS_FEATURE_IPV6, 0); break;
+            case 'a': argos_cli_selection_apply_legacy_all(&cli_selection, 0); break;
+            case 'A': argos_cli_selection_apply_legacy_all(&cli_selection, 1); break;
+            case 'W':
+                argos_cli_selection_apply_feature(&cli_selection,
+                                                  ARGOS_FEATURE_QUIC_STATEFUL, 0);
+                break;
             default: argos_help_print_topic(stdout, ARGOS_HELP_BASE, argv[0], VERSION); goto cleanup_state;
         }
     }
 
     if (optind < argc) {
         iface = argv[optind++];
-        opt_syn = opt_multi = opt_dhcp = opt_netbios = opt_dns = opt_http = opt_tls = opt_l2 = 1;
-        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 1;
-        opt_v6 = 1;
+        argos_cli_selection_apply_legacy_all(&cli_selection, 0);
     }
 
     if (optind < argc) { fprintf(stderr, "Error: Unrecognized extra argument.\n"); goto cleanup_state; }
@@ -1042,17 +1056,37 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "warning: -z and -Z both given; -Z ignored in live sniffer mode.\n");
     }
 
+    if (!filter_mode1.is_active) argos_cli_selection_finalize(&cli_selection);
+
+#define ARGOS_PROJECT_LEGACY(name, category) \
+    do { \
+        opt_##name = argos_cli_legacy_category_enabled(&cli_selection, category); \
+        opt_##name##_rl = argos_cli_legacy_category_rate_limited(&cli_selection, category); \
+    } while (0)
+    ARGOS_PROJECT_LEGACY(syn, ARGOS_LEGACY_CATEGORY_SYN);
+    ARGOS_PROJECT_LEGACY(multi, ARGOS_LEGACY_CATEGORY_MULTI);
+    ARGOS_PROJECT_LEGACY(dhcp, ARGOS_LEGACY_CATEGORY_DHCP);
+    ARGOS_PROJECT_LEGACY(netbios, ARGOS_LEGACY_CATEGORY_NETBIOS);
+    ARGOS_PROJECT_LEGACY(dns, ARGOS_LEGACY_CATEGORY_DNS);
+    ARGOS_PROJECT_LEGACY(http, ARGOS_LEGACY_CATEGORY_HTTP);
+    ARGOS_PROJECT_LEGACY(tls, ARGOS_LEGACY_CATEGORY_TLS);
+    ARGOS_PROJECT_LEGACY(l2, ARGOS_LEGACY_CATEGORY_L2);
+#undef ARGOS_PROJECT_LEGACY
+    opt_v6 = argos_feature_selection_has(&cli_selection.features, ARGOS_FEATURE_IPV6);
+    opt_ext_metrics = argos_feature_selection_has(&cli_selection.features,
+                                                  ARGOS_FEATURE_EXTENDED_METRICS);
+    opt_quic_heavy = argos_feature_selection_has(&cli_selection.features,
+                                                 ARGOS_FEATURE_QUIC_STATEFUL);
+    runtime_cfg.enterprise_enabled = argos_cli_legacy_category_enabled(
+        &cli_selection, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
+    runtime_cfg.enterprise_rate_limited = argos_cli_legacy_category_rate_limited(
+        &cli_selection, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
+
     if (opt_ext_metrics) {
         if (!argos_runtime_state_enable_extended_metrics(&runtime_state)) {
             fprintf(stderr, "Error: unable to allocate extended-metrics state.\n");
             goto cleanup_state;
         }
-    }
-
-    if (!filter_mode1.is_active && !opt_syn && !opt_multi && !opt_dhcp && !opt_netbios && !opt_dns && !opt_http && !opt_tls && !opt_l2 && !runtime_cfg.enterprise_enabled) {
-        opt_syn = opt_multi = opt_dhcp = opt_netbios = 1;
-        opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = 1;
-        opt_v6 = 1;
     }
 
     /* Compile legacy dedup demand once, after defaults/option precedence.
