@@ -100,13 +100,18 @@ for route in (
     "ARGOS_DISPATCH_L2_ARP", "ARGOS_DISPATCH_L2_LLDP",
     "ARGOS_DISPATCH_L2_LLC", "ARGOS_DISPATCH_L2_SLOW",
     "ARGOS_DISPATCH_L2_EAPOL", "ARGOS_DISPATCH_L2_PROFINET",
+    "ARGOS_DISPATCH_L2_PTP",
     "ARGOS_DISPATCH_L3_IPV6", "ARGOS_DISPATCH_L3_IGMP",
     "ARGOS_DISPATCH_L3_OSPF", "ARGOS_DISPATCH_L3_VRRP",
+    "ARGOS_DISPATCH_L3_ESP", "ARGOS_DISPATCH_L3_AH",
     "ARGOS_DISPATCH_L4_TCP", "ARGOS_DISPATCH_L4_UDP",
 ):
     assert route in bpf_source, f"canonical BPF route missing: {route}"
 for fallback in ("0x8100", "0x88a8", "0x8864"):
     assert f"abpf_pass_ethertype(p, {fallback})" in bpf_source
+for readiness_marker in ("HAS(PTP)", "ARGOS_DISPATCH_L2_PTP",
+                         "ARGOS_DISPATCH_L3_ESP", "ARGOS_DISPATCH_L3_AH"):
+    assert readiness_marker in bpf_source, f"missing no-port/PTP readiness gate: {readiness_marker}"
 
 # First fine-grained consumer slice: every native-L2/non-port parser must have
 # its canonical engine gate in the immediately enclosing source region.

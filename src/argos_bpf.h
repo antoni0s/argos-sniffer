@@ -118,6 +118,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
     if (HAS(MDNS)) {
         ADD(ud, ud_n, 5353); ADD(us, us_n, 5353);
     }
+    if (HAS(PTP)) {
+        ADD(ud, ud_n, 319); ADD(us, us_n, 319);
+        ADD(ud, ud_n, 320); ADD(us, us_n, 320);
+    }
     argos_dispatch_plan_t transport_plan;
     memset(&transport_plan, 0, sizeof(transport_plan));
     transport_plan.protocols.enabled = cfg->protocols;
@@ -167,6 +171,8 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         EMIT(abpf_pass_ethertype(p, 0x888e)); /* EAPoL */
     if (cfg->l2_routes & ARGOS_DISPATCH_L2_PROFINET)
         EMIT(abpf_pass_ethertype(p, 0x8892)); /* PROFINET */
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_PTP)
+        EMIT(abpf_pass_ethertype(p, 0x88f7)); /* native IEEE 1588 PTP */
     EMIT(abpf_pass_ethertype(p, 0x8100)); /* VLAN */
     EMIT(abpf_pass_ethertype(p, 0x88a8)); /* QinQ */
     EMIT(abpf_pass_ethertype(p, 0x8864)); /* PPPoE session */
@@ -206,6 +212,14 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
     }
     if (cfg->l3_routes & ARGOS_DISPATCH_L3_VRRP) {
         EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 112, 0, 1));
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+    }
+    if (cfg->l3_routes & ARGOS_DISPATCH_L3_ESP) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 50, 0, 1));
+        EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+    }
+    if (cfg->l3_routes & ARGOS_DISPATCH_L3_AH) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 51, 0, 1));
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
     }
     EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));

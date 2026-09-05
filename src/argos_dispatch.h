@@ -16,7 +16,8 @@ enum {
     ARGOS_DISPATCH_L2_LLC      = UINT16_C(1) << 2,
     ARGOS_DISPATCH_L2_SLOW     = UINT16_C(1) << 3,
     ARGOS_DISPATCH_L2_EAPOL    = UINT16_C(1) << 4,
-    ARGOS_DISPATCH_L2_PROFINET = UINT16_C(1) << 5
+    ARGOS_DISPATCH_L2_PROFINET = UINT16_C(1) << 5,
+    ARGOS_DISPATCH_L2_PTP      = UINT16_C(1) << 6
 };
 
 enum {
@@ -25,7 +26,9 @@ enum {
     ARGOS_DISPATCH_L3_ICMPV6 = UINT16_C(1) << 2,
     ARGOS_DISPATCH_L3_IGMP   = UINT16_C(1) << 3,
     ARGOS_DISPATCH_L3_OSPF   = UINT16_C(1) << 4,
-    ARGOS_DISPATCH_L3_VRRP   = UINT16_C(1) << 5
+    ARGOS_DISPATCH_L3_VRRP   = UINT16_C(1) << 5,
+    ARGOS_DISPATCH_L3_ESP    = UINT16_C(1) << 6,
+    ARGOS_DISPATCH_L3_AH     = UINT16_C(1) << 7
 };
 
 enum {
@@ -81,6 +84,7 @@ static inline argos_protocol_id_t argos_dispatch_l2_protocol(uint16_t protocol)
         case 0x8809U: return ARGOS_PROTOCOL_LACP;
         case 0x888eU: return ARGOS_PROTOCOL_EAPOL;
         case 0x8892U: return ARGOS_PROTOCOL_PROFINET;
+        case 0x88f7U: return ARGOS_PROTOCOL_PTP;
         case 0x2000U: return ARGOS_PROTOCOL_CDP;
         case 0x00feU: return ARGOS_PROTOCOL_ISIS;
         case 0x00bbU: return ARGOS_PROTOCOL_EDP;
@@ -88,6 +92,30 @@ static inline argos_protocol_id_t argos_dispatch_l2_protocol(uint16_t protocol)
         default:
             return protocol <= 1500U ? ARGOS_PROTOCOL_STP : ARGOS_PROTOCOL_COUNT;
     }
+}
+
+/* Exact no-port IP owner resolution. HOLD bits can be characterized through
+ * this fixed switch without becoming selectable through the production CLI. */
+static inline argos_protocol_id_t argos_dispatch_ip_protocol_engine(
+    const argos_dispatch_plan_t *plan, uint8_t protocol)
+{
+    argos_protocol_id_t engine;
+    switch (protocol) {
+        case 2U: engine = ARGOS_PROTOCOL_IGMP; break;
+        case 50U: engine = ARGOS_PROTOCOL_ESP; break;
+        case 51U: engine = ARGOS_PROTOCOL_AH; break;
+        case 89U: engine = ARGOS_PROTOCOL_OSPF; break;
+        case 112U: engine = ARGOS_PROTOCOL_VRRP; break;
+        default: return ARGOS_PROTOCOL_COUNT;
+    }
+    return argos_dispatch_protocol_enabled(plan, engine) ? engine : ARGOS_PROTOCOL_COUNT;
+}
+
+static inline int argos_dispatch_ptp_udp_enabled(
+    const argos_dispatch_plan_t *plan, uint16_t sport, uint16_t dport)
+{
+    return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_PTP) &&
+           (sport == 319U || sport == 320U || dport == 319U || dport == 320U);
 }
 
 static inline int argos_dispatch_l2_frame_enabled(
@@ -247,12 +275,15 @@ static inline void argos_dispatch_plan_compile(
     if (ARGOS_DISPATCH_HAS(LACP)) plan->l2_routes |= ARGOS_DISPATCH_L2_SLOW;
     if (ARGOS_DISPATCH_HAS(EAPOL)) plan->l2_routes |= ARGOS_DISPATCH_L2_EAPOL;
     if (ARGOS_DISPATCH_HAS(PROFINET)) plan->l2_routes |= ARGOS_DISPATCH_L2_PROFINET;
+    if (ARGOS_DISPATCH_HAS(PTP)) plan->l2_routes |= ARGOS_DISPATCH_L2_PTP;
 
     if (ARGOS_DISPATCH_HAS(NDP) || ARGOS_DISPATCH_HAS(RA) || ARGOS_DISPATCH_HAS(MLD))
         plan->l3_routes |= ARGOS_DISPATCH_L3_ICMPV6;
     if (ARGOS_DISPATCH_HAS(IGMP)) plan->l3_routes |= ARGOS_DISPATCH_L3_IGMP;
     if (ARGOS_DISPATCH_HAS(OSPF)) plan->l3_routes |= ARGOS_DISPATCH_L3_OSPF;
     if (ARGOS_DISPATCH_HAS(VRRP)) plan->l3_routes |= ARGOS_DISPATCH_L3_VRRP;
+    if (ARGOS_DISPATCH_HAS(ESP)) plan->l3_routes |= ARGOS_DISPATCH_L3_ESP;
+    if (ARGOS_DISPATCH_HAS(AH)) plan->l3_routes |= ARGOS_DISPATCH_L3_AH;
 
     if (ARGOS_DISPATCH_HAS(SSH) || ARGOS_DISPATCH_HAS(KERBEROS) ||
         ARGOS_DISPATCH_HAS(SUNRPC) || ARGOS_DISPATCH_HAS(BGP) ||
@@ -288,11 +319,13 @@ static inline void argos_dispatch_plan_compile(
         ARGOS_DISPATCH_HAS(DHCP) || ARGOS_DISPATCH_HAS(DHCPV6) ||
         ARGOS_DISPATCH_HAS(NBNS) || ARGOS_DISPATCH_HAS(DNS) ||
         ARGOS_DISPATCH_HAS(QUIC) || ARGOS_DISPATCH_HAS(WIREGUARD) ||
+        ARGOS_DISPATCH_HAS(PTP) ||
         (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_UDP_OWNER) != 0U)
         plan->l4_routes |= ARGOS_DISPATCH_L4_UDP;
     if (plan->l4_routes != 0U ||
         (plan->l3_routes & (ARGOS_DISPATCH_L3_IGMP | ARGOS_DISPATCH_L3_OSPF |
-                            ARGOS_DISPATCH_L3_VRRP)) != 0U)
+                            ARGOS_DISPATCH_L3_VRRP | ARGOS_DISPATCH_L3_ESP |
+                            ARGOS_DISPATCH_L3_AH)) != 0U)
         plan->l3_routes |= ARGOS_DISPATCH_L3_IPV4;
     if (argos_feature_selection_has(&plan->features, ARGOS_FEATURE_IPV6) &&
         (plan->l4_routes != 0U ||
