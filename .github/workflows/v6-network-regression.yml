@@ -4,7 +4,7 @@ on:
   push:
     branches: [version-6]
   pull_request:
-    branches: [main]
+    branches: [version-6, main]
   workflow_dispatch:
 
 permissions:
@@ -43,6 +43,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_ntp.c -o /tmp/test-ntp
           /tmp/test-ntp
 
+      - name: RIP and RIPng control fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_rip.c -o /tmp/test-rip
+          /tmp/test-rip
+
       - name: WireGuard structural fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_wireguard.c -o /tmp/test-wireguard
@@ -73,6 +78,8 @@ jobs:
           /tmp/test-igmp-mld-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_ntp.c -o /tmp/test-ntp-san
           /tmp/test-ntp-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_rip.c -o /tmp/test-rip-san
+          /tmp/test-rip-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_wireguard.c -o /tmp/test-wireguard-san
           /tmp/test-wireguard-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_dns_track.c -o /tmp/test-dns-track-san
@@ -93,6 +100,7 @@ jobs:
           t=Path('src/argos_tls_ports.h').read_text()
           f=Path('src/argos_flow_state.h').read_text()
           s=Path('src/argos-sniffer.c').read_text()
+          n=Path('src/argos_network.h').read_text()
           hl=h.lower()
           assert 'ARGOS_STUN_TURN_UDP_PORT 3478U' in p
           assert 'case 3478: return ae_stun_turn' in h
@@ -151,5 +159,11 @@ jobs:
           assert 'tracked->valid = 0' in s
           assert 'flow_src_key' not in s and 'flow_dst_key' not in s and 'addr6_key(' not in s
           assert '(txid ^' not in s
+
+          assert 'ARGOS_NETWORK_RIP_MAX_MESSAGE 4096U' in n
+          assert 'password, digest, key identifiers and sequence data stay opaque' in n
+          assert 'version=ng command=%s entries=%u auth=- next_hop_present=%u' in n
+          assert 'emit_telemetry("RIP|%s|%s|%s|%s%s\\n"' in s
+          assert 'emit_telemetry("ENT|%s|%s|%s|RIP|' not in s
           print('Network visibility permanent privacy/suppression invariants: PASS')
           PY

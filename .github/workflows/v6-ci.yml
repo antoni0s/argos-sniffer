@@ -217,6 +217,8 @@ jobs:
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_network.c -o /tmp/test-network
           /tmp/test-network
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_rip.c -o /tmp/test-rip
+          /tmp/test-rip
           python3 - <<'PY'
           from pathlib import Path
           src = Path('src/argos-sniffer.c').read_text()
@@ -236,9 +238,9 @@ jobs:
               assert bound in engine
           assert 'static inline int argos_network_routed4' in engine
           assert 'static inline int argos_network_routed6' in engine
-          # Canonical PTP ownership replaces the deleted staging header; source
+          # Canonical PTP/RIP ownership replaces deleted staging headers; source
           # length is bounded here only to catch accidental bulk growth.
-          assert len(engine) <= 24165
+          assert len(engine) <= 28700
           print('Network engine architecture/bounds: PASS')
           PY
 
@@ -249,6 +251,10 @@ jobs:
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             tests/test_network.c -o /tmp/test-network-san
           /tmp/test-network-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            tests/test_rip.c -o /tmp/test-rip-san
+          /tmp/test-rip-san
 
       - name: Dynamic BPF functional matrix
         run: |

@@ -53,6 +53,7 @@ unbounded payload.
 | Telemetry event | 1,024 bytes | Per-call stack buffer; truncates to the existing bound. |
 | Sensor OBS envelope | 1,280 bytes | Per-call stack buffer only in sensor mode. No telemetry queue exists. Datagram sinks are nonblocking; stdout policy remains a C8 contract. |
 | LLDP-MED parse result | 768-byte detail within bounded automatic result storage | One L2 frame only; no heap, retained state, location, serial or asset identifier. The bound holds the frozen inventory vector without silent truncation. |
+| RIP/RIPng parse result | 144 bytes automatic storage; max 4,096-byte datagram / 204 RTE slots | One allocation-free linear scan; no retained state. Only auth type and bounded route shape survive parsing—never password, digest, key-id, sequence or route prefixes. |
 
 TLS, enterprise, L2, identity and the remaining network protocol parsers do not
 own retained flow tables in current production. Their result structures and

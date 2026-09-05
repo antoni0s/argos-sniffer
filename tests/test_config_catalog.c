@@ -110,6 +110,7 @@ int main(void) {
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_LLDP_MED].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_STP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_LACP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_RIP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_THREAD].status &
             ARGOS_PROTOCOL_STATUS_HOLD) != 0U);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_ESP].status &
@@ -124,15 +125,27 @@ int main(void) {
     assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
     assert(argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_DNS, 0));
     assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
-    assert(!argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_RIP, 1));
-    assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_RIP));
+    assert(argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_RIP, 1));
+    assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_RIP));
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_RIP));
+
+    argos_protocol_selection_clear(&selection);
+    argos_cli_selection_t rip_cli;
+    argos_cli_selection_init(&rip_cli);
+    assert(argos_cli_selection_apply_named(
+        &rip_cli, ARGOS_CLI_SELECTOR_PROTOCOL, "rip"));
+    assert(argos_protocol_set_has(&rip_cli.protocols.enabled, ARGOS_PROTOCOL_RIP));
+    assert(!argos_protocol_set_has(&rip_cli.protocols.unrated, ARGOS_PROTOCOL_RIP));
+    assert(argos_cli_selection_apply_named(
+        &rip_cli, ARGOS_CLI_SELECTOR_PROTOCOL, "RIP"));
+    assert(argos_protocol_set_has(&rip_cli.protocols.unrated, ARGOS_PROTOCOL_RIP));
 
     argos_protocol_set_t routing;
     argos_group_protocol_mask(ARGOS_GROUP_ROUTING, &routing);
     argos_protocol_selection_apply_mask(&selection, &routing, 1);
     assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_BGP));
     assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_OSPF));
-    assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_RIP));
+    assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_RIP));
 
     argos_protocol_set_t all_production;
     argos_production_protocol_mask(&all_production);
@@ -247,7 +260,7 @@ int main(void) {
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
 
     static const size_t expected_profile_counts[ARGOS_PROFILE_COUNT] = {
-        7U, 16U, 67U, 36U, 50U, 67U
+        7U, 16U, 68U, 36U, 50U, 68U
     };
     for (unsigned profile_id = 0; profile_id < ARGOS_PROFILE_COUNT; ++profile_id) {
         assert(argos_profile_selection((argos_profile_id_t)profile_id,
@@ -312,8 +325,8 @@ int main(void) {
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROFILE, "home"));
     assert(bit_count(&cli.protocols.enabled) == 36U);
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_GROUP, "routing"));
-    assert(bit_count(&cli.protocols.enabled) == 39U);
-    assert(!argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_RIP));
+    assert(bit_count(&cli.protocols.enabled) == 40U);
+    assert(argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_RIP));
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "DNS"));
     assert(argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));
     assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "dns"));
@@ -337,7 +350,7 @@ int main(void) {
 
     argos_cli_selection_t cli_before = cli;
     assert(!argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_GROUP, "IDENTITY"));
-    assert(!argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "rip"));
+    assert(!argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "Rip"));
     assert(!argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "llmnr"));
     assert(!argos_cli_selection_apply_named(&cli, (argos_cli_selector_kind_t)99, "dns"));
     assert(memcmp(&cli, &cli_before, sizeof(cli)) == 0);

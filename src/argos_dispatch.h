@@ -206,6 +206,7 @@ static inline argos_protocol_id_t argos_dispatch_udp_port_engine(
     uint16_t port = dport;
     switch (port) {
         case 88: case 111: case 123: case 161: case 162: case 389: case 427:
+        case 520: case 521:
         case 623: case 1812: case 1813: case 1985: case 2049: case 3478:
         case 5060: case 5678: case 5683: case 44818: case 47808:
             break;
@@ -218,6 +219,7 @@ static inline argos_protocol_id_t argos_dispatch_udp_port_engine(
         case 161: case 162: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SNMP) ? ARGOS_PROTOCOL_SNMP : ARGOS_PROTOCOL_COUNT;
         case 389: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_CLDAP, ARGOS_PROTOCOL_NETLOGON, ARGOS_PROTOCOL_COUNT);
         case 427: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_VMWARE_SLP) ? ARGOS_PROTOCOL_VMWARE_SLP : ARGOS_PROTOCOL_COUNT;
+        case 520: case 521: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RIP) ? ARGOS_PROTOCOL_RIP : ARGOS_PROTOCOL_COUNT;
         case 623: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_IPMI, ARGOS_PROTOCOL_RMCP, ARGOS_PROTOCOL_ASF);
         case 1812: case 1813: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RADIUS) ? ARGOS_PROTOCOL_RADIUS : ARGOS_PROTOCOL_COUNT;
         case 1985: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_HSRP) ? ARGOS_PROTOCOL_HSRP : ARGOS_PROTOCOL_COUNT;
@@ -306,7 +308,8 @@ static inline void argos_dispatch_plan_compile(
         ARGOS_DISPATCH_HAS(NFS) || ARGOS_DISPATCH_HAS(STUN_TURN) ||
         ARGOS_DISPATCH_HAS(SIP) || ARGOS_DISPATCH_HAS(MNDP) ||
         ARGOS_DISPATCH_HAS(COAP) || ARGOS_DISPATCH_HAS(ETHERNET_IP) ||
-        ARGOS_DISPATCH_HAS(CIP) || ARGOS_DISPATCH_HAS(BACNET))
+        ARGOS_DISPATCH_HAS(CIP) || ARGOS_DISPATCH_HAS(BACNET) ||
+        ARGOS_DISPATCH_HAS(RIP))
         plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_UDP_OWNER;
 
     if (argos_feature_selection_has(&plan->features, ARGOS_FEATURE_TCP_SYN) ||

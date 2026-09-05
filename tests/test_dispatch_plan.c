@@ -103,10 +103,11 @@ int main(void)
     assert(argos_dispatch_protocol_enabled(&plan, ARGOS_PROTOCOL_BGP));
     assert(argos_dispatch_protocol_enabled(&plan, ARGOS_PROTOCOL_OSPF));
     assert(argos_dispatch_protocol_enabled(&plan, ARGOS_PROTOCOL_ISIS));
-    assert(!argos_dispatch_protocol_enabled(&plan, ARGOS_PROTOCOL_RIP));
+    assert(argos_dispatch_protocol_enabled(&plan, ARGOS_PROTOCOL_RIP));
     assert(argos_dispatch_l2_enabled(&plan, ARGOS_DISPATCH_L2_LLC));
     assert(argos_dispatch_l3_enabled(&plan, ARGOS_DISPATCH_L3_OSPF));
     assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
+    assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_UDP));
     assert(argos_dispatch_l2_frame_enabled(&plan, 0x00feU));
     assert(!argos_dispatch_l2_frame_enabled(&plan, 0x888eU));
 
@@ -179,6 +180,7 @@ int main(void)
         {88U, ARGOS_PROTOCOL_KERBEROS}, {111U, ARGOS_PROTOCOL_SUNRPC},
         {123U, ARGOS_PROTOCOL_NTP}, {161U, ARGOS_PROTOCOL_SNMP},
         {162U, ARGOS_PROTOCOL_SNMP}, {389U, ARGOS_PROTOCOL_CLDAP},
+        {520U, ARGOS_PROTOCOL_RIP}, {521U, ARGOS_PROTOCOL_RIP},
         {427U, ARGOS_PROTOCOL_VMWARE_SLP}, {623U, ARGOS_PROTOCOL_IPMI},
         {1812U, ARGOS_PROTOCOL_RADIUS}, {1813U, ARGOS_PROTOCOL_RADIUS},
         {1985U, ARGOS_PROTOCOL_HSRP}, {2049U, ARGOS_PROTOCOL_NFS},

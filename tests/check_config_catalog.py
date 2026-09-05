@@ -156,6 +156,7 @@ for parser, gate in {
     "argos_enterprise_parse_udp(": "udp_engine < ARGOS_PROTOCOL_COUNT",
     "argos_identity_ntlm_type3(": "ARGOS_PROTOCOL_NTLM",
     "argos_identity_radius_access_request(": "ARGOS_PROTOCOL_RADIUS",
+    "argos_network_rip_parse(": "udp_engine == ARGOS_PROTOCOL_RIP",
 }.items():
     call = packet_loop.index(parser)
     assert gate in packet_loop[max(0, call - 1800):call], f"{parser} lacks {gate} gate"
@@ -169,6 +170,11 @@ assert "l3_proto == 0x88f7U" in main_source
 assert 'dedup_should_suppress(mac, "PTP",' in main_source
 assert 'emit_telemetry("PTP|%s|%s|%s|%s%s\\n"' in main_source
 assert 'emit_telemetry("ENT|%s|%s|%s|PTP|' not in main_source
+assert 'argos_network_rip_parse(' in main_source
+assert 'argos_network_ripng_parse(' in main_source
+assert 'dedup_should_suppress(mac_str, "RIP", rip.detail' in main_source
+assert 'emit_telemetry("RIP|%s|%s|%s|%s%s\\n"' in main_source
+assert 'emit_telemetry("ENT|%s|%s|%s|RIP|' not in main_source
 for vector in ("LLDP-MED", "STP", "LACP"):
     assert f'dedup_should_suppress(mac_str, "{vector}"' in main_source
     assert f'emit_telemetry("{vector}|%s|-|-|%s%s\\n"' in main_source

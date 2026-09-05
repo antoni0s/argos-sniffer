@@ -59,7 +59,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | routing | bgp | production | network/routing owner | TCP 179 | BGP: message type, version/open capabilities/ASN class if already observed; fingerprint = capability set | complete after OPEN for fingerprinting | never parse bulk UPDATE payload beyond bounded metadata |
 | routing | ospf | production | network/routing owner | IP proto 89 | OSPF: version/type/router-id/area/options | one bounded control packet | no LSDB reconstruction |
 | routing | isis | production | network/l2-routing owner | native L2 IS-IS | ISIS: PDU type, system-id/area/capabilities | one bounded PDU | TLV bounds |
-| routing | rip | staging | fold into `argos_network.h` | UDP 520 / 521 where applicable | `RIP`: version, command, entries, auth, next_hop_present; fingerprint = version + auth mode + bounded route-entry shape | first control packet / bounded entries | never emit auth secret material |
+| routing | rip | production | `argos_network.h` | IPv4 UDP 520 / IPv6 UDP 521, either direction | `RIP|src_mac|src_ip|dst_ip|version=<1\|2\|ng> command=<request\|response> entries=<n> auth=<none\|simple\|md5\|-> next_hop_present=<0\|1>[\|routed]`; fingerprint = complete bounded detail tuple | one datagram, max 4,096 bytes / 204 fixed-width RTE slots; no retained state | authentication type only; never retain or emit password, digest, key-id, sequence or route prefixes; permanent strict/sanitizer/BPF/ARM64 fixtures |
 | redundancy | vrrp | production | network owner | IP proto 112 | VRRP: version/type/VRID/priority/address count | one packet | bounded addresses |
 | redundancy | hsrp | production | network owner | UDP 1985/2029 as verified | HSRP: version/state/group/priority/virtual IP | one message | version fixtures |
 | time | ntp | production | network/time owner | UDP 123 | NTP: version/mode/stratum/refid class; fingerprint = mode/version/implementation hints only if stable | one request/response | never treat timestamps as device identity |
@@ -221,7 +221,7 @@ This checklist is mandatory v6 delivery scope. Complete every group in order; a 
 until the prerequisite is implemented but does not remove it from the release.
 
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
-2. **Low-rate network control** — RIP. PTP is integrated in the canonical network owner.
+2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
 3. **Management exporters** — Syslog, NetFlow, IPFIX, sFlow.
 4. **Application control** — HTTP proxy, Telnet, VNC, WinRM, LPD.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.

@@ -122,6 +122,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         ADD(ud, ud_n, 319); ADD(us, us_n, 319);
         ADD(ud, ud_n, 320); ADD(us, us_n, 320);
     }
+    if (HAS(RIP)) {
+        ADD(ud, ud_n, 520); ADD(us, us_n, 520);
+        ADD(ud, ud_n, 521); ADD(us, us_n, 521);
+    }
     argos_dispatch_plan_t transport_plan;
     memset(&transport_plan, 0, sizeof(transport_plan));
     transport_plan.protocols.enabled = cfg->protocols;

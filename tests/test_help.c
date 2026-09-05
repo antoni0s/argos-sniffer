@@ -73,6 +73,8 @@ int main(void) {
     }
     render_topic(ARGOS_HELP_NETWORK, output, sizeof(output));
     assert(strstr(output, "llmnr*"));
+    assert(output_has_protocol(output, output + strlen(output), "rip"));
+    assert(!strstr(output, "rip*"));
     assert(output_has_protocol(output, output + strlen(output), "ptp"));
     assert(!strstr(output, "ptp*"));
 

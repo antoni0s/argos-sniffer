@@ -134,7 +134,7 @@ NETWORK
       igmp, mld
 
   --routing
-      bgp, ospf, isis, rip*
+      bgp, ospf, isis, rip
 
   --redundancy
       vrrp, hsrp
