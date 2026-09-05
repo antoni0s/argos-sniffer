@@ -76,6 +76,14 @@ traffic does not enter the unrelated HTTP/TLS completion parsers. The selected
 proxy SYN admission restores generation reset without enabling SYN telemetry;
 co-selected protocols retain shared completion, expiry and eviction semantics.
 
+Telnet reuses the existing directional application owner and shared 538-byte
+result. Only the first nonempty payload is inspected (success or failure),
+through at most 1,024 bytes and 16 initial IAC commands. The fixed negotiation
+scratch is 160 bytes; subnegotiation values are walked only for framing, never
+copied. No retained-state growth, allocation or reassembly. Normal/quoted data
+ends inspection; malformed/truncated input emits nothing. Exact selected SYN
+admission enables generation reset; expiry/eviction and shared completion apply.
+
 ## Verified semantics and remaining byte work
 
 LPD reuses the existing directional application/DONE table, with **one** payload

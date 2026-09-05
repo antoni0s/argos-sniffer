@@ -1,5 +1,10 @@
 # Argos Sniffer v6 — Help System Backlog
 
+The agreed title is `argos-sniffer v6.0`, with subtitle
+`Passive network fingerprinting & telemetry engine`. Keep the executable name
+`argos-sniffer`; display the development build separately in help/version output.
+The generated help owner supplies these labels, and README uses the same title.
+
 This document defines the v6 CLI help layout. The config/bitmap and fine-grained dispatch gates are
 now stable enough for the qualified runtime selectors; staged `*` entries remain visible but
 unselectable until their individual integration gates pass.
@@ -217,9 +222,10 @@ the canonical enterprise super-group.
 
 ### `--help-application`
 
-LPD is production in `printing` and HTTP proxy in `web`; their markers are removed
-by the catalog. Full/sensor contain 74 protocols and home contains 38.
-Telnet, VNC and WinRM remain staged until their own integration gates.
+LPD is production in `printing`, HTTP proxy in `web`, and Telnet in `remote-access`;
+the catalog removes their staging markers. Full/sensor contain 75 protocols and
+home contains 38 (remote-access is not a home group). VNC and WinRM remain
+staged until their own integration gates.
 
 Must expose only the application super-group and its groups:
 

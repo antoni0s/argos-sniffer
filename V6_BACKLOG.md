@@ -1,5 +1,10 @@
 # Argos Sniffer v6 — Architecture and Integration Backlog
 
+Canonical product title: `argos-sniffer v6.0`. Subtitle:
+`Passive network fingerprinting & telemetry engine`. Executable: `argos-sniffer`.
+Help/version/README must agree; the `6.0.0-dev` build label remains explicit until
+release acceptance is complete. Naming is part of every integration/help review.
+
 This is the ordered implementation backlog for the v6 engine architecture, CLI hierarchy,
 telemetry schema migration and isolated protocol engines. It is intentionally ordered by
 dependency and rollout safety rather than by protocol count.
@@ -395,7 +400,7 @@ Candidate vectors and their required metadata are:
 | RIP | `RIP|src_mac|src_ip|dst_ip|version=<1\|2\|ng> command=<request\|response> entries=<n> auth=<none\|simple\|md5\|-> next_hop_present=<0\|1>[\|routed]`; auth secrets and route prefixes are never retained/emitted |
 | PTP | version, message, domain, sequence, transport_specific, two_step, clock_identity |
 | HTTP-PROXY | frozen order: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
-| TELNET | command, option, negotiation, username |
+| TELNET | frozen order: command, option, negotiation, username |
 | VNC | protocol, version, security_types, selected_security, server_name, width, height |
 | WINRM | transport, wsman, soap, method, auth, username, encrypted |
 | LPD | frozen: `command=<restart\|receive-job\|short-queue\|long-queue\|remove-jobs> queue=<token> username=<agent\|->`, in this order |
@@ -428,6 +433,22 @@ normalized to basic/digest/ntlm/negotiate/bearer/other, or `-` when absent.
 TCP ports are 80/3128/8080/8118/8888 in both directions, independently gated from
 HTTP. Only a complete header block within 4,096 bytes can emit; the existing
 eight-payload directional budget and completion/SYN lifecycle apply. No reassembly.
+
+TELNET uses `TELNET|src_mac|src_ip|dst_ip|command=... option=... negotiation=... username=-[|routed]`.
+Command/option describe the first complete IAC command. Command is lowercase
+`nop|dm|brk|ip|ao|ayt|ec|el|ga|sb|will|wont|do|dont`; option is decimal 0..255
+for SB/WILL/WONT/DO/DONT and `-` otherwise. Negotiation is the wire-order,
+comma-separated list of at most 16 `command:option` pairs, including repeats;
+it describes observations, not agreed option state. Username is unknown (`-`).
+Only an initial contiguous IAC prefix is inspected, at most 1,024 bytes in the
+first nonempty payload per retained direction/generation on TCP 23. Ordinary
+text or escaped IAC data ends inspection; interactive data is never searched.
+SB must terminate with IAC SE; doubled IAC inside SB is escaped data. Incomplete
+or invalid commands within the inspected prefix reject the observation. No
+subnegotiation values, credentials, terminal strings, or bodies are retained.
+No reassembly; the 16-command prefix may omit subsequent negotiation. Framing
+follows [RFC 854](https://www.rfc-editor.org/rfc/rfc854.html). Unrated output does
+not lift the one-attempt ceiling; SYN/idle expiry/eviction permit a new generation.
 
 LPD uses `LPD|src_mac|src_ip|dst_ip|command=... queue=... username=...[|routed]`.
 Queue and agent are bounded ASCII tokens (95 and 63 bytes); record delimiters

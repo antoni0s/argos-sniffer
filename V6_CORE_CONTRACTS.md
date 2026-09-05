@@ -399,7 +399,23 @@ BSS 80360/78760 and main stack 84992 unchanged. Sharing serialization removes
 two duplicated TCP/UDP formatting blocks while preserving existing output.
 The bounded parser adds no allocation or retained RAM; full text guard 182320
 keeps the existing 52-byte compiler margin. No throughput gain is claimed.
-Telnet/VNC/WinRM remain open within the application-control group.
+VNC/WinRM remain open within the application-control group.
+
+### Application-control slice: Telnet
+
+The existing handshake/control owner parses only initial contiguous Telnet IAC
+commands with a 1,024-byte and 16-command ceiling. Invalid/truncated commands or
+unterminated SB reject output; SB escaped IAC framing is validated without copying
+values. Ordinary/quoted data ends inspection. Main gates TCP/23 independently
+from enterprise port ownership, preserves legacy source-port fallback, and stops
+the retained direction after its first attempt. Selected SYN admission resets the
+existing generation even without SYN telemetry. No new state/allocation/reassembly.
+Native TELNET field order and unknown username are frozen in V6_BACKLOG. Config
+membership drives remote-access/application help and rate/profile selection.
+Unique fixtures moved into permanent production parser/sink/bounds/state tests;
+staging source/includes/workflow entries are removed. Strict/sanitizer/LSan and
+ARM64 compile gates cover the replacement. Collector deployment and hardware
+acceptance remain open; this slice does not finish the application-control group.
 
 ### Application-control slice: HTTP proxy
 

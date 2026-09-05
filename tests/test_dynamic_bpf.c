@@ -245,6 +245,18 @@ int main(void) {
         expect(!pass(&p, pkt, udp4(pkt, 50000, port, 20)), "proxy excludes UDP");
     }
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "proxy excludes TLS");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 23, 0x18, 20)), "proxy excludes Telnet");
+    canonical_bpf("telnet", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build Telnet");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 23, 0x18, 3)), "Telnet request passes");
+    expect(pass(&p, pkt, tcp4(pkt, 23, 50000, 0x18, 3)), "Telnet response passes");
+    expect(pass(&p, pkt, tcp4(pkt, 50000, 23, 0x02, 0)), "Telnet SYN generation passes");
+    expect(pass(&p, pkt, tcp4(pkt, 23, 50000, 0x12, 0)), "Telnet reverse SYN passes");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 23, 0x10, 0)), "Telnet empty ACK drops");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "unrelated SYN drops");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 22, 0x18, 20)), "Telnet excludes SSH");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 8080, 0x18, 20)), "Telnet excludes proxy");
+    expect(!pass(&p, pkt, udp4(pkt, 50000, 23, 20)), "Telnet excludes UDP request");
+    expect(!pass(&p, pkt, udp4(pkt, 23, 50000, 20)), "Telnet excludes UDP response");
 
     legacy_bpf_config(1U << 0, 0, &c); expect(argos_bpf_build(&c, &p), "build SYN");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");

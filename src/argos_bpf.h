@@ -97,6 +97,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 
 #define HAS(protocol) argos_bpf_protocol_enabled(cfg, ARGOS_PROTOCOL_##protocol)
     if (HAS(HTTP)) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
+    if (HAS(TELNET)) { ADD(td, td_n, 23); ADD(ts, ts_n, 23); }
     if (HAS(HTTP_PROXY)) {
         for (unsigned i = 0; i < sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]); ++i) {
             ADD(td, td_n, ARGOS_HTTP_PROXY_TCP_PORTS[i]);
@@ -243,15 +244,18 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, ARGOS_TCP_CONTROL_MASK, 0, 1));
             EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
         }
-        if (!cfg->syn && HAS(HTTP_PROXY)) {
-            /* Admit generation boundaries only for the selected proxy ports. */
-            const unsigned count = sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]);
+        if (!cfg->syn && (HAS(HTTP_PROXY) || HAS(TELNET))) {
+            /* Admit generation boundaries only for these selected engines. */
+            const unsigned proxy_count = HAS(HTTP_PROXY) ? sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]) : 0;
+            const unsigned count = proxy_count + (HAS(TELNET) ? 1U : 0U);
             EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_IND, 27));
             EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, 0x02, 0, (uint8_t)(2U + 2U * count)));
             for (unsigned direction = 0; direction < 2; ++direction) {
                 EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, direction ? 14 : 16));
-                for (unsigned i = 0; i < count; ++i)
+                for (unsigned i = 0; i < proxy_count; ++i)
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_HTTP_PROXY_TCP_PORTS[i], UINT8_MAX, 0));
+                if (HAS(TELNET))
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 23, UINT8_MAX, 0));
             }
         }
         if (td_n || ts_n) {
