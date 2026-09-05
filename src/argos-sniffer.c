@@ -145,6 +145,7 @@ static const char *argos_native_vector(argos_protocol_id_t protocol) {
         case ARGOS_PROTOCOL_IPFIX: return "IPFIX";
         case ARGOS_PROTOCOL_SFLOW: return "SFLOW";
         case ARGOS_PROTOCOL_LPD: return "LPD";
+        case ARGOS_PROTOCOL_HTTP_PROXY: return "HTTP-PROXY";
         default: return NULL;
     }
 }
@@ -1556,6 +1557,7 @@ int main(int argc, char *argv[]) {
                 uint16_t dport = transport.dport, sport = transport.sport;
                 int tcp_hl = transport.header_len;
                 int payload_offset = transport.payload_offset, payload_len = transport.payload_len;
+                int proxy_tcp = argos_dispatch_http_proxy_enabled(&dispatch_plan, sport, dport);
                 int http_tcp = argos_dispatch_protocol_enabled(
                     &dispatch_plan, ARGOS_PROTOCOL_HTTP) &&
                     (dport == 80U || dport == 8080U);
@@ -1574,7 +1576,7 @@ int main(int argc, char *argv[]) {
                      (dport == 88U && argos_dispatch_protocol_enabled(
                         &dispatch_plan, ARGOS_PROTOCOL_KERBEROS)));
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
-                                   http_tcp || tls_tcp || dot_tcp ||
+                                   http_tcp || proxy_tcp || tls_tcp || dot_tcp ||
                                    tcp_engine < ARGOS_PROTOCOL_COUNT || identity_tcp;
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
@@ -1705,7 +1707,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-                int app_demand = http_tcp || tls_tcp || dot_tcp ||
+                int app_demand = http_tcp || proxy_tcp || tls_tcp || dot_tcp ||
                                  tcp_engine < ARGOS_PROTOCOL_COUNT || identity_tcp;
                 int app_track = payload_len > 0 && app_demand;
                 /* SYN is the connection-generation boundary for inspect-once state.
@@ -1764,6 +1766,15 @@ int main(int argc, char *argv[]) {
                 }
 
                 argos_enterprise_result_t ent_tcp;
+                int proxy_complete = 0;
+                if (proxy_tcp && payload_len > 0 &&
+                    ae_http_proxy(buffer + payload_offset, payload_len, &ent_tcp)) {
+                    proxy_complete = ent_tcp.complete;
+                    if (ent_tcp.emit)
+                        emit_enterprise_result(ARGOS_PROTOCOL_HTTP_PROXY, &ent_tcp, src_mac,
+                            src_ip_str, dst_ip_str, routed_str,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_HTTP_PROXY));
+                }
                 int ent_tcp_seen = 0;
                 if (tcp_engine < ARGOS_PROTOCOL_COUNT && payload_len > 0) {
                     ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
@@ -1821,9 +1832,11 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (app_track) {
-                    int fingerprint_complete = app_flow_payload_complete(
-                        tcp_engine, sport, dport, buffer + payload_offset, payload_len);
+                    int fingerprint_complete = (http_tcp || tls_tcp || dot_tcp ||
+                        tcp_engine < ARGOS_PROTOCOL_COUNT || identity_tcp) ? app_flow_payload_complete(
+                        tcp_engine, sport, dport, buffer + payload_offset, payload_len) : 0;
                     if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
+                    if (proxy_complete) fingerprint_complete = 1;
                     argos_flow_note_payload(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr,
                                         sport, dport, fingerprint_complete);
                 }

@@ -4,6 +4,7 @@
 #include "argos_enterprise_ports.h"
 
 #include <ctype.h>
+#include <arpa/inet.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -568,6 +569,146 @@ static inline int ae_sip(const unsigned char *p, int len, argos_enterprise_resul
     int n = e ? (int)(e - u) : (int)((p + len) - u); if (n > 220) n = 220;
     char value[224]; ae_clean(u, n, value, sizeof(value));
     ae_set(r, "sip", 1, "%s=%s", label, value[0] ? value : "-");
+    return 1;
+}
+
+/* Shared bounded HTTP header primitives: no whole-payload scratch or bodies. */
+static inline int ae_http_equal(const unsigned char *p, int n, const char *s) {
+    if (n != (int)strlen(s)) return 0;
+    for (int i = 0; i < n; ++i)
+        if (tolower(p[i]) != tolower((unsigned char)s[i])) return 0;
+    return 1;
+}
+
+static inline int ae_http_token(unsigned char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9') || (c && strchr("!#$%&'*+-.^_`|~", c));
+}
+
+static inline int ae_http_authority(const unsigned char *p, int n,
+                                    char host[192], unsigned *port) {
+    if (n <= 0) return 0;
+    int end = 0, ipv6 = p[0] == '[';
+    if (ipv6) {
+        end = 1;
+        while (end < n && p[end] != ']') {
+            if (!isxdigit(p[end]) && p[end] != ':' && p[end] != '.') return 0;
+            ++end;
+        }
+        if (end == n || end == 1) return 0;
+        ++end;
+    } else {
+        while (end < n && p[end] != ':') {
+            unsigned char c = p[end];
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_')) return 0;
+            ++end;
+        }
+    }
+    if (end == 0 || end > 191) return 0;
+    if (end < n) {
+        if (p[end++] != ':' || end == n) return 0;
+        unsigned value = 0;
+        for (int i = end; i < n; ++i) {
+            if (p[i] < '0' || p[i] > '9' || value > 6553U) return 0;
+            value = value * 10U + (unsigned)(p[i] - '0');
+            if (value > 65535U) return 0;
+        }
+        if (!value) return 0;
+        *port = value; --end;
+    }
+    for (int i = 0; i < end; ++i) host[i] = (char)tolower(p[i]);
+    host[end] = 0;
+    if (ipv6) {
+        struct in6_addr address;
+        host[end - 1] = 0;
+        int valid = inet_pton(AF_INET6, host + 1, &address);
+        host[end - 1] = ']';
+        if (valid != 1) return 0;
+    }
+    return 1;
+}
+
+static inline int ae_http_proxy(const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (!r) return 0;
+    memset(r, 0, sizeof(*r));
+    if (!p || len < 12) return 0;
+    int cap = len < 4096 ? len : 4096;
+    const unsigned char *e = ae_find(p, cap, (const unsigned char *)"\r\n", 2);
+    if (!e) return 0;
+    int first = (int)(e - p), pos = first + 2;
+    char method[16] = "-", host[192] = "-", port_text[6] = "-";
+    const char *mode = "forwarded", *auth = "-";
+    unsigned port = 0, proxy_auth = 0, via = 0, forwarded = 0, xff = 0;
+    int evidence = 0;
+    if (first >= 12 && !memcmp(p, "HTTP/1.", 7)) {
+        if ((p[7] != '0' && p[7] != '1') || p[8] != ' ' ||
+            p[9] < '1' || p[9] > '5' || !isdigit(p[10]) || !isdigit(p[11]) ||
+            (first > 12 && p[12] != ' ')) return 0;
+    } else {
+        int m = 0;
+        while (m < first && p[m] != ' ') {
+            if (m >= 15 || p[m] < 'A' || p[m] > 'Z') return 0;
+            ++m;
+        }
+        if (!m || m == first) return 0;
+        memcpy(method, p, (size_t)m); method[m] = 0;
+        int target = m + 1, end = target;
+        while (end < first && p[end] != ' ') {
+            if (p[end] < 33 || p[end] > 126) return 0;
+            ++end;
+        }
+        if (end == target || first - end != 9 || memcmp(p + end, " HTTP/1.", 8) ||
+            (p[first - 1] != '0' && p[first - 1] != '1')) return 0;
+        if (!strcmp(method, "CONNECT")) {
+            mode = "connect";
+            if (!ae_http_authority(p + target, end - target, host, &port) || !port) return 0;
+            evidence = 1;
+        } else if ((end - target >= 7 && ae_http_equal(p + target, 7, "http://")) ||
+                   (end - target >= 8 && ae_http_equal(p + target, 8, "https://"))) {
+            int start = target + (tolower(p[target + 4]) == 's' ? 8 : 7), stop = start;
+            port = start - target == 8 ? 443U : 80U;
+            while (stop < end && p[stop] != '/' && p[stop] != '?' && p[stop] != '#') ++stop;
+            if (!ae_http_authority(p + start, stop - start, host, &port)) return 0;
+            mode = "absolute"; evidence = 1;
+        } else if (p[target] != '/' && !(end - target == 1 && p[target] == '*')) return 0;
+    }
+    for (int i = 0; i < first; ++i) if (p[i] < 32 || p[i] > 126) return 0;
+    int complete = 0;
+    while (pos + 2 <= cap) {
+        e = ae_find(p + pos, cap - pos, (const unsigned char *)"\r\n", 2);
+        if (!e) return 0;
+        int end = (int)(e - p);
+        if (end == pos) { complete = 1; break; }
+        int colon = pos;
+        while (colon < end && ae_http_token(p[colon])) ++colon;
+        if (colon == pos || colon == end || p[colon] != ':') return 0;
+        int value = colon + 1;
+        for (int i = value; i < end; ++i)
+            if ((p[i] < 32 && p[i] != '\t') || p[i] == 127) return 0;
+        while (value < end && (p[value] == ' ' || p[value] == '\t')) ++value;
+        if (ae_http_equal(p + pos, colon - pos, "Proxy-Authorization") ||
+            ae_http_equal(p + pos, colon - pos, "Proxy-Authenticate")) {
+            if (!proxy_auth) {
+                int stop = value;
+                while (stop < end && ae_http_token(p[stop])) ++stop;
+                auth = ae_http_equal(p + value, stop - value, "Basic") ? "basic" :
+                    ae_http_equal(p + value, stop - value, "Digest") ? "digest" :
+                    ae_http_equal(p + value, stop - value, "NTLM") ? "ntlm" :
+                    ae_http_equal(p + value, stop - value, "Negotiate") ? "negotiate" :
+                    ae_http_equal(p + value, stop - value, "Bearer") ? "bearer" : "other";
+            }
+            proxy_auth = 1;
+        } else if (ae_http_equal(p + pos, colon - pos, "Via")) via = 1;
+        else if (ae_http_equal(p + pos, colon - pos, "Forwarded")) forwarded = 1;
+        else if (ae_http_equal(p + pos, colon - pos, "X-Forwarded-For")) xff = 1;
+        pos = end + 2;
+    }
+    if (!complete || !(evidence || proxy_auth || via || forwarded || xff)) return 0;
+    if (port) snprintf(port_text, sizeof(port_text), "%u", (unsigned)(uint16_t)port);
+    ae_set(r, "http-proxy", 1,
+        "method=%s mode=%s target_host=%s target_port=%s username=- proxy_auth=%u auth_scheme=%s via=%u forwarded=%u xff=%u",
+        method, mode, host, port_text, proxy_auth, auth, via, forwarded, xff);
     return 1;
 }
 

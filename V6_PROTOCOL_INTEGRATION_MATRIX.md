@@ -76,7 +76,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | encrypted | tls | production + enrichment staging | TLS owner | TLS record heuristic/ports | existing SNI/JA4/ALPN + staged `TLS-CLIENT`, `TLS-SERVER`, certificate-lite; fingerprint = JA4 + future server fingerprint + bounded cert hash | client complete after ClientHello; server complete after selected bounded handshake evidence | no secrets/tickets/key material |
 | encrypted | quic | production | QUIC owner | UDP QUIC long-header/Initial | QUIC version, SNI/ALPN/JA4-equivalent inputs where available, transport params; fingerprint = version + TLS client fingerprint + TP profile | stop after Initial/handshake evidence | heavy reassembly opt-in/lazy |
 | web | http | production | application/HTTP owner | TCP HTTP request/response heuristics | HTTP: method, host, UA, selected header-pattern evidence; fingerprint = bounded header-order/client pattern where useful | complete at headers | never inspect body for fingerprinting |
-| web | http-proxy | staging | application facade/section | proxy ports + CONNECT/absolute URI magic | `HTTP-PROXY`: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff; fingerprint = proxy header/capability pattern | after request/response headers | never emit Proxy-Authorization credentials |
+| web | http-proxy | production | `argos_enterprise.h:ae_http_proxy` | independently gated TCP 80/3128/8080/8118/8888; CONNECT/absolute URI or proxy headers | `HTTP-PROXY`: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff; fingerprint = proxy header/capability pattern | after request/response headers | never emit Proxy-Authorization credentials |
 | remote-access | rdp | production | application/enterprise owner | TCP 3389 + TPKT/X.224 | RDP: negotiation/security/capabilities/NTLM linkage; fingerprint = negotiation/capability profile | stop after negotiation/auth metadata | no credential blobs |
 | remote-access | ssh | production | application owner | TCP 22/banner + KEX | SSH: client/server banners, KEX/cipher/MAC lists if bounded; fingerprint = software banner + algorithm-set fingerprint | after banner/KEXINIT | no session payload |
 | remote-access | telnet | staging | application facade/section | TCP 23 + IAC | `TELNET`: command, option, negotiation, username; fingerprint = option negotiation set | after initial negotiation/identity | never emit password content |
@@ -223,7 +223,7 @@ until the prerequisite is implemented but does not remove it from the release.
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
 3. **Management exporters** — Syslog, NetFlow, IPFIX and sFlow. **Complete.**
-4. **Application control** — LPD runtime slice implemented; HTTP proxy, Telnet, VNC and WinRM remain open.
+4. **Application control** — LPD and HTTP proxy runtime slices implemented; Telnet, VNC and WinRM remain open.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 6. **Enterprise storage/database/directory** — FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
 7. **Industrial** — KNXnet/IP, S7comm, OPC UA, DNP3.
@@ -231,6 +231,33 @@ until the prerequisite is implemented but does not remove it from the release.
 9. **VPN** — OpenVPN, IKE; ESP/AH only after non-port IP dispatch/BPF support is proven.
 
 ## Final audit columns to fill at integration time
+
+### HTTP proxy runtime slice
+
+- cli_bit: `ARGOS_PROTOCOL_HTTP_PROXY`; group `web`; super-group `application`.
+- owner: existing `argos_enterprise.h` handshake/control section; main calls
+  `ae_http_proxy` behind `argos_dispatch_http_proxy_enabled`, separately from HTTP
+  and enterprise port ownership. No new protocol header or dispatch facade.
+- trigger/BPF: TCP 80/3128/8080/8118/8888, either direction; exact proxy bit;
+  selected proxy SYNs reach the generation reset even without SYN telemetry.
+  No UDP or encrypted-proxy/TLS decoding. Existing HTTP and legacy bundles retain
+  their admission/serialization behavior; proxy ports cannot steal SSH replies.
+- vector: native `HTTP-PROXY|src_mac|src_ip|dst_ip|<ordered fields>[|routed]`;
+  grammar, caps and unknowns are frozen in V6_BACKLOG. No ENT wrapper.
+- state: existing directional application table; zero retained bytes/allocations
+  added. At most eight payload attempts of 4,096 bytes, complete after successful
+  full headers; 60-second idle expiry, four-probe eviction and SYN reset apply.
+  No reassembly. A selected co-resident protocol may complete the shared direction
+  earlier. Expiry/eviction can admit another bounded generation.
+- evidence/privacy: CONNECT/absolute authority or header-presence metadata only.
+  Username remains unknown (`-`); credentials are never decoded. Header values,
+  URI userinfo, paths, queries and bodies are excluded. Plain responses without
+  proxy headers produce no record. No stable implementation hash is claimed.
+- fixtures: test_http_proxy (parser, truncation, cap, privacy, sink, dedup, state),
+  test_dynamic_bpf, test_bpf_capacity, config/help and source adoption checks;
+  permanent strict, sanitizer/LSan and ARM64 compile gates.
+- collector_mapping: native wire fixture only; deployed collector acceptance,
+  hardware throughput and executing-ARM64 acceptance remain C7/C10 work.
 
 ### LPD runtime slice
 

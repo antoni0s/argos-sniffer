@@ -68,6 +68,14 @@ and sFlow UDP inspect exactly one datagram; no exporter-specific flow table,
 timeout or retry state exists. Oversized exporter payloads above 4,096 bytes are
 rejected before parsing.
 
+HTTP proxy reuses the same directional application state and 538-byte result.
+It scans at most 4,096 bytes per attempt, at most eight attempts per retained
+direction/generation, stopping after complete valid proxy headers. Scratch is
+fixed; there is no allocation, credential decoding or reassembly. Proxy-only
+traffic does not enter the unrelated HTTP/TLS completion parsers. The selected
+proxy SYN admission restores generation reset without enabling SYN telemetry;
+co-selected protocols retain shared completion, expiry and eviction semantics.
+
 ## Verified semantics and remaining byte work
 
 LPD reuses the existing directional application/DONE table, with **one** payload
