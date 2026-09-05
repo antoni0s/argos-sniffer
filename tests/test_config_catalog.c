@@ -21,6 +21,7 @@ int main(void) {
     assert(ARGOS_PROTOCOL_COUNT == 101);
     assert(ARGOS_PROTOCOL_WORDS == 2U);
     assert(sizeof(argos_protocol_set_t) == 16U);
+    assert(sizeof(argos_protocol_selection_t) == 32U);
     assert(ARGOS_GROUP_COUNT == 28);
     assert(ARGOS_GROUP_MEMBERSHIP_COUNT == 103U);
     assert(ARGOS_SUPER_GROUP_COUNT == 6);
@@ -96,7 +97,7 @@ int main(void) {
     assert(argos_profile_name_lookup("sensor", &profile) && profile == ARGOS_PROFILE_SENSOR);
     assert(!argos_group_name_lookup("IDENTITY", &group));
 
-    argos_protocol_set_t edges = {{0, 0}};
+    argos_protocol_set_t edges = {0};
     argos_protocol_set_add(&edges, ARGOS_PROTOCOL_DHCP);
     argos_protocol_set_add(&edges, ARGOS_PROTOCOL_AH);
     assert(argos_protocol_set_has(&edges, ARGOS_PROTOCOL_DHCP));
@@ -110,6 +111,40 @@ int main(void) {
             ARGOS_PROTOCOL_STATUS_HOLD) != 0U);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_ESP].status &
             ARGOS_PROTOCOL_STATUS_HOLD) != 0U);
+
+    argos_protocol_selection_t selection;
+    argos_protocol_selection_clear(&selection);
+    assert(argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_DNS, 0));
+    assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+    assert(argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_DNS, 1));
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+    assert(argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_DNS, 0));
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+    assert(!argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_RIP, 1));
+    assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_RIP));
+
+    argos_protocol_set_t routing;
+    argos_group_protocol_mask(ARGOS_GROUP_ROUTING, &routing);
+    argos_protocol_selection_apply_mask(&selection, &routing, 1);
+    assert(argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_BGP));
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_OSPF));
+    assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_RIP));
+
+    argos_protocol_set_t all_production;
+    argos_production_protocol_mask(&all_production);
+    argos_protocol_selection_clear(&selection);
+    argos_protocol_selection_apply_mask(&selection, &all_production, 0);
+    assert(memcmp(&selection.enabled, &all_production, sizeof(all_production)) == 0);
+    assert(bit_count(&selection.unrated) == 0U);
+    argos_super_group_protocol_mask(ARGOS_SUPER_GROUP_ENTERPRISE, &enterprise);
+    argos_protocol_selection_unrate_enabled(&selection, &enterprise);
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_SMB));
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+
+    argos_protocol_selection_clear(&selection);
+    argos_protocol_selection_unrate_enabled(&selection, &enterprise);
+    assert(bit_count(&selection.enabled) == 0U && bit_count(&selection.unrated) == 0U);
 
     puts("Canonical config catalog/bitmap contracts: PASS");
     return 0;

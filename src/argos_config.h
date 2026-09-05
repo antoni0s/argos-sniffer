@@ -181,6 +181,11 @@ typedef enum {
 typedef struct { uint64_t words[ARGOS_PROTOCOL_WORDS]; } argos_protocol_set_t;
 
 typedef struct {
+    argos_protocol_set_t enabled;
+    argos_protocol_set_t unrated;
+} argos_protocol_selection_t;
+
+typedef struct {
     const char *name;
 } argos_super_group_descriptor_t;
 
@@ -303,6 +308,20 @@ static inline void argos_protocol_set_union(argos_protocol_set_t *destination,
         destination->words[i] |= source->words[i];
 }
 
+static inline void argos_protocol_set_intersect(argos_protocol_set_t *destination,
+                                                const argos_protocol_set_t *source) {
+    if (!destination || !source) return;
+    for (size_t i = 0; i < ARGOS_PROTOCOL_WORDS; ++i)
+        destination->words[i] &= source->words[i];
+}
+
+static inline void argos_protocol_set_subtract(argos_protocol_set_t *destination,
+                                               const argos_protocol_set_t *source) {
+    if (!destination || !source) return;
+    for (size_t i = 0; i < ARGOS_PROTOCOL_WORDS; ++i)
+        destination->words[i] &= ~source->words[i];
+}
+
 static inline void argos_group_protocol_mask(argos_group_id_t group,
                                              argos_protocol_set_t *out) {
     argos_protocol_set_clear(out);
@@ -321,6 +340,58 @@ static inline void argos_super_group_protocol_mask(argos_super_group_id_t super_
         if (argos_group_catalog[group].super_group == super_group)
             argos_protocol_set_add(out, argos_group_memberships[i].protocol);
     }
+}
+
+static inline int argos_protocol_is_production(argos_protocol_id_t protocol) {
+    return (unsigned)protocol < ARGOS_PROTOCOL_COUNT &&
+           (argos_protocol_catalog[protocol].status & ARGOS_PROTOCOL_STATUS_PRODUCTION) != 0U;
+}
+
+static inline void argos_production_protocol_mask(argos_protocol_set_t *out) {
+    argos_protocol_set_clear(out);
+    if (!out) return;
+    for (unsigned p = 0; p < ARGOS_PROTOCOL_COUNT; ++p)
+        if (argos_protocol_is_production((argos_protocol_id_t)p))
+            argos_protocol_set_add(out, (argos_protocol_id_t)p);
+}
+
+static inline void argos_protocol_selection_clear(argos_protocol_selection_t *selection) {
+    if (selection) memset(selection, 0, sizeof(*selection));
+}
+
+/* Startup-only selection compiler. Only current production bits survive. The
+ * most recent overlapping lowercase/uppercase selection determines rate mode,
+ * matching existing short-option order; it never changes safety budgets. */
+static inline void argos_protocol_selection_apply_mask(
+    argos_protocol_selection_t *selection, const argos_protocol_set_t *requested,
+    int unrated) {
+    if (!selection || !requested) return;
+    argos_protocol_set_t production;
+    argos_production_protocol_mask(&production);
+    argos_protocol_set_intersect(&production, requested);
+    argos_protocol_set_union(&selection->enabled, &production);
+    if (unrated) argos_protocol_set_union(&selection->unrated, &production);
+    else argos_protocol_set_subtract(&selection->unrated, &production);
+}
+
+static inline int argos_protocol_selection_apply_protocol(
+    argos_protocol_selection_t *selection, argos_protocol_id_t protocol,
+    int unrated) {
+    if (!selection || !argos_protocol_is_production(protocol)) return 0;
+    argos_protocol_set_t requested = {0};
+    argos_protocol_set_add(&requested, protocol);
+    argos_protocol_selection_apply_mask(selection, &requested, unrated);
+    return 1;
+}
+
+/* `--no-rate-limit` changes emission policy only for already-enabled bits; it
+ * cannot activate a parser or bypass packet/byte/state safety ceilings. */
+static inline void argos_protocol_selection_unrate_enabled(
+    argos_protocol_selection_t *selection, const argos_protocol_set_t *target) {
+    if (!selection || !target) return;
+    argos_protocol_set_t active = *target;
+    argos_protocol_set_intersect(&active, &selection->enabled);
+    argos_protocol_set_union(&selection->unrated, &active);
 }
 
 static inline int argos_protocol_name_lookup(const char *name,
