@@ -900,9 +900,9 @@ whether those protocols will be included. HOLD dependencies must be closed befor
    Flow-shape remains experimental; no new flow tracker is authorized.
 7. Other isolated protocols need the full per-row matrix audit, wrapper/result
    adaptation, budget and collector fixtures. Standalone tests are not approval.
-8. Explicit holds remain Thread and ESP/AH; PTP dual-path integration is complete.
+8. Explicit holds remain Thread and ESP/AH; PTP dual-path and RIP/RIPng integration are complete.
 
-After core freeze, use the master matrix's remaining integration order: RIP → exporters → application
+After core freeze, use the master matrix's remaining integration order: exporters → application
 control → media → enterprise storage/directory → industrial → IoT → VPN.
 TLS enrichment is a separate bounded step after the TLS/public-observation freeze.
 No dependency is waived by a protocol's position in that sequence, and no staged protocol may be

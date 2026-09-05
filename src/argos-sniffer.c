@@ -2011,6 +2011,19 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
+                if (udp_engine == ARGOS_PROTOCOL_RIP) {
+                    argos_network_rip_result_t rip;
+                    int parsed = 0;
+                    if (!is_ipv6_packet && (sport == 520U || dport == 520U))
+                        parsed = argos_network_rip_parse(payload, (size_t)payload_len, &rip);
+                    else if (is_ipv6_packet && (sport == 521U || dport == 521U))
+                        parsed = argos_network_ripng_parse(payload, (size_t)payload_len, &rip);
+                    if (parsed && !dedup_should_suppress(mac_str, "RIP", rip.detail,
+                            argos_dispatch_protocol_rate_limited(
+                                &dispatch_plan, ARGOS_PROTOCOL_RIP)))
+                        emit_telemetry("RIP|%s|%s|%s|%s%s\n", mac_str,
+                                       src_ip_str, dst_ip_str, rip.detail, routed_str);
+                }
                 if (wireguard_udp) {
                     /* Type-4 transport packets can be an elephant UDP flow. Validate the
                      * exact WireGuard framing cheaply, then bypass the full parser for
@@ -2037,7 +2050,8 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 if (udp_engine < ARGOS_PROTOCOL_COUNT &&
-                    udp_engine != ARGOS_PROTOCOL_HSRP) {
+                    udp_engine != ARGOS_PROTOCOL_HSRP &&
+                    udp_engine != ARGOS_PROTOCOL_RIP) {
                     argos_enterprise_result_t ent_udp;
                     if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
                         char ent_mac[18], ent_sig[768];

@@ -24,7 +24,6 @@
 #include "../src/argos_opcua.h"
 #include "../src/argos_openvpn.h"
 #include "../src/argos_redis.h"
-#include "../src/argos_rip.h"
 #include "../src/argos_rtcp.h"
 #include "../src/argos_rtp.h"
 #include "../src/argos_rtsp.h"
@@ -60,7 +59,6 @@ static void test_nvmeof(void){unsigned char p[8]={0};argos_nvmeof_result_t r;p[0
 static void test_opcua(void){unsigned char p[8]={'H','E','L','F',8,0,0,0};argos_opcua_result_t r;assert(argos_opcua_parse(p,SZ(p),&r)==1);p[0]='X';assert(argos_opcua_parse(p,SZ(p),&r)==0);p[0]='H';assert(argos_opcua_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_openvpn(void){unsigned char p[1]={8};argos_openvpn_result_t r;assert(argos_openvpn_parse(p,1U,&r)==1);p[0]=0;assert(argos_openvpn_parse(p,1U,&r)==0);p[0]=8;assert(argos_openvpn_parse(p,0U,&r)==0);} 
 static void test_redis(void){static const unsigned char ok[]="PING\r\n";unsigned char bad[1]={0};argos_redis_result_t r;assert(argos_redis_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_redis_parse(bad,1U,&r)==0);assert(argos_redis_parse(ok,0U,&r)==0);} 
-static void test_rip(void){unsigned char p[4]={1,2,0,0};argos_rip_result_t r;assert(argos_rip_parse(p,SZ(p),&r)==1);p[1]=3;assert(argos_rip_parse(p,SZ(p),&r)==0);p[1]=2;assert(argos_rip_parse(p,SZ(p)-1U,&r)==0);p[1]=1;assert(argos_ripng_parse(p,SZ(p),&r)==1);p[1]=2;assert(argos_ripng_parse(p,SZ(p),&r)==0);p[1]=1;assert(argos_ripng_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_rtcp(void){unsigned char p[4]={0x80,200,0,0};argos_rtcp_result_t r;assert(argos_rtcp_parse(p,SZ(p),&r)==1);p[0]=0x40;assert(argos_rtcp_parse(p,SZ(p),&r)==0);p[0]=0x80;assert(argos_rtcp_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_rtp(void){unsigned char p[12]={0x80,96,0,1,0,0,0,2,0,0,0,3};argos_rtp_result_t r;assert(argos_rtp_parse(p,SZ(p),&r)==1);p[0]=0x40;assert(argos_rtp_parse(p,SZ(p),&r)==0);p[0]=0x80;assert(argos_rtp_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_rtsp(void){static const unsigned char ok[]="OPTIONS rtsp://example RTSP/1.0\r\n\r\n",bad[]="options rtsp://example RTSP/1.0\r\n\r\n",edge[]="OPTIONS x RTSP/1.0";argos_rtsp_result_t r;assert(argos_rtsp_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_rtsp_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_rtsp_parse(edge,17U,&r)==0);} 
@@ -73,4 +71,4 @@ static void test_thread(void){unsigned char ss[5]={0xb1,0x12,0x34,0x56,0x78};arg
 static void test_vnc(void){static const unsigned char ok[]="RFB 003.008\n",bad[]="RFB 00x.008\n";argos_vnc_result_t r;assert(argos_vnc_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_vnc_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_vnc_parse(ok,SZ(ok)-2U,&r)==0);} 
 static void test_winrm(void){static const unsigned char ok[]="POST /wsman HTTP/1.1\r\nContent-Type: application/soap+xml\r\n\r\n",bad[]="GET / HTTP/1.1\r\n\r\n";argos_winrm_result_t r;assert(argos_winrm_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_winrm_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_winrm_parse(ok,7U,&r)==0);} 
 
-int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_ipfix();test_knx();test_ldap();test_ldaps();test_lpd();test_matter();test_mongodb();test_netflow();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rip();test_rtcp();test_rtp();test_rtsp();test_s7();test_sflow();test_syslog();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}
+int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_ipfix();test_knx();test_ldap();test_ldaps();test_lpd();test_matter();test_mongodb();test_netflow();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_sflow();test_syslog();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}

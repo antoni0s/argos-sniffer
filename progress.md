@@ -215,7 +215,8 @@ dependency must be resolved before integration, not that the protocol is dropped
 - [x] Reconcile LLDP-MED/LACP/STP fixture-by-fixture with canonical L2; one runtime parser and
   protocol-native vectors; duplicate staging headers removed.
 - [x] PTP native/UDP integration; canonical network owner and obsolete staging cleanup.
-- [ ] RIP.
+- [x] RIP/RIPng: canonical `argos_network.h` owner, exact UDP 520/521 dispatch/BPF,
+  native privacy-safe `RIP|...` output, permanent fixtures and staging-header removal.
 - [ ] Syslog/NetFlow/IPFIX/sFlow.
 - [ ] HTTP proxy/Telnet/VNC/WinRM/LPD.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
@@ -266,18 +267,18 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** merge the canonical L2 integration, then integrate RIP through the network owner.
+**Next:** integrate Syslog/NetFlow/IPFIX/sFlow through the canonical enterprise owner.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-next-staging-integration` is active. LLDP-MED/LACP/STP use the canonical L2 owner,
-protocol-native vectors and matching dedup namespaces; their obsolete staging headers and test/
-workflow references are removed after unique boundary fixtures move to permanent suites.
+**Pending:** RIP/RIPng uses the canonical network owner, exact IPv4 UDP/520 and IPv6 UDP/521
+runtime/BPF gates, and the frozen protocol-native signature. The obsolete staging header and its
+staging test/workflow references are removed after unique fixtures moved to `tests/test_rip.c`.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
 PR #44: core 33977277636, L2 33977277545, staging 33977277630 PASS.
-Current L2 integration full/stub text is 173866/161852 (-1312/-1328 from PR #45); data remains
-3992 and BSS 80360/78760. The LLDP-MED detail bound is 768 bytes of automatic storage so the
-frozen inventory record cannot silently truncate; there is no new retained state or allocation.
+Current RIP integration full/stub text is 175698/163704; data remains 3992 and BSS 80360/78760.
+The RIP/RIPng result is 144 bytes of automatic storage and the parser caps input at 4,096 bytes;
+there is no new retained state or packet-time allocation.
 Optimized main stack is 84,992 bytes (+48 from the last 84,944-byte checkpoint).
 Local evidence: all 76 strict test files and ten relevant ASan/UBSan paths pass; local
 LeakSanitizer is unavailable under ptrace, so CI leak coverage remains the merge gate. Current listed

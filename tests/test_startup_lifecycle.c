@@ -290,7 +290,7 @@ int main(void) {
         {"--wireguard-port", "51820"},
         {"--profile", "invalid"}, {"--super-group", "invalid"},
         {"--group", "invalid"}, {"--protocol", "invalid"},
-        {"--protocol", "rip"}, {"--protocol", "llmnr"},
+        {"--protocol", "Rip"}, {"--protocol", "llmnr"},
         {"--no-rate-limit", "invalid"},
         {"-u", "invalid"}, {"-U", "invalid"}
     };

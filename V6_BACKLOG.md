@@ -39,9 +39,9 @@ cryptographic keys.
 - Capture socket/epoll setup, bounded receive metadata and drop statistics now have a
   cohesive lifecycle owner in `argos_capture.h`; packet normalization, filters and BPF
   construction remain separate. This extraction does not freeze the full packet contract.
-- Thirty-seven standalone protocol headers are present as **runtime-isolated staging parsers**.
-  They are temporary implementation units that must be integrated into v6 after readiness review,
-  not permission to add 37 permanent public engine boundaries.
+- Thirty-two standalone protocol headers remain as **runtime-isolated staging parsers** after
+  canonical L2, PTP and RIP integration. They are temporary implementation units that must be
+  integrated into v6 after readiness review, not permission to add permanent public engine boundaries.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
   fixtures.
 
@@ -50,7 +50,7 @@ cryptographic keys.
 The following decisions are planning constraints only. They do not authorize runtime integration
 while packet/state/config/telemetry contracts are still moving.
 
-### Cohesive owner mapping for the 37 staged parsers
+### Cohesive owner mapping for the remaining staged parsers
 
 The standalone staging headers are temporary implementation units. At promotion time they should
 fold into cohesive owners rather than remain one public header per protocol.
@@ -58,7 +58,7 @@ fold into cohesive owners rather than remain one public header per protocol.
 | Cohesive owner | Staged parsers |
 |---|---|
 | `argos_l2.h` | LLDP-MED, LACP, STP |
-| `argos_network.h` | RIP, PTP |
+| `argos_network.h` | RIP and PTP (integrated; staging headers removed) |
 | application facade/section | HTTP proxy, Telnet, VNC, WinRM, LPD, RTP, RTCP, RTSP, Cast, AirPlay, DLNA |
 | `argos_enterprise.h` | FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS, Syslog, NetFlow, IPFIX, sFlow |
 | industrial facade/section | KNXnet/IP, S7comm, OPC UA, DNP3 |
@@ -229,7 +229,7 @@ v6 requires an explicit user decision.
 - [ ] Network/addressing and discovery.
 - [ ] TLS, DoT, QUIC and HTTP.
 - [ ] L2 discovery, routing and redundancy.
-  Native-L2 plus IGMP/MLD/OSPF/VRRP are adopted; port-driven BGP/RIP/HSRP and the remaining
+  Native-L2 plus IGMP/MLD/OSPF/VRRP and UDP RIP/RIPng are adopted; port-driven BGP/HSRP and the remaining
   production callers keep this aggregate item open.
 - [ ] Enterprise/storage/database/identity/management.
 - [ ] Industrial, IoT and VPN engines already present in production.
@@ -269,8 +269,10 @@ permanent one-protocol public modules. HOLD dependencies must be solved, not use
 the protocol from the release.
 
 1. **Low-rate network control and discovery**
-   - [ ] LLMNR, RIP. LLMNR requires a real UDP/TCP 5355 discovery owner and exact BPF
+   - [ ] LLMNR. LLMNR requires a real UDP/TCP 5355 discovery owner and exact BPF
      route; its earlier production label was corrected rather than exposing a no-op selector.
+   - [x] RIP/RIPng integrated through `argos_network.h`, exact UDP 520/521 dispatch/BPF,
+     protocol-native privacy-safe output and obsolete staging-header removal.
    - [x] PTP integrated into the canonical network owner; staging header removed after fixture migration.
 2. **Management exporters**
    - [ ] Syslog, NetFlow, IPFIX, sFlow.
@@ -386,7 +388,7 @@ Candidate vectors and their required metadata are:
 | LLDP-MED | device_class, capabilities, network_policy, application, vlan, priority, dscp, inventory |
 | LACP | version, actor_system, actor_priority, actor_key, actor_port, actor_state, partner_system, partner_priority, partner_key, partner_port, partner_state |
 | STP | type, version, flags, root_id, root_cost, bridge_id, port_id, message_age, max_age, hello_time, forward_delay, mst_revision, mst_digest |
-| RIP | version, command, entries, auth, next_hop_present |
+| RIP | `RIP|src_mac|src_ip|dst_ip|version=<1\|2\|ng> command=<request\|response> entries=<n> auth=<none\|simple\|md5\|-> next_hop_present=<0\|1>[\|routed]`; auth secrets and route prefixes are never retained/emitted |
 | PTP | version, message, domain, sequence, transport_specific, two_step, clock_identity |
 | HTTP-PROXY | method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
 | TELNET | command, option, negotiation, username |

@@ -34,6 +34,126 @@
 #define ARGOS_NETWORK_MAX_PREFIXES 64
 #define ARGOS_NETWORK_MAX_INTERFACES 8
 #define ARGOS_NETWORK_IFNAME_SIZE 16
+#define ARGOS_NETWORK_RIP_MAX_MESSAGE 4096U
+
+/* RIP/RIPng control-plane evidence. Route prefixes and authentication
+ * material are deliberately neither retained nor emitted. */
+typedef enum {
+    ARGOS_NETWORK_RIP_NONE = 0,
+    ARGOS_NETWORK_RIP_V1 = 1,
+    ARGOS_NETWORK_RIP_V2 = 2,
+    ARGOS_NETWORK_RIP_NG = 3
+} argos_network_rip_kind_t;
+
+typedef enum {
+    ARGOS_NETWORK_RIP_AUTH_NONE = 0,
+    ARGOS_NETWORK_RIP_AUTH_SIMPLE = 1,
+    ARGOS_NETWORK_RIP_AUTH_MD5 = 2,
+    ARGOS_NETWORK_RIP_AUTH_UNKNOWN = 3
+} argos_network_rip_auth_t;
+
+typedef struct {
+    argos_network_rip_kind_t kind;
+    argos_network_rip_auth_t auth;
+    uint8_t command;
+    uint16_t entry_count;
+    uint8_t next_hop_present;
+    char detail[128];
+} argos_network_rip_result_t;
+
+static inline uint16_t argos_network_rip_be16(const unsigned char *p) {
+    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+
+static inline const char *argos_network_rip_command(uint8_t command) {
+    return command == 1U ? "request" : "response";
+}
+
+static inline const char *argos_network_rip_auth_name(
+    argos_network_rip_auth_t auth)
+{
+    switch (auth) {
+        case ARGOS_NETWORK_RIP_AUTH_NONE: return "none";
+        case ARGOS_NETWORK_RIP_AUTH_SIMPLE: return "simple";
+        case ARGOS_NETWORK_RIP_AUTH_MD5: return "md5";
+        default: return "-";
+    }
+}
+
+/* RIPv1/RIPv2 payload for UDP/520. Fixed-width entries make the scan linear,
+ * allocation-free and capped. Authentication type is the only auth field
+ * inspected; password, digest, key identifiers and sequence data stay opaque. */
+static inline int argos_network_rip_parse(const unsigned char *p, size_t n,
+                                           argos_network_rip_result_t *r) {
+    if (!p || !r || n < 4U || n > ARGOS_NETWORK_RIP_MAX_MESSAGE ||
+        ((n - 4U) % 20U) != 0U) return 0;
+    memset(r, 0, sizeof(*r));
+    if ((p[0] != 1U && p[0] != 2U) || (p[1] != 1U && p[1] != 2U) ||
+        p[2] != 0U || p[3] != 0U) return 0;
+
+    r->kind = p[1] == 1U ? ARGOS_NETWORK_RIP_V1 : ARGOS_NETWORK_RIP_V2;
+    r->command = p[0];
+    r->auth = ARGOS_NETWORK_RIP_AUTH_NONE;
+    size_t slots = (n - 4U) / 20U;
+    for (size_t i = 0; i < slots; ++i) {
+        const unsigned char *e = p + 4U + i * 20U;
+        uint16_t afi = argos_network_rip_be16(e);
+        if (afi == 0xffffU) {
+            if (p[1] != 2U) return 0;
+            if (i == 0U) {
+                uint16_t type = argos_network_rip_be16(e + 2U);
+                r->auth = type == 2U ? ARGOS_NETWORK_RIP_AUTH_SIMPLE :
+                          type == 3U ? ARGOS_NETWORK_RIP_AUTH_MD5 :
+                                       ARGOS_NETWORK_RIP_AUTH_UNKNOWN;
+            }
+            continue;
+        }
+        uint32_t metric = ((uint32_t)e[16] << 24) | ((uint32_t)e[17] << 16) |
+                          ((uint32_t)e[18] << 8) | (uint32_t)e[19];
+        if (metric == 0U || metric > 16U) return 0;
+        ++r->entry_count;
+        if (p[1] == 2U && afi == 2U &&
+            (e[12] != 0U || e[13] != 0U || e[14] != 0U || e[15] != 0U))
+            r->next_hop_present = 1U;
+    }
+    (void)snprintf(r->detail, sizeof(r->detail),
+        "version=%u command=%s entries=%u auth=%s next_hop_present=%u",
+        (unsigned)p[1], argos_network_rip_command(r->command),
+        (unsigned)r->entry_count, argos_network_rip_auth_name(r->auth),
+        (unsigned)r->next_hop_present);
+    return 1;
+}
+
+/* RIPng payload for UDP/521. Metric 0xff identifies a next-hop RTE, which is
+ * reported as shape evidence but excluded from the route-entry count. */
+static inline int argos_network_ripng_parse(const unsigned char *p, size_t n,
+                                             argos_network_rip_result_t *r) {
+    if (!p || !r || n < 4U || n > ARGOS_NETWORK_RIP_MAX_MESSAGE ||
+        ((n - 4U) % 20U) != 0U) return 0;
+    memset(r, 0, sizeof(*r));
+    if ((p[0] != 1U && p[0] != 2U) || p[1] != 1U ||
+        p[2] != 0U || p[3] != 0U) return 0;
+
+    r->kind = ARGOS_NETWORK_RIP_NG;
+    r->command = p[0];
+    r->auth = ARGOS_NETWORK_RIP_AUTH_UNKNOWN;
+    size_t slots = (n - 4U) / 20U;
+    for (size_t i = 0; i < slots; ++i) {
+        const unsigned char *e = p + 4U + i * 20U;
+        if (e[19] == 0xffU) {
+            if (e[16] != 0U || e[17] != 0U || e[18] != 0U) return 0;
+            r->next_hop_present = 1U;
+            continue;
+        }
+        if (e[18] > 128U || e[19] == 0U || e[19] > 16U) return 0;
+        ++r->entry_count;
+    }
+    (void)snprintf(r->detail, sizeof(r->detail),
+        "version=ng command=%s entries=%u auth=- next_hop_present=%u",
+        argos_network_rip_command(r->command), (unsigned)r->entry_count,
+        (unsigned)r->next_hop_present);
+    return 1;
+}
 
 /* IEEE 1588-2008 PTPv2 common-header evidence. Native Ethernet and UDP
  * adapters supply the same bounded message slice; payloads/TLVs stay out. */
