@@ -38,7 +38,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
 | 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose qualified selectors only with fine-grained C4 dispatch; preserve legacy equivalence. |
-| 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
+| 4 | Cheap dispatch / gating | A fixed 48-byte startup plan now owns canonical protocol/features plus bounded L2/L3/L4 route demand; main consumes it for legacy projection before capture. Packet branches and BPF remain coarse. | Adopt protocol gates before every actual parser/state call, canonical BPF/userspace equivalence and non-port IPv4/IPv6/native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
 | 7 | Observation / output / JSONL | Engines return protocol-specific results; main assembles legacy strings. `argos_telemetry.h` formats a 1024-byte event and optional 1280-byte OBS wrapper. JSONL is not implemented. | Separate borrowed packet lifetime from owned bounded evidence, field/privacy/escaping limits, newline/truncation semantics, stream backpressure policy, collector compatibility. |
@@ -198,6 +198,25 @@ mask. They require the C4 per-engine dispatcher and disabled-engine call-counter
 Full/stub text is 164710/152668, data 3832 and BSS 80360/78760; main stack remains 84944
 bytes. Core 33966752299, L2 33966752376 and staging 33966752328 PASS, including
 LeakSanitizer and ARM64 compilation. No staged parser became reachable.
+
+### Fixed startup dispatch plan — pending candidate
+
+`argos_dispatch.h` owns a 48-byte startup plan containing fixed enabled/unrated masks,
+feature bits and bounded L2/L3/L4 route flags. Main compiles it once after final selector
+precedence and uses it for the existing legacy projection before capture. Catalogs, selector
+strings, `cli_selection` and the plan itself remain absent after `argos_capture_open`.
+
+`tests/test_dispatch_plan.c` exhausts every production protocol bit and uses parser/state
+call counters to freeze the gate contract; staging/HOLD selection remains rejected. It also
+pins legacy normal/unrated projection and representative L2/L3/L4 route demand. This does
+not claim that all existing parser/state calls are already behind their individual bits;
+that runtime adoption and canonical BPF projection remain the next C4 gate.
+
+Local strict standalone tests pass. Full/stub text is 165565/153555 (+855/+887 from PR #35),
+data 3832 and BSS 80360/78760 unchanged. The increase is startup-only fixed-plan compilation;
+no packet-loop source branch or retained packet state was added. Local ASan/UBSan focused
+tests pass with leak detection disabled because the workspace blocks LeakSanitizer `/proc`
+inspection. ARM64 compiler and full LSan execution remain CI gates; no PR/CI result is yet recorded.
 
 ## Concrete blockers, not hypothetical architecture work
 

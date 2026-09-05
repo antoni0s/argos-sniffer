@@ -39,7 +39,7 @@ jobs:
       - name: Packet, transport and capture contract sanitizers
         run: |
           set -eu
-          for source in tests/test_config_catalog.c tests/test_help.c tests/test_state_capacity.c tests/test_core_budget.c tests/test_app_flow.c tests/test_udp_suppress.c tests/test_dns_track.c tests/test_dedup_lifecycle.c tests/test_dedup.c tests/test_network_owner_lifecycle.c tests/test_quic_lifecycle.c tests/test_startup_lifecycle.c tests/test_runtime_state.c tests/test_state_lifecycle.c tests/test_packet.c tests/test_packet_ah.c tests/test_bpf_capacity.c tests/test_nonport_contract.c tests/test_encapsulation.c tests/test_packet_fragments.c tests/test_link_contract.c tests/test_inspector.c tests/test_router_exception.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
+          for source in tests/test_config_catalog.c tests/test_dispatch_plan.c tests/test_help.c tests/test_state_capacity.c tests/test_core_budget.c tests/test_app_flow.c tests/test_udp_suppress.c tests/test_dns_track.c tests/test_dedup_lifecycle.c tests/test_dedup.c tests/test_network_owner_lifecycle.c tests/test_quic_lifecycle.c tests/test_startup_lifecycle.c tests/test_runtime_state.c tests/test_state_lifecycle.c tests/test_packet.c tests/test_packet_ah.c tests/test_bpf_capacity.c tests/test_nonport_contract.c tests/test_encapsulation.c tests/test_packet_fragments.c tests/test_link_contract.c tests/test_inspector.c tests/test_router_exception.c tests/test_transport.c tests/test_capture.c tests/test_capture_contract.c tests/test_network.c tests/test_network_context.c tests/test_telemetry.c; do
             binary="/tmp/$(basename "$source" .c)-san"
             cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer "$source" -lm -o "$binary"
             ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$binary"
@@ -58,6 +58,7 @@ jobs:
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_state_capacity.c -o /tmp/arm-state-capacity
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_core_budget.c -o /tmp/arm-core-budget
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_config_catalog.c -o /tmp/arm-config-catalog
+          aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dispatch_plan.c -o /tmp/arm-dispatch-plan
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_help.c -o /tmp/arm-help
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_dedup_lifecycle.c -o /tmp/arm-dedup-lifecycle
           aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_network_owner_lifecycle.c -o /tmp/arm-network-owner-lifecycle
@@ -83,10 +84,10 @@ jobs:
       - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # C4 legacy runtime adoption: canonical masks project once before capture.
+          # C4 startup dispatch plan: canonical masks compile once before capture.
           # CPU/latency and ownership take priority over tiny text differences.
-          # +936 text for startup projection; unchanged packet-loop source/BSS,
-          # no extra headroom and no BSS increase.
+          # +855 text for fixed route derivation and projection; unchanged
+          # packet-loop source/BSS, no extra headroom and no BSS increase.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 164710
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 165565
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360
