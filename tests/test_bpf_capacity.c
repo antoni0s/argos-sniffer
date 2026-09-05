@@ -94,7 +94,8 @@ int main(void) {
     const uint16_t wg[] = {0, 1, 53, 319, 3478, 51820, 65535};
     const uint16_t ports[] = {0, 22, 53, 67, 80, 88, 111, 123, 137, 161, 179,
         319, 320, 443, 445, 853, 1900, 2049, 3478, 3702, 5353, 5678, 5683,
-        8883, 44818, 47808, 51820, 65535};
+        8883, 44818, 47808, 51820, 65535,
+        514, 515, 2055, 4739, 6343, 9995, 9996};
     unsigned max_len = 0, max_reference = 0;
     unsigned char frame[2048];
     for (unsigned mask = 0; mask < 1024U; ++mask) for (size_t wi = 0; wi < sizeof(wg)/sizeof(wg[0]); ++wi) {

@@ -280,8 +280,8 @@ the protocol from the release.
      and obsolete staging-header removal.
 3. **Application control protocols**
    - [ ] HTTP proxy, Telnet, VNC, WinRM.
-   - [ ] LPD runtime slice implemented; merge/CI acceptance pending, collector
-     deployment mapping remains C7/C10. Folded into the existing printing section.
+   - [ ] LPD runtime slice: PR #49 (checks/merge tracked there); full protocol
+     acceptance retains deployed collector mapping under C7/C10. Folded into the existing printing section.
 4. **Realtime and media negotiation**
    - [ ] RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 5. **Enterprise storage, database and directory**

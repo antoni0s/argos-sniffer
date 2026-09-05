@@ -400,6 +400,11 @@ two duplicated TCP/UDP formatting blocks while preserving existing output.
 The bounded parser adds no allocation or retained RAM; full text guard 182320
 keeps the existing 52-byte compiler margin. No throughput gain is claimed.
 HTTP proxy/Telnet/VNC/WinRM remain open within the application-control group.
+The final BPF oracle audit also freezes its original port tables from commit
+`12166a0bf0cc2180f0bcc0d92170081c0dcf7552` instead of importing current production
+lists. The expanded 8,443,904-case matrix includes LPD/exporter ports and preserves
+exact legacy accept/drop decisions; maximum instructions remain 287 to 183.
+This is a test-reference repair, not a runtime BPF policy change.
 
 For every remaining staging integration, freeze the canonical vector name and ordered fields in
 `V6_BACKLOG.md` before runtime wiring. New protocol outputs use their protocol vector directly and

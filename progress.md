@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `9a27388c404aa220ce6b472b9f6b6a610eb56547` (PR #48).
-**Now:** LPD slice of application-control integration; strict/CI/merge gates.
+**Now:** application-control integration; LPD delivery reference is PR #49.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -222,7 +222,8 @@ dependency must be resolved before integration, not that the protocol is dropped
 - [x] Syslog/NetFlow/IPFIX/sFlow: canonical enterprise owner, native non-`ENT`
   signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
 - [ ] HTTP proxy/Telnet/VNC/WinRM.
-- [ ] LPD runtime slice implemented; strict/CI/merge gates pending.
+- [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
+  mapping remains open under C7/C10, so full protocol acceptance is not claimed.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
 - [ ] FTP/NVMe-TCP/MongoDB/Redis/TACACS+/LDAP/LDAPS.
 - [ ] KNXnet-IP/S7comm/OPC-UA/DNP3.
@@ -273,8 +274,8 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** finish HTTP proxy/Telnet/VNC/WinRM within application control, then media.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** LPD slice on `v6-app-control-canonical-integration`; local native/CI
-acceptance is in progress, not yet merged. The native ordered signature is frozen
+**Delivery:** LPD slice in PR #49 on `v6-app-control-canonical-integration`;
+PR checks/merge status are authoritative for its exact tested head. The native ordered signature is frozen
 before wiring; exact TCP/515 dispatch, printing/application group membership and
 generated help use the production catalog. The old staging parser and references
 are removed after unique fixtures moved to `tests/test_lpd.c`.
@@ -284,9 +285,11 @@ ceiling is 182320. LPD uses one attempt per retained direction/generation and a
 1,024-byte prefix through LF, no new state/allocation/reassembly. Invalid input
 also completes inspection; server replies, print bodies and subcommands are not
 parsed. Existing SYN/expiry/eviction behavior is preserved.
-Local evidence: all 79 strict standalone tests, five adoption checks and five focused
+Local evidence: all 79 strict standalone tests, five adoption checks and six focused
 ASan/UBSan paths pass (local leak detection disabled under ptrace). Native full/stub
-builds and 7,239,680 legacy BPF comparisons pass. CI LSan/ARM64 remain mandatory merge gates. Collector wire
+builds and 8,443,904 legacy BPF comparisons pass. The legacy oracle now freezes
+its port tables from its original commit, independent of production additions;
+the matrix explicitly includes LPD and exporter ports. CI LSan/ARM64 remain mandatory merge gates. Collector wire
 acceptance is not deployed collector verification. Hardware/capture throughput
 and executing-ARM64 acceptance remain open.
 **Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
