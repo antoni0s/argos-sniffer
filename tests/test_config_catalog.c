@@ -22,6 +22,8 @@ int main(void) {
     assert(ARGOS_PROTOCOL_WORDS == 2U);
     assert(sizeof(argos_protocol_set_t) == 16U);
     assert(sizeof(argos_protocol_selection_t) == 32U);
+    assert(sizeof(argos_feature_selection_t) == 8U);
+    assert(ARGOS_FEATURE_COUNT == 5);
     assert(ARGOS_GROUP_COUNT == 28);
     assert(ARGOS_GROUP_MEMBERSHIP_COUNT == 103U);
     assert(ARGOS_SUPER_GROUP_COUNT == 6);
@@ -145,6 +147,74 @@ int main(void) {
     argos_protocol_selection_clear(&selection);
     argos_protocol_selection_unrate_enabled(&selection, &enterprise);
     assert(bit_count(&selection.enabled) == 0U && bit_count(&selection.unrated) == 0U);
+
+    argos_feature_selection_t feature_selection;
+    argos_feature_selection_clear(&feature_selection);
+    argos_feature_selection_apply(&feature_selection, ARGOS_FEATURE_TCP_SYN, 1);
+    assert(argos_feature_selection_has(&feature_selection, ARGOS_FEATURE_TCP_SYN));
+    assert((feature_selection.unrated & argos_feature_bit(ARGOS_FEATURE_TCP_SYN)) != 0U);
+    argos_feature_selection_apply(&feature_selection, ARGOS_FEATURE_TCP_SYN, 0);
+    assert((feature_selection.unrated & argos_feature_bit(ARGOS_FEATURE_TCP_SYN)) == 0U);
+    argos_feature_selection_apply(&feature_selection, ARGOS_FEATURE_IPV6, 1);
+    assert(argos_feature_selection_has(&feature_selection, ARGOS_FEATURE_IPV6));
+    assert((feature_selection.unrated & argos_feature_bit(ARGOS_FEATURE_IPV6)) == 0U);
+
+    static const size_t expected_legacy_counts[ARGOS_LEGACY_CATEGORY_COUNT] = {
+        0U, 4U, 2U, 1U, 1U, 1U, 3U, 4U, 50U
+    };
+    for (unsigned category = 0; category < ARGOS_LEGACY_CATEGORY_COUNT; ++category) {
+        argos_protocol_set_t mask;
+        argos_feature_set_t features;
+        argos_legacy_category_mask((argos_legacy_category_id_t)category, &mask, &features);
+        assert(bit_count(&mask) == expected_legacy_counts[category]);
+        assert(features == (category == ARGOS_LEGACY_CATEGORY_SYN
+                            ? argos_feature_bit(ARGOS_FEATURE_TCP_SYN) : 0U));
+    }
+
+    argos_protocol_set_t legacy_enterprise;
+    argos_legacy_enterprise_protocol_mask(&legacy_enterprise);
+    assert(argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_CDP));
+    assert(argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_NTLM));
+    assert(argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_JETDIRECT));
+    assert(argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_CIP));
+    assert(argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_WIREGUARD));
+    assert(!argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_TLS));
+    assert(!argos_protocol_set_has(&legacy_enterprise, ARGOS_PROTOCOL_RIP));
+
+    argos_protocol_selection_clear(&selection);
+    argos_feature_selection_clear(&feature_selection);
+    argos_legacy_selection_apply(&selection, &feature_selection,
+                                 ARGOS_LEGACY_CATEGORY_ENTERPRISE, 1);
+    assert(bit_count(&selection.enabled) == 50U);
+    assert(bit_count(&selection.unrated) == 50U);
+    assert(feature_selection.enabled == 0U && feature_selection.unrated == 0U);
+
+    argos_protocol_selection_clear(&selection);
+    argos_feature_selection_clear(&feature_selection);
+    argos_legacy_selection_apply_all(&selection, &feature_selection, 1);
+    assert(bit_count(&selection.enabled) == 16U);
+    assert(bit_count(&selection.unrated) == 16U);
+    assert(argos_feature_selection_has(&feature_selection, ARGOS_FEATURE_TCP_SYN));
+    assert(argos_feature_selection_has(&feature_selection, ARGOS_FEATURE_IPV6));
+    assert((feature_selection.unrated & argos_feature_bit(ARGOS_FEATURE_TCP_SYN)) != 0U);
+    assert((feature_selection.unrated & argos_feature_bit(ARGOS_FEATURE_IPV6)) == 0U);
+    assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_SMB));
+
+    argos_legacy_selection_apply(&selection, &feature_selection,
+                                 ARGOS_LEGACY_CATEGORY_TLS, 0);
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_TLS));
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DOT));
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_QUIC));
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+
+    argos_protocol_selection_clear(&selection);
+    argos_feature_selection_clear(&feature_selection);
+    argos_legacy_selection_apply_default(&selection, &feature_selection);
+    assert(bit_count(&selection.enabled) == 7U);
+    assert(bit_count(&selection.unrated) == 0U);
+    assert(argos_feature_selection_has(&feature_selection, ARGOS_FEATURE_TCP_SYN));
+    assert(argos_feature_selection_has(&feature_selection, ARGOS_FEATURE_IPV6));
+    assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
 
     puts("Canonical config catalog/bitmap contracts: PASS");
     return 0;

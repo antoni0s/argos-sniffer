@@ -185,6 +185,44 @@ typedef struct {
     argos_protocol_set_t unrated;
 } argos_protocol_selection_t;
 
+/* Startup/control capabilities which are not protocols. Keep these out of the
+ * protocol bitmap: SYN fingerprinting is a TCP feature, while IPv6 handling,
+ * extended metrics, stateful QUIC and sensor deployment are runtime modes. */
+#define ARGOS_FEATURE_CATALOG(X) \
+    X(TCP_SYN, 1) \
+    X(IPV6, 0) \
+    X(EXTENDED_METRICS, 0) \
+    X(QUIC_STATEFUL, 0) \
+    X(SENSOR_DEPLOYMENT, 0)
+
+typedef enum {
+#define ARGOS_FEATURE_ENUM(id, rate_capable) ARGOS_FEATURE_##id,
+    ARGOS_FEATURE_CATALOG(ARGOS_FEATURE_ENUM)
+#undef ARGOS_FEATURE_ENUM
+    ARGOS_FEATURE_COUNT
+} argos_feature_id_t;
+
+typedef uint32_t argos_feature_set_t;
+_Static_assert(ARGOS_FEATURE_COUNT <= 32, "feature bitmap exceeds fixed storage");
+
+typedef struct {
+    argos_feature_set_t enabled;
+    argos_feature_set_t unrated;
+} argos_feature_selection_t;
+
+typedef enum {
+    ARGOS_LEGACY_CATEGORY_SYN = 0,
+    ARGOS_LEGACY_CATEGORY_MULTI,
+    ARGOS_LEGACY_CATEGORY_DHCP,
+    ARGOS_LEGACY_CATEGORY_NETBIOS,
+    ARGOS_LEGACY_CATEGORY_DNS,
+    ARGOS_LEGACY_CATEGORY_HTTP,
+    ARGOS_LEGACY_CATEGORY_TLS,
+    ARGOS_LEGACY_CATEGORY_L2,
+    ARGOS_LEGACY_CATEGORY_ENTERPRISE,
+    ARGOS_LEGACY_CATEGORY_COUNT
+} argos_legacy_category_id_t;
+
 typedef struct {
     const char *name;
 } argos_super_group_descriptor_t;
@@ -392,6 +430,146 @@ static inline void argos_protocol_selection_unrate_enabled(
     argos_protocol_set_t active = *target;
     argos_protocol_set_intersect(&active, &selection->enabled);
     argos_protocol_set_union(&selection->unrated, &active);
+}
+
+static inline argos_feature_set_t argos_feature_bit(argos_feature_id_t feature) {
+    if ((unsigned)feature >= ARGOS_FEATURE_COUNT) return 0U;
+    return (argos_feature_set_t)UINT32_C(1) << (unsigned)feature;
+}
+
+static inline int argos_feature_rate_capable(argos_feature_id_t feature) {
+    static const uint8_t rate_capable[ARGOS_FEATURE_COUNT] = {
+#define ARGOS_FEATURE_RATE(id, can_rate) [ARGOS_FEATURE_##id] = (can_rate),
+        ARGOS_FEATURE_CATALOG(ARGOS_FEATURE_RATE)
+#undef ARGOS_FEATURE_RATE
+    };
+    return (unsigned)feature < ARGOS_FEATURE_COUNT && rate_capable[feature] != 0U;
+}
+
+static inline void argos_feature_selection_clear(argos_feature_selection_t *selection) {
+    if (selection) memset(selection, 0, sizeof(*selection));
+}
+
+static inline void argos_feature_selection_apply(argos_feature_selection_t *selection,
+                                                 argos_feature_id_t feature,
+                                                 int unrated) {
+    if (!selection || (unsigned)feature >= ARGOS_FEATURE_COUNT) return;
+    argos_feature_set_t bit = argos_feature_bit(feature);
+    selection->enabled |= bit;
+    if (unrated && argos_feature_rate_capable(feature)) selection->unrated |= bit;
+    else selection->unrated &= ~bit;
+}
+
+static inline int argos_feature_selection_has(const argos_feature_selection_t *selection,
+                                              argos_feature_id_t feature) {
+    return selection && (selection->enabled & argos_feature_bit(feature)) != 0U;
+}
+
+/* Exact compatibility bundle reached by the current --enterprise parser gate.
+ * It intentionally spans several canonical super-groups; it is not the new
+ * enterprise super-group and therefore must not be used to define that mask. */
+static inline void argos_legacy_enterprise_protocol_mask(argos_protocol_set_t *out) {
+    static const argos_protocol_id_t protocols[] = {
+        ARGOS_PROTOCOL_CDP, ARGOS_PROTOCOL_EDP, ARGOS_PROTOCOL_FDP,
+        ARGOS_PROTOCOL_MNDP, ARGOS_PROTOCOL_LLDP_MED, ARGOS_PROTOCOL_STP,
+        ARGOS_PROTOCOL_LACP, ARGOS_PROTOCOL_IGMP, ARGOS_PROTOCOL_MLD,
+        ARGOS_PROTOCOL_BGP, ARGOS_PROTOCOL_OSPF, ARGOS_PROTOCOL_ISIS,
+        ARGOS_PROTOCOL_VRRP, ARGOS_PROTOCOL_HSRP, ARGOS_PROTOCOL_NTP,
+        ARGOS_PROTOCOL_STUN_TURN, ARGOS_PROTOCOL_RDP, ARGOS_PROTOCOL_SSH,
+        ARGOS_PROTOCOL_IPP, ARGOS_PROTOCOL_PJL, ARGOS_PROTOCOL_JETDIRECT,
+        ARGOS_PROTOCOL_SIP, ARGOS_PROTOCOL_SCCP,
+        ARGOS_PROTOCOL_SMB, ARGOS_PROTOCOL_NTLM, ARGOS_PROTOCOL_NFS,
+        ARGOS_PROTOCOL_SUNRPC, ARGOS_PROTOCOL_ISCSI, ARGOS_PROTOCOL_MYSQL,
+        ARGOS_PROTOCOL_POSTGRESQL, ARGOS_PROTOCOL_MSSQL, ARGOS_PROTOCOL_ORACLE,
+        ARGOS_PROTOCOL_KERBEROS, ARGOS_PROTOCOL_EAPOL, ARGOS_PROTOCOL_RADIUS,
+        ARGOS_PROTOCOL_CLDAP, ARGOS_PROTOCOL_NETLOGON, ARGOS_PROTOCOL_SNMP,
+        ARGOS_PROTOCOL_IPMI, ARGOS_PROTOCOL_RMCP, ARGOS_PROTOCOL_ASF,
+        ARGOS_PROTOCOL_VMWARE_SLP, ARGOS_PROTOCOL_BACNET, ARGOS_PROTOCOL_MODBUS,
+        ARGOS_PROTOCOL_PROFINET, ARGOS_PROTOCOL_ETHERNET_IP, ARGOS_PROTOCOL_CIP,
+        ARGOS_PROTOCOL_MQTT, ARGOS_PROTOCOL_COAP, ARGOS_PROTOCOL_WIREGUARD
+    };
+    argos_protocol_set_clear(out);
+    if (!out) return;
+    for (size_t i = 0; i < sizeof(protocols) / sizeof(protocols[0]); ++i)
+        argos_protocol_set_add(out, protocols[i]);
+}
+
+/* Translate one existing telemetry category to canonical protocol/capability
+ * ownership. This is startup-only characterization; main does not consume it
+ * until the C4 equivalence gate. */
+static inline void argos_legacy_category_mask(argos_legacy_category_id_t category,
+                                              argos_protocol_set_t *protocols,
+                                              argos_feature_set_t *features) {
+    argos_protocol_set_clear(protocols);
+    if (features) *features = 0U;
+    if (!protocols || !features || (unsigned)category >= ARGOS_LEGACY_CATEGORY_COUNT) return;
+#define ARGOS_LEGACY_ADD(protocol) argos_protocol_set_add(protocols, ARGOS_PROTOCOL_##protocol)
+    switch (category) {
+        case ARGOS_LEGACY_CATEGORY_SYN:
+            *features = argos_feature_bit(ARGOS_FEATURE_TCP_SYN);
+            break;
+        case ARGOS_LEGACY_CATEGORY_MULTI:
+            ARGOS_LEGACY_ADD(MDNS); ARGOS_LEGACY_ADD(SSDP);
+            ARGOS_LEGACY_ADD(UPNP); ARGOS_LEGACY_ADD(WSD);
+            break;
+        case ARGOS_LEGACY_CATEGORY_DHCP:
+            ARGOS_LEGACY_ADD(DHCP); ARGOS_LEGACY_ADD(DHCPV6);
+            break;
+        case ARGOS_LEGACY_CATEGORY_NETBIOS: ARGOS_LEGACY_ADD(NBNS); break;
+        case ARGOS_LEGACY_CATEGORY_DNS: ARGOS_LEGACY_ADD(DNS); break;
+        case ARGOS_LEGACY_CATEGORY_HTTP: ARGOS_LEGACY_ADD(HTTP); break;
+        case ARGOS_LEGACY_CATEGORY_TLS:
+            ARGOS_LEGACY_ADD(TLS); ARGOS_LEGACY_ADD(DOT); ARGOS_LEGACY_ADD(QUIC);
+            break;
+        case ARGOS_LEGACY_CATEGORY_L2:
+            ARGOS_LEGACY_ADD(LLDP); ARGOS_LEGACY_ADD(ARP);
+            ARGOS_LEGACY_ADD(NDP); ARGOS_LEGACY_ADD(RA);
+            break;
+        case ARGOS_LEGACY_CATEGORY_ENTERPRISE:
+            argos_legacy_enterprise_protocol_mask(protocols);
+            break;
+        default: break;
+    }
+#undef ARGOS_LEGACY_ADD
+}
+
+static inline void argos_legacy_selection_apply(argos_protocol_selection_t *protocols,
+                                                argos_feature_selection_t *features,
+                                                argos_legacy_category_id_t category,
+                                                int unrated) {
+    argos_protocol_set_t mask;
+    argos_feature_set_t feature_mask;
+    if (!protocols || !features) return;
+    argos_legacy_category_mask(category, &mask, &feature_mask);
+    argos_protocol_selection_apply_mask(protocols, &mask, unrated);
+    for (unsigned feature = 0; feature < ARGOS_FEATURE_COUNT; ++feature)
+        if ((feature_mask & argos_feature_bit((argos_feature_id_t)feature)) != 0U)
+            argos_feature_selection_apply(features, (argos_feature_id_t)feature, unrated);
+}
+
+/* -a/-A and positional-interface shorthand cover only the eight historical
+ * short categories, never the separate --enterprise compatibility bundle. */
+static inline void argos_legacy_selection_apply_all(argos_protocol_selection_t *protocols,
+                                                    argos_feature_selection_t *features,
+                                                    int unrated) {
+    for (unsigned category = ARGOS_LEGACY_CATEGORY_SYN;
+         category <= ARGOS_LEGACY_CATEGORY_L2; ++category)
+        argos_legacy_selection_apply(protocols, features,
+                                     (argos_legacy_category_id_t)category, unrated);
+    argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
+}
+
+/* Existing no-option telemetry default: SYN + multicast discovery + DHCP +
+ * NBNS, all rate-limited, with IPv6 handling enabled. */
+static inline void argos_legacy_selection_apply_default(
+    argos_protocol_selection_t *protocols, argos_feature_selection_t *features) {
+    static const argos_legacy_category_id_t categories[] = {
+        ARGOS_LEGACY_CATEGORY_SYN, ARGOS_LEGACY_CATEGORY_MULTI,
+        ARGOS_LEGACY_CATEGORY_DHCP, ARGOS_LEGACY_CATEGORY_NETBIOS
+    };
+    for (size_t i = 0; i < sizeof(categories) / sizeof(categories[0]); ++i)
+        argos_legacy_selection_apply(protocols, features, categories[i], 0);
+    argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
 }
 
 static inline int argos_protocol_name_lookup(const char *name,
