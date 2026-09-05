@@ -35,6 +35,8 @@ jobs:
           /tmp/bench-packet-ah
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/bench_network_context.c -o /tmp/bench-network
           /tmp/bench-network
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/bench_dispatch_plan.c -o /tmp/bench-dispatch
+          /tmp/bench-dispatch
           if nm /tmp/full /tmp/stub | grep -Eq 'argos_network_context|argos_network_router_exception|argos_packet_tcp_header_length'; then exit 1; fi
       - name: Packet, transport and capture contract sanitizers
         run: |
@@ -86,8 +88,8 @@ jobs:
           set -eu
           # C4 dispatch: canonical masks compile once and gate runtime plus classic BPF.
           # CPU/latency and ownership take priority over tiny text differences.
-          # +16 full text over PR #38 buys one startup BPF projection and independent
-          # L2/L3 route admission; exhaustive execution falls, with no data/BSS growth.
+          # +2521 full text over PR #39 replaces coarse transport gates with fixed
+          # per-engine routing; benchmarked dispatch work falls, with no data/BSS growth.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 166289
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 168810
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360

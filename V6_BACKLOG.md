@@ -209,12 +209,14 @@ v6 requires an explicit user decision.
 - [x] Native-L2 and non-port production callers (ARP, LLDP/LLDP-MED, STP family, LACP,
   CDP/EDP/FDP/IS-IS, EAPOL, PROFINET, NDP/RA, IGMP/MLD, OSPF and VRRP) check their
   individual canonical bit before parsing; ARP/NDP owner tables follow enabled-family demand.
-- [ ] Extend the same pre-parser/pre-state gate to every remaining TCP/UDP production caller.
-- [ ] Generate the classic-BPF whitelist from enabled protocol families while preserving safe
-  fallbacks for VLAN, QinQ, PPPoE and IPv6 extension headers.
+- [x] Extend the same pre-parser/pre-state gate to every current TCP/UDP production caller;
+  shared ports use bounded owner resolution and TLS/DoT retain independent output/rate bits.
+- [ ] Replace temporary coarse TCP/UDP BPF port-family flags with exact enabled-engine port
+  projection while preserving safe VLAN, QinQ, PPPoE and IPv6 extension-header fallbacks.
 - [x] Keep heavy QUIC reassembly runtime opt-in with enabled-demand startup allocation;
   disabled/default paths remain allocation-free and packet handling never allocates.
-- [ ] Add dispatcher equivalence fixtures proving legacy flag selections reach the same parsers.
+- [x] Add dispatcher fixtures for every current TCP/UDP port owner, both directions, aliases,
+  disabled routes and legacy rate projections. End-to-end per-vector reachability stays C10.
 - [ ] Benchmark packets/sec, loop latency, binary text size and AF_PACKET drop counters.
 
 ### Phase 5 — Connect existing production engines to the bitmap

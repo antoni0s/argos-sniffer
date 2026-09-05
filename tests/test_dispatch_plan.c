@@ -38,6 +38,27 @@ int main(void)
     assert(argos_dispatch_protocol_rate_limited(&plan, ARGOS_PROTOCOL_DNS));
     assert(!argos_dispatch_l2_frame_enabled(&plan, 0x88ccU));
 
+    argos_cli_selection_init(&cli);
+    assert(argos_cli_selection_apply_named(
+        &cli, ARGOS_CLI_SELECTOR_PROTOCOL, "http"));
+    argos_dispatch_plan_compile(&plan, &cli);
+    assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
+    assert(!argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_UDP));
+
+    argos_cli_selection_init(&cli);
+    assert(argos_cli_selection_apply_named(
+        &cli, ARGOS_CLI_SELECTOR_PROTOCOL, "quic"));
+    argos_dispatch_plan_compile(&plan, &cli);
+    assert(!argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
+    assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_UDP));
+
+    argos_cli_selection_init(&cli);
+    assert(argos_cli_selection_apply_named(
+        &cli, ARGOS_CLI_SELECTOR_PROTOCOL, "nfs"));
+    argos_dispatch_plan_compile(&plan, &cli);
+    assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_TCP));
+    assert(argos_dispatch_l4_enabled(&plan, ARGOS_DISPATCH_L4_UDP));
+
     for (unsigned protocol = 0; protocol < ARGOS_PROTOCOL_COUNT; ++protocol)
         attempt_engine(&plan, (argos_protocol_id_t)protocol, &counts);
     assert(counts.parser_calls == 1U);
@@ -104,6 +125,80 @@ int main(void)
                l2_engines[i].engine);
     assert(argos_dispatch_l2_protocol(0x0800U) == ARGOS_PROTOCOL_COUNT);
 
+    static const struct {
+        uint16_t port;
+        argos_protocol_id_t engine;
+    } tcp_engines[] = {
+        {22U, ARGOS_PROTOCOL_SSH}, {88U, ARGOS_PROTOCOL_KERBEROS},
+        {111U, ARGOS_PROTOCOL_SUNRPC}, {179U, ARGOS_PROTOCOL_BGP},
+        {445U, ARGOS_PROTOCOL_SMB}, {502U, ARGOS_PROTOCOL_MODBUS},
+        {631U, ARGOS_PROTOCOL_IPP}, {1433U, ARGOS_PROTOCOL_MSSQL},
+        {1521U, ARGOS_PROTOCOL_ORACLE}, {1883U, ARGOS_PROTOCOL_MQTT},
+        {2000U, ARGOS_PROTOCOL_SCCP}, {2049U, ARGOS_PROTOCOL_NFS},
+        {3260U, ARGOS_PROTOCOL_ISCSI}, {3306U, ARGOS_PROTOCOL_MYSQL},
+        {3389U, ARGOS_PROTOCOL_RDP}, {5060U, ARGOS_PROTOCOL_SIP},
+        {5432U, ARGOS_PROTOCOL_POSTGRESQL}, {9100U, ARGOS_PROTOCOL_PJL},
+        {44818U, ARGOS_PROTOCOL_ETHERNET_IP},
+    };
+    for (size_t i = 0; i < sizeof(tcp_engines) / sizeof(tcp_engines[0]); ++i) {
+        argos_cli_selection_init(&cli);
+        assert(argos_protocol_selection_apply_protocol(
+            &cli.protocols, tcp_engines[i].engine, 0));
+        argos_dispatch_plan_compile(&plan, &cli);
+        assert(argos_dispatch_tcp_port_engine(
+            &plan, 50000U, tcp_engines[i].port) == tcp_engines[i].engine);
+        assert(argos_dispatch_tcp_port_engine(
+            &plan, tcp_engines[i].port, 50000U) == tcp_engines[i].engine);
+        assert(argos_dispatch_tcp_port_engine(&plan, 50000U, 65535U) ==
+               ARGOS_PROTOCOL_COUNT);
+    }
+    static const struct {
+        uint16_t port;
+        argos_protocol_id_t engine;
+    } udp_engines[] = {
+        {88U, ARGOS_PROTOCOL_KERBEROS}, {111U, ARGOS_PROTOCOL_SUNRPC},
+        {123U, ARGOS_PROTOCOL_NTP}, {161U, ARGOS_PROTOCOL_SNMP},
+        {162U, ARGOS_PROTOCOL_SNMP}, {389U, ARGOS_PROTOCOL_CLDAP},
+        {427U, ARGOS_PROTOCOL_VMWARE_SLP}, {623U, ARGOS_PROTOCOL_IPMI},
+        {1812U, ARGOS_PROTOCOL_RADIUS}, {1813U, ARGOS_PROTOCOL_RADIUS},
+        {1985U, ARGOS_PROTOCOL_HSRP}, {2049U, ARGOS_PROTOCOL_NFS},
+        {3478U, ARGOS_PROTOCOL_STUN_TURN}, {5060U, ARGOS_PROTOCOL_SIP},
+        {5678U, ARGOS_PROTOCOL_MNDP}, {5683U, ARGOS_PROTOCOL_COAP},
+        {44818U, ARGOS_PROTOCOL_ETHERNET_IP}, {47808U, ARGOS_PROTOCOL_BACNET},
+    };
+    for (size_t i = 0; i < sizeof(udp_engines) / sizeof(udp_engines[0]); ++i) {
+        argos_cli_selection_init(&cli);
+        assert(argos_protocol_selection_apply_protocol(
+            &cli.protocols, udp_engines[i].engine, 0));
+        argos_dispatch_plan_compile(&plan, &cli);
+        assert(argos_dispatch_udp_port_engine(
+            &plan, 50000U, udp_engines[i].port) == udp_engines[i].engine);
+        assert(argos_dispatch_udp_port_engine(
+            &plan, udp_engines[i].port, 50000U) == udp_engines[i].engine);
+    }
+    static const struct {
+        uint16_t port;
+        argos_protocol_id_t engine;
+        int tcp;
+    } shared_engines[] = {
+        {9100U, ARGOS_PROTOCOL_JETDIRECT, 1},
+        {44818U, ARGOS_PROTOCOL_CIP, 1},
+        {389U, ARGOS_PROTOCOL_NETLOGON, 0},
+        {623U, ARGOS_PROTOCOL_RMCP, 0},
+        {623U, ARGOS_PROTOCOL_ASF, 0},
+        {44818U, ARGOS_PROTOCOL_CIP, 0},
+    };
+    for (size_t i = 0; i < sizeof(shared_engines) / sizeof(shared_engines[0]); ++i) {
+        argos_cli_selection_init(&cli);
+        assert(argos_protocol_selection_apply_protocol(
+            &cli.protocols, shared_engines[i].engine, 0));
+        argos_dispatch_plan_compile(&plan, &cli);
+        argos_protocol_id_t engine = shared_engines[i].tcp ?
+            argos_dispatch_tcp_port_engine(&plan, 50000U, shared_engines[i].port) :
+            argos_dispatch_udp_port_engine(&plan, 50000U, shared_engines[i].port);
+        assert(engine == shared_engines[i].engine);
+    }
+
     argos_cli_selection_init(&cli);
     argos_cli_selection_apply_legacy_all(&cli, 0);
     argos_dispatch_plan_compile(&plan, &cli);
@@ -142,7 +237,8 @@ int main(void)
     memset(&plan, 0xa5, sizeof(plan));
     argos_dispatch_plan_compile(&plan, NULL);
     assert(!argos_dispatch_protocol_enabled(&plan, ARGOS_PROTOCOL_DNS));
-    assert(plan.l2_routes == 0U && plan.l3_routes == 0U && plan.l4_routes == 0U);
+    assert(plan.l2_routes == 0U && plan.l3_routes == 0U && plan.l4_routes == 0U &&
+           plan.transport_routes == 0U);
 
     puts("Startup dispatch plan and disabled-engine gates: PASS");
     return 0;

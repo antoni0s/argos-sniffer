@@ -63,8 +63,7 @@ required_main_markers = (
     "argos_cli_selection_apply_legacy_all(&cli_selection",
     "argos_cli_selection_finalize(&cli_selection)",
     "argos_dispatch_plan_compile(&dispatch_plan, &cli_selection)",
-    "argos_dispatch_legacy_enabled(&dispatch_plan",
-    "argos_dispatch_legacy_rate_limited(&dispatch_plan",
+    "argos_dispatch_any_rate_limited(&dispatch_plan)",
 )
 for marker in required_main_markers:
     assert marker in main_source, f"missing runtime config adoption marker: {marker}"
@@ -114,4 +113,32 @@ assert "runtime_cfg.enterprise_enabled && l3_proto" not in packet_loop
 assert "runtime_cfg.enterprise_enabled && protocol == 2U" not in packet_loop
 assert "runtime_cfg.enterprise_enabled && protocol == 112U" not in packet_loop
 assert "runtime_cfg.enterprise_enabled && protocol == 89U" not in packet_loop
+
+# Transport callers use protocol bits/port-engine resolution before parser or
+# state work; compatibility category booleans may not leak into the packet loop.
+for obsolete in (
+    "opt_multi", "opt_dhcp", "opt_netbios", "opt_dns", "opt_http", "opt_tls",
+    "runtime_cfg.enterprise_enabled", "runtime_cfg.enterprise_rate_limited",
+):
+    assert obsolete not in packet_loop, f"coarse transport gate leaked: {obsolete}"
+for marker in (
+    "argos_dispatch_tcp_port_engine(",
+    "argos_dispatch_udp_port_engine(",
+    "ARGOS_PROTOCOL_HTTP", "ARGOS_PROTOCOL_QUIC", "ARGOS_PROTOCOL_WIREGUARD",
+    "ARGOS_PROTOCOL_NTLM", "ARGOS_PROTOCOL_RADIUS",
+):
+    assert marker in packet_loop, f"missing transport gate: {marker}"
+for parser, gate in {
+    "parse_tls_sni(": "tls_tcp || dot_tcp",
+    "argos_enterprise_parse_tcp(": "tcp_engine < ARGOS_PROTOCOL_COUNT",
+    "argos_enterprise_parse_udp(": "udp_engine < ARGOS_PROTOCOL_COUNT",
+    "argos_identity_ntlm_type3(": "ARGOS_PROTOCOL_NTLM",
+    "argos_identity_radius_access_request(": "ARGOS_PROTOCOL_RADIUS",
+}.items():
+    call = packet_loop.index(parser)
+    assert gate in packet_loop[max(0, call - 1800):call], f"{parser} lacks {gate} gate"
+assert "app_demand && tcp->syn" in packet_loop
+assert "if (app_track && argos_flow_should_skip" in packet_loop
+assert "if (emit_tls &&" in main_source
+assert "if (emit_dot && dport == 853U" in main_source
 print("Canonical config catalog matches V6_BACKLOG taxonomy: PASS")

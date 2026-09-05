@@ -33,13 +33,18 @@ enum {
     ARGOS_DISPATCH_L4_UDP = UINT16_C(1) << 1
 };
 
+enum {
+    ARGOS_DISPATCH_TRANSPORT_TCP_OWNER = UINT16_C(1) << 0,
+    ARGOS_DISPATCH_TRANSPORT_UDP_OWNER = UINT16_C(1) << 1
+};
+
 typedef struct {
     argos_protocol_selection_t protocols;
     argos_feature_selection_t features;
     uint16_t l2_routes;
     uint16_t l3_routes;
     uint16_t l4_routes;
-    uint16_t reserved;
+    uint16_t transport_routes;
 } argos_dispatch_plan_t;
 
 static inline int argos_dispatch_protocol_enabled(
@@ -53,6 +58,18 @@ static inline int argos_dispatch_protocol_rate_limited(
 {
     return argos_dispatch_protocol_enabled(plan, protocol) &&
            !argos_protocol_set_has(&plan->protocols.unrated, protocol);
+}
+
+static inline int argos_dispatch_any_rate_limited(
+    const argos_dispatch_plan_t *plan)
+{
+    if (!plan) return 0;
+    for (size_t i = 0; i < ARGOS_PROTOCOL_WORDS; ++i)
+        if ((plan->protocols.enabled.words[i] &
+             ~plan->protocols.unrated.words[i]) != 0U)
+            return 1;
+    return (plan->features.enabled & ~plan->features.unrated &
+            argos_feature_bit(ARGOS_FEATURE_TCP_SYN)) != 0U;
 }
 
 /* Packet normalization preserves these synthetic discriminators for LLC/SNAP
@@ -101,6 +118,90 @@ static inline int argos_dispatch_l4_enabled(const argos_dispatch_plan_t *plan,
                                             uint16_t routes)
 {
     return plan && (plan->l4_routes & routes) != 0U;
+}
+
+static inline argos_protocol_id_t argos_dispatch_first_enabled(
+    const argos_dispatch_plan_t *plan, argos_protocol_id_t first,
+    argos_protocol_id_t second, argos_protocol_id_t third)
+{
+    if (argos_dispatch_protocol_enabled(plan, first)) return first;
+    if (argos_dispatch_protocol_enabled(plan, second)) return second;
+    if (argos_dispatch_protocol_enabled(plan, third)) return third;
+    return ARGOS_PROTOCOL_COUNT;
+}
+
+/* Resolve the current cohesive transport owner's parser before payload/state
+ * work. Destination service wins, matching the frozen parser; source is used
+ * for the response direction only when destination is not a known service. */
+static inline argos_protocol_id_t argos_dispatch_tcp_port_engine(
+    const argos_dispatch_plan_t *plan, uint16_t sport, uint16_t dport)
+{
+    if (!plan || (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_TCP_OWNER) == 0U)
+        return ARGOS_PROTOCOL_COUNT;
+    uint16_t port = dport;
+    switch (port) {
+        case 22: case 88: case 111: case 179: case 445: case 502: case 631:
+        case 1433: case 1521: case 1883: case 2000: case 2049: case 3260:
+        case 3306: case 3389: case 5060: case 5432: case 9100: case 44818:
+            break;
+        default: port = sport; break;
+    }
+    switch (port) {
+        case 22: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SSH) ? ARGOS_PROTOCOL_SSH : ARGOS_PROTOCOL_COUNT;
+        case 88: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_KERBEROS) ? ARGOS_PROTOCOL_KERBEROS : ARGOS_PROTOCOL_COUNT;
+        case 111: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SUNRPC) ? ARGOS_PROTOCOL_SUNRPC : ARGOS_PROTOCOL_COUNT;
+        case 179: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_BGP) ? ARGOS_PROTOCOL_BGP : ARGOS_PROTOCOL_COUNT;
+        case 445: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SMB) ? ARGOS_PROTOCOL_SMB : ARGOS_PROTOCOL_COUNT;
+        case 502: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MODBUS) ? ARGOS_PROTOCOL_MODBUS : ARGOS_PROTOCOL_COUNT;
+        case 631: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_IPP) ? ARGOS_PROTOCOL_IPP : ARGOS_PROTOCOL_COUNT;
+        case 1433: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MSSQL) ? ARGOS_PROTOCOL_MSSQL : ARGOS_PROTOCOL_COUNT;
+        case 1521: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_ORACLE) ? ARGOS_PROTOCOL_ORACLE : ARGOS_PROTOCOL_COUNT;
+        case 1883: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MQTT) ? ARGOS_PROTOCOL_MQTT : ARGOS_PROTOCOL_COUNT;
+        case 2000: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SCCP) ? ARGOS_PROTOCOL_SCCP : ARGOS_PROTOCOL_COUNT;
+        case 2049: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_NFS) ? ARGOS_PROTOCOL_NFS : ARGOS_PROTOCOL_COUNT;
+        case 3260: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_ISCSI) ? ARGOS_PROTOCOL_ISCSI : ARGOS_PROTOCOL_COUNT;
+        case 3306: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MYSQL) ? ARGOS_PROTOCOL_MYSQL : ARGOS_PROTOCOL_COUNT;
+        case 3389: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RDP) ? ARGOS_PROTOCOL_RDP : ARGOS_PROTOCOL_COUNT;
+        case 5060: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SIP) ? ARGOS_PROTOCOL_SIP : ARGOS_PROTOCOL_COUNT;
+        case 5432: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_POSTGRESQL) ? ARGOS_PROTOCOL_POSTGRESQL : ARGOS_PROTOCOL_COUNT;
+        case 9100: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_PJL, ARGOS_PROTOCOL_JETDIRECT, ARGOS_PROTOCOL_COUNT);
+        case 44818: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_ETHERNET_IP, ARGOS_PROTOCOL_CIP, ARGOS_PROTOCOL_COUNT);
+        default: return ARGOS_PROTOCOL_COUNT;
+    }
+}
+
+static inline argos_protocol_id_t argos_dispatch_udp_port_engine(
+    const argos_dispatch_plan_t *plan, uint16_t sport, uint16_t dport)
+{
+    if (!plan || (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_UDP_OWNER) == 0U)
+        return ARGOS_PROTOCOL_COUNT;
+    uint16_t port = dport;
+    switch (port) {
+        case 88: case 111: case 123: case 161: case 162: case 389: case 427:
+        case 623: case 1812: case 1813: case 1985: case 2049: case 3478:
+        case 5060: case 5678: case 5683: case 44818: case 47808:
+            break;
+        default: port = sport; break;
+    }
+    switch (port) {
+        case 88: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_KERBEROS) ? ARGOS_PROTOCOL_KERBEROS : ARGOS_PROTOCOL_COUNT;
+        case 111: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SUNRPC) ? ARGOS_PROTOCOL_SUNRPC : ARGOS_PROTOCOL_COUNT;
+        case 123: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_NTP) ? ARGOS_PROTOCOL_NTP : ARGOS_PROTOCOL_COUNT;
+        case 161: case 162: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SNMP) ? ARGOS_PROTOCOL_SNMP : ARGOS_PROTOCOL_COUNT;
+        case 389: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_CLDAP, ARGOS_PROTOCOL_NETLOGON, ARGOS_PROTOCOL_COUNT);
+        case 427: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_VMWARE_SLP) ? ARGOS_PROTOCOL_VMWARE_SLP : ARGOS_PROTOCOL_COUNT;
+        case 623: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_IPMI, ARGOS_PROTOCOL_RMCP, ARGOS_PROTOCOL_ASF);
+        case 1812: case 1813: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RADIUS) ? ARGOS_PROTOCOL_RADIUS : ARGOS_PROTOCOL_COUNT;
+        case 1985: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_HSRP) ? ARGOS_PROTOCOL_HSRP : ARGOS_PROTOCOL_COUNT;
+        case 2049: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_NFS) ? ARGOS_PROTOCOL_NFS : ARGOS_PROTOCOL_COUNT;
+        case 3478: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_STUN_TURN) ? ARGOS_PROTOCOL_STUN_TURN : ARGOS_PROTOCOL_COUNT;
+        case 5060: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SIP) ? ARGOS_PROTOCOL_SIP : ARGOS_PROTOCOL_COUNT;
+        case 5678: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MNDP) ? ARGOS_PROTOCOL_MNDP : ARGOS_PROTOCOL_COUNT;
+        case 5683: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_COAP) ? ARGOS_PROTOCOL_COAP : ARGOS_PROTOCOL_COUNT;
+        case 44818: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_ETHERNET_IP, ARGOS_PROTOCOL_CIP, ARGOS_PROTOCOL_COUNT);
+        case 47808: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_BACNET) ? ARGOS_PROTOCOL_BACNET : ARGOS_PROTOCOL_COUNT;
+        default: return ARGOS_PROTOCOL_COUNT;
+    }
 }
 
 static inline int argos_dispatch_legacy_enabled(
@@ -153,17 +254,41 @@ static inline void argos_dispatch_plan_compile(
     if (ARGOS_DISPATCH_HAS(OSPF)) plan->l3_routes |= ARGOS_DISPATCH_L3_OSPF;
     if (ARGOS_DISPATCH_HAS(VRRP)) plan->l3_routes |= ARGOS_DISPATCH_L3_VRRP;
 
+    if (ARGOS_DISPATCH_HAS(SSH) || ARGOS_DISPATCH_HAS(KERBEROS) ||
+        ARGOS_DISPATCH_HAS(SUNRPC) || ARGOS_DISPATCH_HAS(BGP) ||
+        ARGOS_DISPATCH_HAS(SMB) || ARGOS_DISPATCH_HAS(MODBUS) ||
+        ARGOS_DISPATCH_HAS(IPP) || ARGOS_DISPATCH_HAS(MSSQL) ||
+        ARGOS_DISPATCH_HAS(ORACLE) || ARGOS_DISPATCH_HAS(MQTT) ||
+        ARGOS_DISPATCH_HAS(SCCP) || ARGOS_DISPATCH_HAS(NFS) ||
+        ARGOS_DISPATCH_HAS(ISCSI) || ARGOS_DISPATCH_HAS(MYSQL) ||
+        ARGOS_DISPATCH_HAS(RDP) || ARGOS_DISPATCH_HAS(SIP) ||
+        ARGOS_DISPATCH_HAS(POSTGRESQL) || ARGOS_DISPATCH_HAS(PJL) ||
+        ARGOS_DISPATCH_HAS(JETDIRECT) || ARGOS_DISPATCH_HAS(ETHERNET_IP) ||
+        ARGOS_DISPATCH_HAS(CIP))
+        plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_TCP_OWNER;
+    if (ARGOS_DISPATCH_HAS(KERBEROS) || ARGOS_DISPATCH_HAS(SUNRPC) ||
+        ARGOS_DISPATCH_HAS(NTP) || ARGOS_DISPATCH_HAS(SNMP) ||
+        ARGOS_DISPATCH_HAS(CLDAP) || ARGOS_DISPATCH_HAS(NETLOGON) ||
+        ARGOS_DISPATCH_HAS(VMWARE_SLP) || ARGOS_DISPATCH_HAS(IPMI) ||
+        ARGOS_DISPATCH_HAS(RMCP) || ARGOS_DISPATCH_HAS(ASF) ||
+        ARGOS_DISPATCH_HAS(RADIUS) || ARGOS_DISPATCH_HAS(HSRP) ||
+        ARGOS_DISPATCH_HAS(NFS) || ARGOS_DISPATCH_HAS(STUN_TURN) ||
+        ARGOS_DISPATCH_HAS(SIP) || ARGOS_DISPATCH_HAS(MNDP) ||
+        ARGOS_DISPATCH_HAS(COAP) || ARGOS_DISPATCH_HAS(ETHERNET_IP) ||
+        ARGOS_DISPATCH_HAS(CIP) || ARGOS_DISPATCH_HAS(BACNET))
+        plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_UDP_OWNER;
+
     if (argos_feature_selection_has(&plan->features, ARGOS_FEATURE_TCP_SYN) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_HTTP) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_TLS) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_ENTERPRISE))
+        ARGOS_DISPATCH_HAS(HTTP) || ARGOS_DISPATCH_HAS(TLS) ||
+        ARGOS_DISPATCH_HAS(DOT) || ARGOS_DISPATCH_HAS(NTLM) ||
+        (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_TCP_OWNER) != 0U)
         plan->l4_routes |= ARGOS_DISPATCH_L4_TCP;
-    if (argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_MULTI) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_DHCP) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_NETBIOS) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_DNS) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_TLS) ||
-        argos_dispatch_legacy_enabled(plan, ARGOS_LEGACY_CATEGORY_ENTERPRISE))
+    if (ARGOS_DISPATCH_HAS(MDNS) || ARGOS_DISPATCH_HAS(SSDP) ||
+        ARGOS_DISPATCH_HAS(UPNP) || ARGOS_DISPATCH_HAS(WSD) ||
+        ARGOS_DISPATCH_HAS(DHCP) || ARGOS_DISPATCH_HAS(DHCPV6) ||
+        ARGOS_DISPATCH_HAS(NBNS) || ARGOS_DISPATCH_HAS(DNS) ||
+        ARGOS_DISPATCH_HAS(QUIC) || ARGOS_DISPATCH_HAS(WIREGUARD) ||
+        (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_UDP_OWNER) != 0U)
         plan->l4_routes |= ARGOS_DISPATCH_L4_UDP;
     if (plan->l4_routes != 0U ||
         (plan->l3_routes & (ARGOS_DISPATCH_L3_IGMP | ARGOS_DISPATCH_L3_OSPF |

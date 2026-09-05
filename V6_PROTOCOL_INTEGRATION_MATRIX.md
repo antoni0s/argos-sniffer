@@ -240,7 +240,7 @@ This verifies individual fields only, **not whole-row integration readiness**.
 
 | Protocol | Verified owner / entry | Current gate and wire fact | Still unverified / blocked |
 |---|---|---|---|
-| TLS / DoT | `src/argos_tls.h`: `argos_tls_client_parse`, `argos_tls_server_parse`; main owns serialization | `opt_tls`; TCP 443/465/853/993/995/8443/8883; `TLS`, additive `DOT` on destination 853, `TLSSRV` for server evidence | Canonical cli_bit, normalized observation fields, byte budgets, collector mapping; enrichment remains staging |
+| TLS / DoT | `src/argos_tls.h`: `argos_tls_client_parse`, `argos_tls_server_parse`; main owns serialization | Independent canonical TLS/DoT bits; TCP 443/465/853/993/995/8443/8883; one parse, exact `TLS` and additive `DOT` emission/rate gates, `TLSSRV` for server evidence | Normalized observation fields, byte budgets, collector mapping; enrichment remains staging |
 | LLDP-MED | `src/argos_l2.h`: `argos_lldp_med_parse` | Enterprise gate, EtherType 0x88cc, legacy `ENT|...|LLDP-MED|...` | Standalone staging reconciliation, canonical bit/vector and collector mapping |
 | LACP | `src/argos_l2.h`: `argos_lacp_parse` | Enterprise gate, EtherType 0x8809, legacy `ENT|...|LACP|...` | Standalone staging reconciliation and complete per-row audit |
 | STP family | `src/argos_l2.h`: `argos_stp_parse`, `argos_rstp_parse`, `argos_mstp_parse` | Baseline LLC defect repaired in PR #7: native/VLAN/QinQ BPF→normalization→canonical parser fixture; declared 802.3 length bounds input | Canonical bit, staging reconciliation, full protocol budgets and collector mapping remain open; no full-row readiness claim |
@@ -284,8 +284,9 @@ each selectable production bit as an independent gate and reject staging/HOLD ac
 The current C4 slice consumes individual bits before every native-L2 parser and before NDP/RA,
 IGMP/MLD, OSPF and VRRP. Existing overlapping LLDP-MED/STP/LACP implementations gain canonical
 gates; their isolated staging headers remain unreachable and are not integrated or duplicated.
-Port-driven production callers and BPF are still coarse and must be adopted before qualified
-selectors are exposed.
+Current TCP/UDP production callers now consume exact protocol bits through bounded port-owner
+resolution. The BPF port lists still use temporary coarse family flags and must become exact
+before qualified selectors are exposed.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 
