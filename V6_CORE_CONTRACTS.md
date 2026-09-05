@@ -217,7 +217,7 @@ All 75 local strict standalone tests pass. Full/stub text is 165565/153555 (+855
 data 3832 and BSS 80360/78760 unchanged. Core 33970212966, L2 33970212932 and staging
 33970212929 PASS, including LeakSanitizer and ARM64 compilation. No staged parser became reachable.
 
-### Native-L2 and non-port protocol gates — current `v6-c4-l2-gates` candidate
+### Native-L2 and non-port protocol gates — PR #37
 
 Main now admits native-L2 frames and invokes ARP, LLDP/LLDP-MED, STP/RSTP/MSTP, LACP,
 CDP/EDP/FDP/IS-IS, EAPOL and PROFINET parsers only through their individual canonical bits.

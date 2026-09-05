@@ -253,8 +253,8 @@ parser/state gates; retain exact legacy output/equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** local `v6-c4-l2-gates` candidate; no remote branch/PR yet. Staging runtime
-integration remains blocked on the core review.
+**Pending:** PR #37 carries the native-L2/non-port slice; canonical BPF projection is next.
+Staging runtime integration remains blocked on the core review.
 PR #36: core 33970212966, L2 33970212932, staging 33970212929 PASS.
 Native full/stub text 165565/153555; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
