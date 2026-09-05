@@ -125,6 +125,27 @@ int main(void)
                l2_engines[i].engine);
     assert(argos_dispatch_l2_protocol(0x0800U) == ARGOS_PROTOCOL_COUNT);
 
+    /* Staging/HOLD bits are not CLI-selectable, but their fixed route adapters
+     * can be characterized without making any parser runtime-reachable. */
+    argos_cli_selection_init(&cli);
+    assert(!argos_protocol_selection_apply_protocol(&cli.protocols,
+                                                     ARGOS_PROTOCOL_PTP, 0));
+    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_PTP);
+    argos_dispatch_plan_compile(&plan, &cli);
+    assert(argos_dispatch_l2_enabled(&plan, ARGOS_DISPATCH_L2_PTP));
+    assert(argos_dispatch_l2_frame_enabled(&plan, 0x88f7U));
+    assert(argos_dispatch_ptp_udp_enabled(&plan, 50000U, 319U));
+    assert(argos_dispatch_ptp_udp_enabled(&plan, 320U, 50000U));
+    assert(!argos_dispatch_ptp_udp_enabled(&plan, 50000U, 321U));
+
+    argos_cli_selection_init(&cli);
+    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_ESP);
+    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_AH);
+    argos_dispatch_plan_compile(&plan, &cli);
+    assert(argos_dispatch_ip_protocol_engine(&plan, 50U) == ARGOS_PROTOCOL_ESP);
+    assert(argos_dispatch_ip_protocol_engine(&plan, 51U) == ARGOS_PROTOCOL_AH);
+    assert(argos_dispatch_ip_protocol_engine(&plan, 89U) == ARGOS_PROTOCOL_COUNT);
+
     static const struct {
         uint16_t port;
         argos_protocol_id_t engine;

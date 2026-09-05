@@ -289,7 +289,7 @@ and BSS 80360/78760 unchanged; the BPF config grows by 16 startup-only bytes. Co
 L2 33974908456 and staging 33974908441 passed, including sanitizer and ARM64 compile gates.
 No staged/HOLD bit became selectable or reachable.
 
-### Qualified runtime selectors — candidate
+### Qualified runtime selectors — PR #42, `c5542289cae4cd8a87a26f3da26c84e79fade7cf`
 
 `--profile`, `--super-group`, `--group`, `--protocol` and `--no-rate-limit` now feed the existing
 startup selector compiler directly in argv order. They complete before dispatch/BPF compilation and
@@ -308,7 +308,24 @@ All 75 strict standalone tests and the native full/stub builds pass locally. Ful
 172841/160863 (+3544/+3588 from PR #41), data is 3992 (+160), and BSS remains 80360/78760.
 The growth is startup-only selector/profile code and five fixed `getopt_long` entries; no catalog
 scan, string lookup or selection state enters packet processing. Three focused ASan/UBSan runs pass;
-local LeakSanitizer is unavailable under the runner's ptrace environment and remains a CI gate.
+core 33975658784, L2 33975658739 and staging 33975658786 passed, including CI LeakSanitizer
+and ARM64 compile gates.
+
+### Fixed no-port/PTP readiness routes — candidate
+
+The fixed dispatch/BPF owners now model native PTP EtherType 0x88f7, UDP 319/320 in both directions,
+and IPv4 ESP/AH protocol 50/51. A bounded userspace IP-protocol switch resolves IGMP, ESP, AH, OSPF
+and VRRP without invented ports. IPv6 BPF remains intentionally conservative across extension
+headers; userspace owns exact terminal-protocol rejection. PTP native and UDP paths share one
+canonical bit and one future bounded message-slice contract.
+
+This is readiness infrastructure, not staging integration: production-filtered selectors still
+reject PTP, ESP and AH, main has no parser/output adapter, and their isolated headers remain outside
+runtime. Tests manually construct staging/HOLD masks solely to prove future route behavior while
+the frozen legacy matrix remains identical. Local evidence: 297,940 no-port/PTP checks, 7,239,680
+legacy BPF comparisons, 1,024 kernel verifier configurations, all 75 strict tests and four focused
+ASan/UBSan runs. Full/stub text is 173626/161564 (+785/+701 from PR #42), data 3992 and BSS
+80360/78760 unchanged. LeakSanitizer and ARM64 compilation remain CI gates.
 
 ## Concrete blockers, not hypothetical architecture work
 

@@ -244,8 +244,8 @@ This verifies individual fields only, **not whole-row integration readiness**.
 | LLDP-MED | `src/argos_l2.h`: `argos_lldp_med_parse` | Enterprise gate, EtherType 0x88cc, legacy `ENT|...|LLDP-MED|...` | Standalone staging reconciliation, canonical bit/vector and collector mapping |
 | LACP | `src/argos_l2.h`: `argos_lacp_parse` | Enterprise gate, EtherType 0x8809, legacy `ENT|...|LACP|...` | Standalone staging reconciliation and complete per-row audit |
 | STP family | `src/argos_l2.h`: `argos_stp_parse`, `argos_rstp_parse`, `argos_mstp_parse` | Baseline LLC defect repaired in PR #7: native/VLAN/QinQ BPF→normalization→canonical parser fixture; declared 802.3 length bounds input | Canonical bit, staging reconciliation, full protocol budgets and collector mapping remain open; no full-row readiness claim |
-| PTP | Isolated `src/argos_ptp.h`, no runtime call from main | Native 0x88f7 and UDP319/320 are not wired | Both paths to one engine, BPF, cli_bit, observation/state/collector contracts |
-| ESP / AH | Isolated `src/argos_esp.h` / `src/argos_ah.h`, no runtime calls | IPv6 normalization skips AH and retains only the following header offset | Hold: non-port dispatch/BPF plus AH header ownership |
+| PTP | Isolated `src/argos_ptp.h`, no runtime call from main | Fixed dispatch/BPF readiness admits native 0x88f7 and UDP 319/320 only when a manually characterized staging bit is present; production CLI cannot set it | Main adapter, observation/state/collector contracts, then promotion/fold |
+| ESP / AH | Isolated `src/argos_esp.h` / `src/argos_ah.h`, no runtime calls | Fixed userspace owner switches and IPv4 BPF gates exist behind unselectable HOLD bits; IPv6 remains conservative and normalization skips AH to the following header | Hold: main adapters plus AH sidecar ownership/readiness review |
 | Thread | Isolated `src/argos_thread.h`, no runtime call | No raw IEEE802.15.4 link type in current capture contract | Hold: capture/link-type semantics |
 
 Canonical `cli_bit` IDs and group/super-group memberships are now exact for all
@@ -312,7 +312,7 @@ Non-port checkpoint at `5af8df48…` (characterization only):
 |---|---|---|
 | AH | `argos_ah.h:argos_ah_parse`, >=12 bytes, declared `(payload_len+2)*4` within slice, nonzero SPI | IPv6 walker loses own offset and accepts framing rejected by staging; IP-version alignment adapter needed. Untagged IPv4 BPF lacks 51. No runtime call. |
 | ESP | `argos_esp.h:argos_esp_parse`, >=8 bytes, nonzero SPI; terminal transport has no ports | Untagged IPv4 BPF lacks 50; no runtime call even when fallback admits capture. |
-| PTP | `argos_ptp.h:argos_ptp_parse`, v2, common header >=34, message_length 34..slice length | Same isolated entry accepts native/UDP fixtures. Native main allowlist and dedicated UDP319/320 gates absent; no runtime call. |
+| PTP | `argos_ptp.h:argos_ptp_parse`, v2, common header >=34, message_length 34..slice length | Same isolated entry accepts native/UDP fixtures. Fixed EtherType/UDP dispatch and BPF readiness gates exist, but no main runtime call or selectable staging bit. |
 
 `tests/test_nonport_contract.c` verifies these boundaries without runtime wiring.
 `V6_CORE_CONTRACTS.md` records the optional first-AH sidecar API (PR #19) and the

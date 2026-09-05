@@ -45,6 +45,34 @@ static void bpf_matrix(void) {
     CHECK(pass(&b, p, n), "custom WireGuard port can coincide with PTP");
     legacy_bpf_config((1U << 10) - 1U, 51820U, &c);
     CHECK(argos_bpf_build(&c, &b), "all-enabled plus default WireGuard fits capacity");
+
+    argos_cli_selection_t cli;
+    argos_dispatch_plan_t plan;
+    argos_cli_selection_init(&cli);
+    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_PTP);
+    argos_dispatch_plan_compile(&plan, &cli);
+    argos_bpf_config_compile(&c, &plan, 0U);
+    CHECK(argos_bpf_build(&c, &b), "staging PTP reachability projection fits BPF");
+    n = eth(p, 0x88f7);
+    CHECK(pass(&b, p, n), "PTP projection admits native EtherType");
+    for (unsigned port = 319; port <= 320; ++port) {
+        n = udp4(p, 50000, (uint16_t)port, 34);
+        CHECK(pass(&b, p, n), "PTP projection admits UDP destination");
+        n = udp4(p, (uint16_t)port, 50000, 34);
+        CHECK(pass(&b, p, n), "PTP projection admits UDP source");
+    }
+    n = udp4(p, 50000, 321, 34);
+    CHECK(!pass(&b, p, n), "PTP projection rejects unrelated UDP port");
+
+    argos_cli_selection_init(&cli);
+    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_ESP);
+    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_AH);
+    argos_dispatch_plan_compile(&plan, &cli);
+    argos_bpf_config_compile(&c, &plan, 0U);
+    CHECK(argos_bpf_build(&c, &b), "HOLD no-port projection fits BPF");
+    CHECK(pass(&b, p, proto4(p, 50U)), "ESP projection admits IPv4 protocol 50");
+    CHECK(pass(&b, p, proto4(p, 51U)), "AH projection admits IPv4 protocol 51");
+    CHECK(!pass(&b, p, proto4(p, 52U)), "no-port projection rejects unrelated protocol");
 }
 
 /* Fixture construction records offsets; never scan the packet again to find AH.

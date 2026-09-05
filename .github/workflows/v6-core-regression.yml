@@ -88,8 +88,9 @@ jobs:
           set -eu
           # C3/C4: qualified selectors compile once before capture into the same
           # fixed masks already consumed by runtime and classic BPF. Pulling the
-          # selector/profile compiler into main costs +3544 full text and +160 data;
-          # there is no packet-time work or persistent-state/BSS growth.
+          # selector/profile compiler plus fixed no-port/PTP readiness routes cost
+          # +4329 full text and +160 data; there is no packet-time work for
+          # unavailable staging/HOLD bits or persistent-state/BSS growth.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 172841
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 173626
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360

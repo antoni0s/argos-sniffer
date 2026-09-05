@@ -214,6 +214,8 @@ v6 requires an explicit user decision.
   shared ports use bounded owner resolution and TLS/DoT retain independent output/rate bits.
 - [x] Replace temporary coarse TCP/UDP BPF port-family flags with exact enabled-engine port
   projection while preserving safe VLAN, QinQ, PPPoE and IPv6 extension-header fallbacks.
+- [ ] Complete no-port/PTP runtime adoption. Fixed dispatch/BPF readiness covers native PTP,
+  UDP 319/320 and IPv4 ESP/AH; staged/HOLD CLI rejection remains until runtime owner/vector gates.
 - [x] Keep heavy QUIC reassembly runtime opt-in with enabled-demand startup allocation;
   disabled/default paths remain allocation-free and packet handling never allocates.
 - [x] Add dispatcher fixtures for every current TCP/UDP port owner, both directions, aliases,

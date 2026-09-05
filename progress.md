@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `bce1ce93…` (PR #41).
-**Now:** validate qualified profile/super-group/group/protocol/no-rate CLI adoption (C3/C4).
+Branch: `version-6`. Verified checkpoint: `c5542289…` (PR #42).
+**Now:** validate fixed no-port IP and PTP dual-path readiness routes without staging activation (C1/C4).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -49,6 +49,8 @@ protocol listed for v6 must be integrated before the v6 release after its readin
   frozen legacy decisions and conservative encapsulation fallbacks — PR #39.
 - [x] Exact enabled-engine TCP/UDP ports replace coarse BPF families; frozen legacy matrix,
   lower verifier length/work and independent shared-port aliases — PR #41.
+- [x] Qualified profile/super-group/group/protocol/no-rate selectors compile once before capture;
+  source-truth audit keeps no-op LLMNR staged and mandatory for v6 — PR #42.
 
 ## How to update — mandatory
 
@@ -83,7 +85,8 @@ protocol listed for v6 must be integrated before the v6 release after its readin
 
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval.
 - [ ] No-port IPv4/IPv6 dispatch/BPF and first-AH API adoption after canonical enable bits (C3/C4);
-  PTP native EtherType + UDP reach one engine. Thread stays HOLD until raw
+  fixed ESP/AH and native/UDP PTP readiness routes are implemented but remain unavailable pending
+  runtime adapter/readiness promotion. Thread stays HOLD until raw
   IEEE802.15.4/6LoWPAN capture is defined. C1 remains open across those dependencies.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
 
@@ -260,19 +263,19 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish and merge qualified profile/super-group/group/protocol/no-rate selectors through
-the fixed startup compiler, then begin the C1 no-port/PTP reachability slice.
+**Next:** merge fixed no-port IP and PTP dual-path readiness routes, then complete the C1 runtime
+adapter/readiness review without activating staged output prematurely.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c3-qualified-selectors` is active. The source audit corrected LLMNR from production
-to staging because no UDP/TCP 5355 runtime/BPF owner exists; it remains mandatory in Phase 8.
+**Pending:** `v6-c1-no-port-ptp-reachability` is active. Fixed PTP EtherType/UDP 319–320 and
+ESP/AH IP-protocol routes are testable through dispatch/BPF, while CLI staging/HOLD rejection remains.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
-PR #41: core 33974908442, L2 33974908456, staging 33974908441 PASS.
-Qualified-selector candidate full/stub text 172841/160863; data 3992; BSS 80360/78760.
-The +3544/+3588 text and +160 data are startup-only compiler/getopt cost with no hot-path or
-persistent-state growth. Local strict matrix is 75/75 and three focused ASan/UBSan runs pass;
-LeakSanitizer remains a CI gate because the local ptrace runner cannot execute it. Current listed
+PR #42: core 33975658784, L2 33975658739, staging 33975658786 PASS.
+Current candidate full/stub text 173626/161564; data 3992; BSS 80360/78760.
+The +785/+701 text from PR #42 is fixed readiness code; unavailable bits add no packet-time work or
+persistent state. Local strict matrix is 75/75 and four focused ASan/UBSan runs pass; LeakSanitizer
+remains a CI gate because the local ptrace runner cannot execute it. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first
