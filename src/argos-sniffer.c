@@ -138,12 +138,13 @@
 int opt_quic_heavy = 0;          /* Flag to enable heavy stateful QUIC reassembly */
 int opt_ext_metrics = 0;         /* Default: Heavy metrics (entropy, RTT, latency) disabled */
 
-static const char *argos_exporter_vector(argos_protocol_id_t protocol) {
+static const char *argos_native_vector(argos_protocol_id_t protocol) {
     switch (protocol) {
         case ARGOS_PROTOCOL_SYSLOG: return "SYSLOG";
         case ARGOS_PROTOCOL_NETFLOW: return "NETFLOW";
         case ARGOS_PROTOCOL_IPFIX: return "IPFIX";
         case ARGOS_PROTOCOL_SFLOW: return "SFLOW";
+        case ARGOS_PROTOCOL_LPD: return "LPD";
         default: return NULL;
     }
 }
@@ -272,6 +273,27 @@ static int dedup_should_suppress(const char *mac, const char *evtype, const char
  * here because the telemetry runtime uses the same canonical formatter. */
 static void format_mac(const uint8_t mac[6], char out[18]);
 
+/* One serialization boundary for the shared bounded result. New integrations
+ * use a native vector; untouched legacy engines keep their exact ENT layout. */
+static void emit_enterprise_result(argos_protocol_id_t protocol,
+                                  const argos_enterprise_result_t *r,
+                                  const uint8_t mac[6], const char *src_ip,
+                                  const char *dst_ip, const char *routed, int rate_limited) {
+    if (!r || !r->emit) return;
+    char text_mac[18], signature[768];
+    const char *vector = argos_native_vector(protocol);
+    format_mac(mac, text_mac);
+    snprintf(signature, sizeof(signature), "%s|%s|%s", src_ip, r->proto, r->detail);
+    if (dedup_should_suppress(text_mac, vector ? vector : "ENT", signature, rate_limited))
+        return;
+    if (vector)
+        emit_telemetry("%s|%s|%s|%s|%s%s\n", vector, text_mac,
+                       src_ip, dst_ip, r->detail, routed);
+    else
+        emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", text_mac,
+                       src_ip, dst_ip, r->proto, r->detail, routed);
+}
+
 /* One wire-format boundary for all observed identity parsers. Protocol parsers
  * produce bounded evidence; this runtime helper owns MAC formatting, dedup and
  * IDENT serialization so those concerns cannot drift per protocol. */
@@ -324,8 +346,10 @@ static void source_dedup_signature(char *out, size_t out_cap, const char *src_ip
  * complete once the request header terminator is present in the captured
  * payload. The packet that completes the fingerprint is still parsed; DONE is
  * applied only to subsequent packets. */
-static int app_flow_payload_complete(uint16_t sport, uint16_t dport, const unsigned char *payload, int payload_len) {
+static int app_flow_payload_complete(argos_protocol_id_t engine, uint16_t sport, uint16_t dport, const unsigned char *payload, int payload_len) {
     if (!payload || payload_len <= 0) return 0;
+    /* One attempt, successful or not; never revisit print data or listings. */
+    if (engine == ARGOS_PROTOCOL_LPD) return 1;
 
     if (argos_tls_tcp_port(sport)) {
         argos_tls_server_result_t server;
@@ -1744,20 +1768,9 @@ int main(int argc, char *argv[]) {
                 if (tcp_engine < ARGOS_PROTOCOL_COUNT && payload_len > 0) {
                     ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
                     if (ent_tcp_seen && ent_tcp.emit) {
-                        char ent_mac[18], ent_sig[768];
-                        const char *exporter = argos_exporter_vector(tcp_engine);
-                        format_mac(src_mac, ent_mac);
-                        snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_tcp.proto, ent_tcp.detail);
-                        if (!dedup_should_suppress(ent_mac, exporter ? exporter : "ENT", ent_sig,
-                                argos_dispatch_protocol_rate_limited(
-                                    &dispatch_plan, tcp_engine))) {
-                            if (exporter)
-                                emit_telemetry("%s|%s|%s|%s|%s%s\n", exporter, ent_mac,
-                                               src_ip_str, dst_ip_str, ent_tcp.detail, routed_str);
-                            else
-                                emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str,
-                                               dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
-                        }
+                        emit_enterprise_result(tcp_engine, &ent_tcp, src_mac,
+                            src_ip_str, dst_ip_str, routed_str,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, tcp_engine));
                     }
                 }
 
@@ -1809,7 +1822,7 @@ int main(int argc, char *argv[]) {
 
                 if (app_track) {
                     int fingerprint_complete = app_flow_payload_complete(
-                        sport, dport, buffer + payload_offset, payload_len);
+                        tcp_engine, sport, dport, buffer + payload_offset, payload_len);
                     if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
                     argos_flow_note_payload(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr,
                                         sport, dport, fingerprint_complete);
@@ -2071,20 +2084,9 @@ int main(int argc, char *argv[]) {
                     udp_engine != ARGOS_PROTOCOL_RIP) {
                     argos_enterprise_result_t ent_udp;
                     if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
-                        char ent_mac[18], ent_sig[768];
-                        const char *exporter = argos_exporter_vector(udp_engine);
-                        format_mac(src_mac, ent_mac);
-                        snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
-                        if (!dedup_should_suppress(ent_mac, exporter ? exporter : "ENT", ent_sig,
-                                argos_dispatch_protocol_rate_limited(
-                                    &dispatch_plan, udp_engine))) {
-                            if (exporter)
-                                emit_telemetry("%s|%s|%s|%s|%s%s\n", exporter, ent_mac,
-                                               src_ip_str, dst_ip_str, ent_udp.detail, routed_str);
-                            else
-                                emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str,
-                                               dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
-                        }
+                        emit_enterprise_result(udp_engine, &ent_udp, src_mac,
+                            src_ip_str, dst_ip_str, routed_str,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, udp_engine));
                     }
                 }
                 /* RADIUS observed identity: client Access-Request User-Name only. */

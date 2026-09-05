@@ -86,7 +86,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | printing | ipp | production | application/printing owner | TCP 631 + IPP/HTTP | IPP: operation, printer/device attributes where passive; fingerprint = make/model/IPP capability set | headers/attribute block | no print-job body |
 | printing | pjl | production | printing owner | TCP 9100/PJL magic | PJL: command, INFO/USTATUS/device identifiers; fingerprint = language/capability/banner | stop before print payload | no document content |
 | printing | jetdirect | production | printing owner | TCP 9100 + bounded control/PJL detection | JETDIRECT: service/control evidence | early control bytes only | fast-drop bulk print data |
-| printing | lpd | staging | application facade/section | TCP 515 | `LPD`: command, queue, username; fingerprint = command/queue/service profile | after control request | no print data/control-file body |
+| printing | lpd | production | `argos_enterprise.h:ae_lpd` (existing printing section) | TCP 515; commands only toward daemon | `LPD`: command, queue, username; frozen order/caps in backlog | one payload/direction, max 1,024 inspected bytes; stop on success or failure | permanent parser, native-wire, privacy, completion, BPF, sanitizer and ARM64 fixtures |
 | voice | sip | production | application/voice owner | UDP/TCP 5060/5061 + SIP methods | SIP: method/status, UA/server, supported/allow codecs/features; fingerprint = UA + capability set | after headers/SDP-lite if bounded | no media body beyond negotiation metadata |
 | voice | sccp | production | voice owner | TCP 2000 + SCCP framing | SCCP: message type/device identity/capability hints | bounded control messages | no media stream |
 | voice | rtp | staging | application facade/section | negotiated/dynamic UDP + RTP version bits | `RTP`: version, payload_type, marker, sequence, timestamp, ssrc, csrc_count, extension; fingerprint = payload-type/SSRC behavior only as session evidence | first valid RTP packets then complete/drop | never inspect media payload |
@@ -223,7 +223,7 @@ until the prerequisite is implemented but does not remove it from the release.
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
 3. **Management exporters** — Syslog, NetFlow, IPFIX and sFlow. **Complete.**
-4. **Application control** — HTTP proxy, Telnet, VNC, WinRM, LPD.
+4. **Application control** — LPD runtime slice implemented; HTTP proxy, Telnet, VNC and WinRM remain open.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 6. **Enterprise storage/database/directory** — FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
 7. **Industrial** — KNXnet/IP, S7comm, OPC UA, DNP3.
@@ -231,6 +231,34 @@ until the prerequisite is implemented but does not remove it from the release.
 9. **VPN** — OpenVPN, IKE; ESP/AH only after non-port IP dispatch/BPF support is proven.
 
 ## Final audit columns to fill at integration time
+
+### LPD runtime slice
+
+- cli_bit: `ARGOS_PROTOCOL_LPD`; group: `printing`; super-group: `application`.
+- owner_file: `src/argos_enterprise.h`; entry_function: `argos_enterprise_parse_tcp`
+  calls `ae_lpd` only for destination TCP 515. Replies produce no command record.
+- trigger/bpf_gate: `argos_dispatch_tcp_port_engine` and the shared TCP registry
+  admit 515 in either direction only when LPD is selected; UDP 515 is excluded.
+- vector: `LPD|src_mac|src_ip|dst_ip|command=... queue=... username=...[|routed]`.
+  Required fields: command/queue; username is always present as agent or `-`.
+  Queue-query filters are not requesting identities; only command 5 supplies agent.
+- fingerprint_inputs: command/service shape. Queue/agent are relationship evidence,
+  not a stable implementation hash; no new fingerprint algorithm is claimed.
+- state_owner: existing directional `argos_flow_state_t`; state_bytes: zero added.
+- max_packets: one nonempty payload per retained direction/generation;
+  max_bytes: 1,024-byte prefix through first LF; timeout_ms: existing 60,000 idle.
+- complete_when/drop_when: first attempt succeeds or fails; later print bytes,
+  control-file bodies/subcommands and server listings are not parsed. Missing LF,
+  invalid grammar and over-cap fields produce no output. No TCP reassembly.
+  Capture that starts midstream cannot establish handshake provenance; eviction,
+  expiry and SYN reset permit a new bounded generation, as for the existing owner.
+- privacy_assertions: no body bytes or filter-list identities emitted; queue/agent
+  are 95/63-byte printable tokens with record delimiters normalized to underscore.
+- fixtures: `test_lpd.c`, `test_dynamic_bpf.c`, `test_dispatch_plan.c`,
+  `test_config_catalog.c`, `test_help.c`, `check_config_catalog.py`;
+  core strict/sanitizer/ARM64 gate.
+- collector_mapping: exact sniffer wire fixture verified; deployed collector
+  owner/version acceptance remains unverified under C7/C10.
 
 ### Exact-source checkpoint, 2026-09-04
 

@@ -15,7 +15,6 @@
 #include "../src/argos_knx.h"
 #include "../src/argos_ldap.h"
 #include "../src/argos_ldaps.h"
-#include "../src/argos_lpd.h"
 #include "../src/argos_matter.h"
 #include "../src/argos_mongodb.h"
 #include "../src/argos_nvmeof.h"

@@ -39,8 +39,8 @@ cryptographic keys.
 - Capture socket/epoll setup, bounded receive metadata and drop statistics now have a
   cohesive lifecycle owner in `argos_capture.h`; packet normalization, filters and BPF
   construction remain separate. This extraction does not freeze the full packet contract.
-- Thirty-two standalone protocol headers remain as **runtime-isolated staging parsers** after
-  canonical L2, PTP and RIP integration. They are temporary implementation units that must be
+- Remaining standalone protocol headers are **runtime-isolated staging parsers** after
+  canonical L2, PTP, RIP, exporter and LPD integration. They are temporary implementation units that must be
   integrated into v6 after readiness review, not permission to add permanent public engine boundaries.
 - RTSP, LDAP BER, NVMe/TCP and Thread/6LoWPAN boundary semantics have dedicated corrections and
   fixtures.
@@ -279,7 +279,9 @@ the protocol from the release.
      with exact TCP/UDP dispatch, native signatures, bounded header-only parsing
      and obsolete staging-header removal.
 3. **Application control protocols**
-   - [ ] HTTP proxy, Telnet, VNC, WinRM, LPD.
+   - [ ] HTTP proxy, Telnet, VNC, WinRM.
+   - [ ] LPD runtime slice implemented; merge/CI acceptance pending, collector
+     deployment mapping remains C7/C10. Folded into the existing printing section.
 4. **Realtime and media negotiation**
    - [ ] RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 5. **Enterprise storage, database and directory**
@@ -396,7 +398,7 @@ Candidate vectors and their required metadata are:
 | TELNET | command, option, negotiation, username |
 | VNC | protocol, version, security_types, selected_security, server_name, width, height |
 | WINRM | transport, wsman, soap, method, auth, username, encrypted |
-| LPD | command, queue, username |
+| LPD | frozen: `command=<restart\|receive-job\|short-queue\|long-queue\|remove-jobs> queue=<token> username=<agent\|->`, in this order |
 | RTP | version, payload_type, marker, sequence, timestamp, ssrc, csrc_count, extension |
 | RTCP | version, packet_type, report_count, ssrc, compound |
 | RTSP | type, method, status, cseq, transport, username, server, user_agent, auth |
@@ -413,6 +415,14 @@ Candidate vectors and their required metadata are:
 | IKE | version, exchange, username, flags, message_id, initiator_spi, responder_spi, natt |
 | ESP | spi, sequence |
 | AH | next_header, payload_length, spi, sequence |
+
+LPD uses `LPD|src_mac|src_ip|dst_ip|command=... queue=... username=...[|routed]`.
+Queue and agent are bounded ASCII tokens (95 and 63 bytes); record delimiters
+`|;=\\` normalize to `_`. Missing username is `-`; only command 5's agent is
+an observed requesting username. Queue-query filters are not the requesting user.
+Only the first payload-bearing packet per direction/generation is considered,
+with at most 1,024 bytes through the first LF. Truncated/invalid/overlong commands
+stop inspection without output. No TCP reassembly or control/data-file decoding.
 
 PTP's frozen output is:
 

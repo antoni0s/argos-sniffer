@@ -1,12 +1,14 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `4e430b2…` (PR #44).
-**Now:** integrate LLDP-MED/LACP/STP into the canonical L2 owner and remove duplicate staging files.
-**Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
+Branch: `version-6`. Verified checkpoint: `9a27388c404aa220ce6b472b9f6b6a610eb56547` (PR #48).
+**Now:** LPD slice of application-control integration; strict/CI/merge gates.
+**Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
 
+- [x] Management exporters integrated with native vectors and staging cleanup — PR #48;
+  core 33982645819, network 33982645829, staging 33982645897 and L2 33982645803 PASS.
 - [x] TLS/QUIC consolidation and enterprise/L2 fingerprint foundations.
 - [x] Observed identity, hash/raw modes and RDP/NTLM privacy hardening.
 - [x] Discovery, compile-once filters and network/prefix/netlink extraction.
@@ -219,7 +221,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   native privacy-safe `RIP|...` output, permanent fixtures and staging-header removal.
 - [x] Syslog/NetFlow/IPFIX/sFlow: canonical enterprise owner, native non-`ENT`
   signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
-- [ ] HTTP proxy/Telnet/VNC/WinRM/LPD.
+- [ ] HTTP proxy/Telnet/VNC/WinRM.
+- [ ] LPD runtime slice implemented; strict/CI/merge gates pending.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
 - [ ] FTP/NVMe-TCP/MongoDB/Redis/TACACS+/LDAP/LDAPS.
 - [ ] KNXnet-IP/S7comm/OPC-UA/DNP3.
@@ -268,33 +271,25 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** integrate HTTP proxy/Telnet/VNC/WinRM/LPD through the canonical application owner.
-VLAN depends on schema approval.
+**Next:** finish HTTP proxy/Telnet/VNC/WinRM within application control, then media.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** the management exporter candidate uses the canonical enterprise owner and exact
-TCP/UDP dispatch/BPF gates. Its frozen native signatures never use `ENT`; Syslog message bodies,
-NetFlow records, IPFIX set bodies and sFlow samples are not emitted. Unique bounds/privacy fixtures
-moved to `tests/test_exporters.c`, and all four obsolete staging headers/references were removed.
-All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
-review; their current isolation is temporary.
-PR #44: core 33977277636, L2 33977277545, staging 33977277630 PASS.
-Current exporter candidate full/stub text is 180908/168986; data remains 3992 and BSS
-80360/78760. The shared result is 538 bytes of automatic storage and exporter payloads are capped
-at 4,096 bytes; there is no new retained state or packet-time allocation. The reviewed native
-full-text ceiling is 180960, with a 52-byte compiler-stability margin over the measured build.
-Optimized main stack is 84,992 bytes (+48 from the last 84,944-byte checkpoint).
-Local evidence: all 78 strict test files and five focused exporter/dispatch/BPF/catalog/help
-ASan/UBSan paths pass; local
-LeakSanitizer is unavailable under ptrace, so CI leak coverage remains the merge gate. Current listed
-owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
-capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
-tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first
-runtime slices now cover native-L2, NDP/RA/IGMP/MLD/OSPF/VRRP and every current TCP/UDP
-production caller. Canonical BPF route projection passes 7,239,680-packet legacy equivalence
-and kernel verifier coverage; exact per-engine port projection is merged.
-Protocol inspection byte ceilings remain C5/C10.
-ARM64 fixtures compile only; real hardware remains open. Remaining staging protocols are not
-runtime-selectable until each is migrated through the same canonical integration gate.
-**Model:** stay on Sol for C4; use Astra for the final cross-contract C10 audit.
+**Pending:** LPD slice on `v6-app-control-canonical-integration`; local native/CI
+acceptance is in progress, not yet merged. The native ordered signature is frozen
+before wiring; exact TCP/515 dispatch, printing/application group membership and
+generated help use the production catalog. The old staging parser and references
+are removed after unique fixtures moved to `tests/test_lpd.c`.
+Current full/stub text is 182268/170254 (+1360/+1268 from PR #48), data 3992 and
+BSS 80360/78760 unchanged. Main stack remains 84,992. The reviewed full-text
+ceiling is 182320. LPD uses one attempt per retained direction/generation and a
+1,024-byte prefix through LF, no new state/allocation/reassembly. Invalid input
+also completes inspection; server replies, print bodies and subcommands are not
+parsed. Existing SYN/expiry/eviction behavior is preserved.
+Local evidence: all 79 strict standalone tests, five adoption checks and five focused
+ASan/UBSan paths pass (local leak detection disabled under ptrace). Native full/stub
+builds and 7,239,680 legacy BPF comparisons pass. CI LSan/ARM64 remain mandatory merge gates. Collector wire
+acceptance is not deployed collector verification. Hardware/capture throughput
+and executing-ARM64 acceptance remain open.
+**Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
+and final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

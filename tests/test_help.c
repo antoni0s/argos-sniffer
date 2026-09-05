@@ -78,6 +78,11 @@ int main(void) {
     assert(output_has_protocol(output, output + strlen(output), "ptp"));
     assert(!strstr(output, "ptp*"));
     render_topic(ARGOS_HELP_ENTERPRISE, output, sizeof(output));
+    render_topic(ARGOS_HELP_APPLICATION, output, sizeof(output));
+    assert(output_has_protocol(output, output + strlen(output), "lpd"));
+    assert(!strstr(output, "lpd*"));
+    assert(strstr(output, "vnc*")); /* Remaining group scope is still staged. */
+    render_topic(ARGOS_HELP_ENTERPRISE, output, sizeof(output));
     for (const char *name = "syslog"; name; name = !strcmp(name, "syslog") ? "netflow" :
          !strcmp(name, "netflow") ? "ipfix" : !strcmp(name, "ipfix") ? "sflow" : NULL) {
         assert(output_has_protocol(output, output + strlen(output), name));

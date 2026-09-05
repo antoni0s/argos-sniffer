@@ -70,6 +70,16 @@ rejected before parsing.
 
 ## Verified semantics and remaining byte work
 
+LPD reuses the existing directional application/DONE table, with **one** payload
+attempt (success or failure), a maximum 1,024-byte prefix through the first LF,
+and no extra retained state. The result remains the shared 538-byte automatic
+structure; queue/agent scratch is 160 bytes. Queue/agent caps are 95/63 bytes.
+Responses never enter the command parser. No print/control-file body is copied.
+Missing/split/overlong commands produce no record; there is no TCP reassembly.
+The existing 60-second idle expiry, four-probe replacement, clock rollback and
+SYN reset semantics apply; eviction/expiry may permit a new inspection attempt,
+so the ceiling is per retained generation, not a permanent connection guarantee.
+
 Permanent fixtures cover capacity/collision replacement for TCP application,
 UDP suppression, SYN, DNS, dedup and IPv4/IPv6 address owners; QUIC full-table
 drop, expiry/reuse and successful-completion DCID reuse; fixed/sliding epochs,
