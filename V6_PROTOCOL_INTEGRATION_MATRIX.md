@@ -272,19 +272,22 @@ informational paths run before all capture/state/sink setup. Qualified selectors
 BPF/dispatcher consumption and per-row collector mappings remain C4/C10 work. No staging
 parser became enabled.
 
-The pending C4 dispatch-plan candidate adds a fixed 48-byte startup owner for canonical
+PR #36 adds a fixed 48-byte startup owner for canonical
 protocol/features and bounded L2/L3/L4 route demand. Exhaustive call-counter fixtures verify
 each selectable production bit as an independent gate and reject staging/HOLD activation.
-Main consumes the plan only for the existing legacy projection; individual production parser/
-state callers and BPF are still coarse and must be adopted before qualified selectors are exposed.
+The current C4 slice consumes individual bits before every native-L2 parser and before NDP/RA,
+IGMP/MLD, OSPF and VRRP. Existing overlapping LLDP-MED/STP/LACP implementations gain canonical
+gates; their isolated staging headers remain unreachable and are not integrated or duplicated.
+Port-driven production callers and BPF are still coarse and must be adopted before qualified
+selectors are exposed.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 
 `src/argos_packet.h:argos_packet_decode` retains the existing CDP OUI 00000c/PID
 2000, FDP OUI 00e052/PID 2000, EDP OUI 00e02b/PID 00bb and IS-IS FE:FE:03
 discriminators. These normalize to 2000/f200/00bb/00fe respectively. The runtime
-owner/entry is `src/argos_enterprise.h:argos_enterprise_parse_l2`, behind
-`runtime_cfg.enterprise_enabled`; main emits legacy ENT using that result.
+owner/entry is `src/argos_enterprise.h:argos_enterprise_parse_l2`, reached only after the
+matching CDP/FDP/EDP/IS-IS/EAPOL/PROFINET canonical bit; main emits legacy ENT using that result.
 Its input now ends at the declared 802.3 boundary, not capture padding.
 `src/argos_bpf.h:argos_bpf_build` keeps the existing enterprise-enabled <=1500
 length admission and unconditional VLAN/QinQ/PPPoE conservative fallbacks.

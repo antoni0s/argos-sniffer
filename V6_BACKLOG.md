@@ -200,7 +200,10 @@ blueprint. Preserve all special holds and all privacy rules above.
 
 - [x] Derive a compact fixed L2/L3/L4 route plan from the enable bitmap at startup; it is
   consumed for legacy projection before capture and cannot activate staging/HOLD bits.
-- [ ] Skip disabled engines before payload parsing or state lookup.
+- [x] Native-L2 and non-port production callers (ARP, LLDP/LLDP-MED, STP family, LACP,
+  CDP/EDP/FDP/IS-IS, EAPOL, PROFINET, NDP/RA, IGMP/MLD, OSPF and VRRP) check their
+  individual canonical bit before parsing; ARP/NDP owner tables follow enabled-family demand.
+- [ ] Extend the same pre-parser/pre-state gate to every remaining TCP/UDP production caller.
 - [ ] Generate the classic-BPF whitelist from enabled protocol families while preserving safe
   fallbacks for VLAN, QinQ, PPPoE and IPv6 extension headers.
 - [x] Keep heavy QUIC reassembly runtime opt-in with enabled-demand startup allocation;
@@ -213,6 +216,8 @@ blueprint. Preserve all special holds and all privacy rules above.
 - [ ] Network/addressing and discovery.
 - [ ] TLS, DoT, QUIC and HTTP.
 - [ ] L2 discovery, routing and redundancy.
+  Native-L2 plus IGMP/MLD/OSPF/VRRP are adopted; port-driven BGP/RIP/HSRP and the remaining
+  production callers keep this aggregate item open.
 - [ ] Enterprise/storage/database/identity/management.
 - [ ] Industrial, IoT and VPN engines already present in production.
 - [ ] Prove wire output remains unchanged while only enable/gating ownership changes.

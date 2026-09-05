@@ -48,6 +48,43 @@ static inline int argos_dispatch_protocol_enabled(
     return plan && argos_protocol_set_has(&plan->protocols.enabled, protocol);
 }
 
+static inline int argos_dispatch_protocol_rate_limited(
+    const argos_dispatch_plan_t *plan, argos_protocol_id_t protocol)
+{
+    return argos_dispatch_protocol_enabled(plan, protocol) &&
+           !argos_protocol_set_has(&plan->protocols.unrated, protocol);
+}
+
+/* Packet normalization preserves these synthetic discriminators for LLC/SNAP
+ * protocols. Resolve them once with a bounded switch before any parser call. */
+static inline argos_protocol_id_t argos_dispatch_l2_protocol(uint16_t protocol)
+{
+    switch (protocol) {
+        case 0x0806U: return ARGOS_PROTOCOL_ARP;
+        case 0x8809U: return ARGOS_PROTOCOL_LACP;
+        case 0x888eU: return ARGOS_PROTOCOL_EAPOL;
+        case 0x8892U: return ARGOS_PROTOCOL_PROFINET;
+        case 0x2000U: return ARGOS_PROTOCOL_CDP;
+        case 0x00feU: return ARGOS_PROTOCOL_ISIS;
+        case 0x00bbU: return ARGOS_PROTOCOL_EDP;
+        case 0xf200U: return ARGOS_PROTOCOL_FDP;
+        default:
+            return protocol <= 1500U ? ARGOS_PROTOCOL_STP : ARGOS_PROTOCOL_COUNT;
+    }
+}
+
+static inline int argos_dispatch_l2_frame_enabled(
+    const argos_dispatch_plan_t *plan, uint16_t protocol)
+{
+    argos_protocol_id_t engine;
+    if (protocol == 0x88ccU)
+        return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_LLDP) ||
+               argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_LLDP_MED);
+    engine = argos_dispatch_l2_protocol(protocol);
+    return engine < ARGOS_PROTOCOL_COUNT &&
+           argos_dispatch_protocol_enabled(plan, engine);
+}
+
 static inline int argos_dispatch_l2_enabled(const argos_dispatch_plan_t *plan,
                                             uint16_t routes)
 {

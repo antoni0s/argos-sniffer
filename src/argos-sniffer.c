@@ -1105,8 +1105,12 @@ int main(int argc, char *argv[]) {
 
     /* ARP/NDP ownership is learned only by the L2 engine. Prepare its bounded
      * family tables once; live inspector and disabled families reserve nothing. */
-    if (!filter_mode1.is_active && opt_l2 &&
-        !argos_network_prepare_owners(&network_state, 1, opt_v6))
+    int owner4_enabled = argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_ARP);
+    int owner6_enabled = opt_v6 &&
+                         (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_NDP) ||
+                          argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_RA));
+    if (!filter_mode1.is_active && (owner4_enabled || owner6_enabled) &&
+        !argos_network_prepare_owners(&network_state, owner4_enabled, owner6_enabled))
         fprintf(stderr, "warning: network ownership cache unavailable; routed inference remains fail-open.\n");
 
     /* Stateless scratch follows TLS/QUIC demand; heavy reassembly state exists
@@ -1232,11 +1236,7 @@ int main(int argc, char *argv[]) {
                 memcpy(&dst_ip6_addr, packet_view.dst_addr, 16U);
                 if (!argos_network_context6(&network_state, &src_ip6_addr, &dst_ip6_addr,
                                              packet_ifindex, &network_context)) continue;
-            } else if (l3_proto == 0x88ccU || l3_proto == 0x0806U ||
-                       (runtime_cfg.enterprise_enabled &&
-                        (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU ||
-                         l3_proto == 0x8892U || l3_proto == 0x2000U || l3_proto == 0x00feU ||
-                         l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
+            } else if (argos_dispatch_l2_frame_enabled(&dispatch_plan, l3_proto)) {
                 /* L2 discovery/control frames intentionally have no IP view. */
             } else {
                 continue;
@@ -1291,10 +1291,7 @@ int main(int argc, char *argv[]) {
             /* L2 discovery/control frames identify their sender by source MAC.
              * Using the destination MAC would turn multicast addresses such as
              * LLDP's 01:80:c2:00:00:0e into fake device identities. */
-            if (l3_proto == 0x88cc || l3_proto == 0x0806 ||
-                (runtime_cfg.enterprise_enabled && (l3_proto <= 1500U || l3_proto == 0x8809U || l3_proto == 0x888eU || l3_proto == 0x8892U ||
-                                    l3_proto == 0x2000U || l3_proto == 0x00feU ||
-                                    l3_proto == 0x00bbU || l3_proto == 0xf200U))) {
+            if (argos_dispatch_l2_frame_enabled(&dispatch_plan, l3_proto)) {
                 memcpy(device_mac, src_mac, 6);
             } else if (is_outbound) {
                 memcpy(device_mac, src_mac, 6);
@@ -1309,58 +1306,70 @@ int main(int argc, char *argv[]) {
 
             /* L2 vectors must run even when there is no IP header. */
             if (l3_proto == 0x88cc) {
-                if (opt_l2)
-                    parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str, opt_l2_rl);
-                if (runtime_cfg.enterprise_enabled) {
+                if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_LLDP))
+                    parse_lldp(buffer + l3_offset, (int)len - l3_offset, mac_str, routed_str,
+                               argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_LLDP));
+                if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_LLDP_MED)) {
                     argos_lldp_med_result_t med;
                     if (argos_lldp_med_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &med)) {
-                        if (!dedup_should_suppress(mac_str, "ENT", med.detail, runtime_cfg.enterprise_rate_limited))
+                        if (!dedup_should_suppress(mac_str, "ENT", med.detail,
+                                argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_LLDP_MED)))
                             emit_telemetry("ENT|%s|-|-|LLDP-MED|%s\n", mac_str, med.detail);
                     }
                 }
                 continue;
             }
-            if (runtime_cfg.enterprise_enabled && l3_proto <= 1500U) {
+            if (argos_dispatch_l2_protocol(l3_proto) == ARGOS_PROTOCOL_STP &&
+                argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_STP)) {
                 argos_stp_result_t stp;
                 if (argos_stp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &stp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_STP)))
                         emit_telemetry("ENT|%s|-|-|STP|%s\n", mac_str, stp.detail);
                     continue;
                 }
                 if (argos_rstp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &stp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_STP)))
                         emit_telemetry("ENT|%s|-|-|RSTP|%s\n", mac_str, stp.detail);
                     continue;
                 }
                 argos_mstp_result_t mstp;
                 if (argos_mstp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &mstp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", mstp.detail, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(mac_str, "ENT", mstp.detail,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_STP)))
                         emit_telemetry("ENT|%s|-|-|MSTP|%s\n", mac_str, mstp.detail);
                     continue;
                 }
             }
-            if (runtime_cfg.enterprise_enabled && l3_proto == 0x8809U) {
+            if (l3_proto == 0x8809U &&
+                argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_LACP)) {
                 argos_lacp_result_t lacp;
                 if (argos_lacp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &lacp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_LACP)))
                         emit_telemetry("ENT|%s|-|-|LACP|%s\n", mac_str, lacp.detail);
                 }
                 continue;
             }
-            if (runtime_cfg.enterprise_enabled && (l3_proto == 0x888eU || l3_proto == 0x8892U ||
-                                   l3_proto == 0x2000U || l3_proto == 0x00feU ||
-                                    l3_proto == 0x00bbU || l3_proto == 0xf200U)) {
+            argos_protocol_id_t l2_engine = argos_dispatch_l2_protocol(l3_proto);
+            if (l2_engine < ARGOS_PROTOCOL_COUNT && l2_engine != ARGOS_PROTOCOL_STP &&
+                l2_engine != ARGOS_PROTOCOL_ARP && l2_engine != ARGOS_PROTOCOL_LACP &&
+                argos_dispatch_protocol_enabled(&dispatch_plan, l2_engine)) {
                 argos_enterprise_result_t ent;
                 if (argos_enterprise_parse_l2(l3_proto, buffer + l3_offset, l3_packet_end - l3_offset, &ent) && ent.emit) {
                     char ent_sig[640];
                     snprintf(ent_sig, sizeof(ent_sig), "%s|%s", ent.proto, ent.detail);
-                    if (!dedup_should_suppress(mac_str, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(mac_str, "ENT", ent_sig,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, l2_engine)))
                         emit_telemetry("ENT|%s|-|-|%s|%s\n", mac_str, ent.proto, ent.detail);
                 }
                 continue;
             }
             if (l3_proto == 0x0806) {
-                if (opt_l2) parse_arp_vector(buffer + l3_offset, (int)len - l3_offset, packet_ifindex, opt_l2_rl);
+                if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_ARP))
+                    parse_arp_vector(buffer + l3_offset, (int)len - l3_offset, packet_ifindex,
+                                     argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_ARP));
                 continue;
             }
             if (!is_ip_packet) continue;
@@ -1383,37 +1392,49 @@ int main(int argc, char *argv[]) {
             const uint8_t *flow_dst_addr = is_ipv6_packet ? dst_ip6_addr.s6_addr : (const uint8_t *)&dst_ip_num;
 
             if (protocol == IPPROTO_ICMPV6 && is_ipv6_packet) {
-                if (runtime_cfg.enterprise_enabled && ttl == 1U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_MLD) &&
+                    ttl == 1U && l4_offset >= 0 && l4_offset < l3_packet_end) {
                     argos_membership_result_t membership;
                     if (argos_mld_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
                         char ent_mac[18], ent_sig[384];
                         format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|MLD|%s", src_ip_str, membership.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig,
+                                argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_MLD)))
                             emit_telemetry("ENT|%s|%s|%s|MLD|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
                     }
                 }
-                if (opt_l2 && l4_offset >= 0 && l4_offset < l3_packet_end) {
+                if (l4_offset >= 0 && l4_offset < l3_packet_end &&
+                    (((buffer[l4_offset] == ND_ROUTER_ADVERT) &&
+                      argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_RA)) ||
+                     ((buffer[l4_offset] != ND_ROUTER_ADVERT) &&
+                      argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_NDP)))) {
+                    argos_protocol_id_t nd_engine = buffer[l4_offset] == ND_ROUTER_ADVERT ?
+                        ARGOS_PROTOCOL_RA : ARGOS_PROTOCOL_NDP;
                     parse_ndp_vector(buffer + l4_offset, l3_packet_end - l4_offset, src_mac,
-                                     &src_ip6_addr, src_ip_str, packet_ifindex, opt_l2_rl);
+                                     &src_ip6_addr, src_ip_str, packet_ifindex,
+                                     argos_dispatch_protocol_rate_limited(&dispatch_plan, nd_engine));
                 }
                 continue;
             }
 
-            if (runtime_cfg.enterprise_enabled && protocol == 2U && ttl == 1U &&
+            if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_IGMP) &&
+                protocol == 2U && ttl == 1U &&
                 l4_offset >= 0 && l4_offset < l3_packet_end) {
                 argos_membership_result_t membership;
                 if (argos_igmp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset), &membership) && membership.emit) {
                     char ent_mac[18], ent_sig[384];
                     format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|IGMP|%s", src_ip_str, membership.detail);
-                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_IGMP)))
                         emit_telemetry("ENT|%s|%s|%s|IGMP|%s%s\n", ent_mac, src_ip_str, dst_ip_str, membership.detail, routed_str);
                 }
                 continue;
             }
 
-            if (runtime_cfg.enterprise_enabled && protocol == 112U && ttl == 255U &&
+            if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_VRRP) &&
+                protocol == 112U && ttl == 255U &&
                 l4_offset >= 0 && l4_offset < l3_packet_end) {
                 argos_vrrp_result_t vrrp;
                 if (argos_vrrp_parse(buffer + l4_offset, (size_t)(l3_packet_end - l4_offset),
@@ -1421,20 +1442,23 @@ int main(int argc, char *argv[]) {
                     char ent_mac[18], ent_sig[384];
                     format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|VRRP|%s", src_ip_str, vrrp.detail);
-                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_VRRP)))
                         emit_telemetry("ENT|%s|%s|%s|VRRP|%s%s\n",
                                        ent_mac, src_ip_str, dst_ip_str, vrrp.detail, routed_str);
                 }
                 continue;
             }
 
-            if (runtime_cfg.enterprise_enabled && protocol == 89U && l4_offset >= 0 && l4_offset < l3_packet_end) {
+            if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_OSPF) &&
+                protocol == 89U && l4_offset >= 0 && l4_offset < l3_packet_end) {
                 argos_enterprise_result_t ent;
                 if (argos_enterprise_parse_ipproto(protocol, buffer + l4_offset, l3_packet_end - l4_offset, &ent) && ent.emit) {
                     char ent_mac[18], ent_sig[640];
                     format_mac(src_mac, ent_mac);
                     snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent.proto, ent.detail);
-                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig, runtime_cfg.enterprise_rate_limited))
+                    if (!dedup_should_suppress(ent_mac, "ENT", ent_sig,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_OSPF)))
                         emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent.proto, ent.detail, routed_str);
                 }
                 continue;

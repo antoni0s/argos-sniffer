@@ -38,7 +38,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
 | 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose qualified selectors only with fine-grained C4 dispatch; preserve legacy equivalence. |
-| 4 | Cheap dispatch / gating | A fixed 48-byte startup plan now owns canonical protocol/features plus bounded L2/L3/L4 route demand; main consumes it for legacy projection before capture. Packet branches and BPF remain coarse. | Adopt protocol gates before every actual parser/state call, canonical BPF/userspace equivalence and non-port IPv4/IPv6/native-L2 reachability. |
+| 4 | Cheap dispatch / gating | A fixed 48-byte plan owns canonical protocol/features plus bounded L2/L3/L4 route demand. Native-L2 and non-port network callers consume individual bits before parser work; ARP/NDP owner allocation follows enabled-family demand. | Adopt remaining TCP/UDP callers, canonical BPF/userspace equivalence and full no-port IPv4/IPv6 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
 | 7 | Observation / output / JSONL | Engines return protocol-specific results; main assembles legacy strings. `argos_telemetry.h` formats a 1024-byte event and optional 1280-byte OBS wrapper. JSONL is not implemented. | Separate borrowed packet lifetime from owned bounded evidence, field/privacy/escaping limits, newline/truncation semantics, stream backpressure policy, collector compatibility. |
@@ -199,12 +199,13 @@ Full/stub text is 164710/152668, data 3832 and BSS 80360/78760; main stack remai
 bytes. Core 33966752299, L2 33966752376 and staging 33966752328 PASS, including
 LeakSanitizer and ARM64 compilation. No staged parser became reachable.
 
-### Fixed startup dispatch plan — local candidate `48049cc5…`
+### Fixed startup dispatch plan — PR #36, `3ed23e21067a245a010c709e41557d7d7b40b74e`
 
 `argos_dispatch.h` owns a 48-byte startup plan containing fixed enabled/unrated masks,
 feature bits and bounded L2/L3/L4 route flags. Main compiles it once after final selector
 precedence and uses it for the existing legacy projection before capture. Catalogs, selector
-strings, `cli_selection` and the plan itself remain absent after `argos_capture_open`.
+strings and `cli_selection` remain absent after `argos_capture_open`; the fixed plan is the
+only canonical config object permitted in packet processing.
 
 `tests/test_dispatch_plan.c` exhausts every production protocol bit and uses parser/state
 call counters to freeze the gate contract; staging/HOLD selection remains rejected. It also
@@ -213,11 +214,24 @@ not claim that all existing parser/state calls are already behind their individu
 that runtime adoption and canonical BPF projection remain the next C4 gate.
 
 All 75 local strict standalone tests pass. Full/stub text is 165565/153555 (+855/+887 from PR #35),
-data 3832 and BSS 80360/78760 unchanged. The increase is startup-only fixed-plan compilation;
-no packet-loop source branch or retained packet state was added. Local ASan/UBSan focused
-tests pass with leak detection disabled because the workspace blocks LeakSanitizer `/proc`
-inspection. ARM64 compiler and full LSan execution remain CI gates; the candidate is not pushed
-and no PR/CI result is yet recorded.
+data 3832 and BSS 80360/78760 unchanged. Core 33970212966, L2 33970212932 and staging
+33970212929 PASS, including LeakSanitizer and ARM64 compilation. No staged parser became reachable.
+
+### Native-L2 and non-port protocol gates — PR #37
+
+Main now admits native-L2 frames and invokes ARP, LLDP/LLDP-MED, STP/RSTP/MSTP, LACP,
+CDP/EDP/FDP/IS-IS, EAPOL and PROFINET parsers only through their individual canonical bits.
+ICMPv6 distinguishes NDP from RA before calling their shared bounded parser; MLD, IGMP, OSPF
+and VRRP likewise check their own bits. Each engine's unrated bit now supplies its exact dedup
+mode. ARP/NDP owner tables are prepared only for enabled families, with IPv6 feature demand
+still required so legacy `-L`/`-V` allocation behavior stays exact.
+
+Catalog/selector state remains startup-only; a permanent source invariant requires each named
+caller to have its canonical gate nearby. The exhaustive dispatch fixture pins every L2 wire
+discriminator and enabled/unrated behavior. All 75 strict tests and full/stub builds pass;
+transport ratios are 0.931 disabled and 0.914 enabled, network ratios remain 0.621–0.890,
+and AH-disabled decode is 1.018 of frozen. Full/stub text is 166273/154211 (+708/+656 from
+PR #36), data 3832 and BSS 80360/78760 unchanged. BPF and remaining TCP/UDP callers stay open.
 
 ## Concrete blockers, not hypothetical architecture work
 

@@ -84,10 +84,10 @@ jobs:
       - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # C4 startup dispatch plan: canonical masks compile once before capture.
+          # C4 dispatch: canonical masks compile once and gate native-L2/non-port parsers.
           # CPU/latency and ownership take priority over tiny text differences.
-          # +855 text for fixed route derivation and projection; unchanged
-          # packet-loop source/BSS, no extra headroom and no BSS increase.
+          # +708/+656 full/stub text over PR #36 buys independent parser/rate gates
+          # and enabled-family owner allocation; no data/BSS growth or headroom.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 165565
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 166273
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360
