@@ -572,7 +572,128 @@ static inline int ae_sip(const unsigned char *p, int len, argos_enterprise_resul
     return 1;
 }
 
-/* Shared bounded HTTP header primitives: no whole-payload scratch or bodies. */
+/* RFB 3.3/3.7/3.8: one complete message per payload, no reassembly or auth data. */
+enum { AE_VNC_SERVER_BANNER, AE_VNC_CLIENT_BANNER, AE_VNC_SECURITY,
+       AE_VNC_SELECTION, AE_VNC_CHALLENGE, AE_VNC_RESPONSE, AE_VNC_RESULT,
+       AE_VNC_CLIENT_INIT, AE_VNC_SERVER_INIT, AE_VNC_DONE };
+typedef struct {
+    uint32_t next_seq[2];
+    uint8_t phase, minor, server_minor, offered, selected, packets[2], seq_valid;
+} ae_vnc_state_t;
+_Static_assert(sizeof(ae_vnc_state_t) == 16, "VNC context budget");
+
+static inline int ae_vnc(ae_vnc_state_t *s, int server, uint32_t seq,
+                          const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (!r) return 0;
+    memset(r, 0, sizeof(*r));
+    if (!s || s->phase == AE_VNC_DONE || len == 0) return 0;
+    if (!p || len < 0 || len > 1024 || (server != 0 && server != 1)) goto invalid;
+    if (++s->packets[server] > 8) goto invalid;
+    if (s->seq_valid & (1U << server)) {
+        if (seq != s->next_seq[server]) {
+            if (seq + (uint32_t)len == s->next_seq[server]) return 0; /* No replayed evidence. */
+            goto invalid; /* Gap, overlap or reordering: stop, do not guess framing. */
+        }
+    }
+    s->seq_valid |= (uint8_t)(1U << server);
+    s->next_seq[server] = seq + (uint32_t)len;
+    char security[64] = "-", name[128] = "-", width[6] = "-", height[6] = "-";
+    int emit = 0;
+    switch (s->phase) {
+        case AE_VNC_SERVER_BANNER:
+        case AE_VNC_CLIENT_BANNER: {
+            if (server != (s->phase == AE_VNC_SERVER_BANNER) || len != 12 ||
+                memcmp(p, "RFB 003.00", 10) || p[11] != '\n' ||
+                (p[10] != '3' && p[10] != '7' && p[10] != '8')) goto invalid;
+            unsigned minor = p[10] - '0';
+            if (!server && minor > s->server_minor) goto invalid;
+            if (server) s->server_minor = (uint8_t)minor;
+            s->minor = (uint8_t)minor;
+            ++s->phase; emit = 1; break;
+        }
+        case AE_VNC_SECURITY:
+            if (!server) goto invalid;
+            if (s->minor == 3) {
+                if (len != 4 || (ae_be32(p) != 1 && ae_be32(p) != 2)) goto invalid;
+                s->selected = (uint8_t)ae_be32(p);
+                snprintf(security, sizeof(security), "%u", s->selected);
+                s->phase = s->selected == 1 ? AE_VNC_CLIENT_INIT : AE_VNC_CHALLENGE;
+            } else {
+                if (p[0] == 0 || p[0] > 16 || len != p[0] + 1) goto invalid;
+                int used = 0;
+                for (unsigned i = 1; i <= p[0]; ++i) {
+                    int n = snprintf(security + used, sizeof(security) - (size_t)used,
+                                     "%s%u", i == 1 ? "" : ",", (unsigned)p[i]);
+                    if (n < 0 || (size_t)n >= sizeof(security) - (size_t)used) goto invalid;
+                    used += n;
+                    if (p[i] == 1 || p[i] == 2) s->offered |= (uint8_t)(1U << p[i]);
+                }
+                s->phase = AE_VNC_SELECTION;
+            }
+            emit = 1; break;
+        case AE_VNC_SELECTION:
+            if (server || len != 1 || (p[0] != 1 && p[0] != 2) ||
+                !(s->offered & (1U << p[0]))) goto invalid;
+            s->selected = p[0];
+            s->phase = p[0] == 2 ? AE_VNC_CHALLENGE :
+                s->minor == 8 ? AE_VNC_RESULT : AE_VNC_CLIENT_INIT;
+            emit = 1; break;
+        case AE_VNC_CHALLENGE:
+            if (!server || len != 16) goto invalid;
+            s->phase = AE_VNC_RESPONSE; break; /* Never inspect/copy challenge bytes. */
+        case AE_VNC_RESPONSE:
+            if (server || len != 16) goto invalid;
+            s->phase = AE_VNC_RESULT; break; /* Never inspect/copy response bytes. */
+        case AE_VNC_RESULT:
+            if (!server || len != 4 || ae_be32(p) != 0) goto invalid;
+            s->phase = AE_VNC_CLIENT_INIT; break;
+        case AE_VNC_CLIENT_INIT:
+            if (server || len != 1 || p[0] > 1) goto invalid;
+            s->phase = AE_VNC_SERVER_INIT; break;
+        case AE_VNC_SERVER_INIT: {
+            if (!server || len < 24 || !ae_be16(p) || !ae_be16(p + 2) ||
+                (p[4] != 8 && p[4] != 16 && p[4] != 32) || !p[5] || p[5] > p[4] ||
+                p[6] > 1 || p[7] > 1) goto invalid;
+            uint32_t n = ae_be32(p + 20);
+            if (n > 127 || n != (uint32_t)(len - 24)) goto invalid;
+            if (p[7]) {
+                uint32_t masks[3];
+                for (unsigned i = 0; i < 3; ++i) {
+                    uint32_t max = ae_be16(p + 8 + i * 2);
+                    unsigned shift = p[14 + i], bits = 0;
+                    if (!max || (max & (max + 1U))) goto invalid;
+                    for (uint32_t v = max; v; v >>= 1) ++bits;
+                    if (shift + bits > p[4]) goto invalid;
+                    masks[i] = max << shift;
+                }
+                if ((masks[0] & masks[1]) || (masks[0] & masks[2]) || (masks[1] & masks[2])) goto invalid;
+            }
+            if (n) {
+                for (unsigned i = 0; i < n; ++i) {
+                    unsigned char c = p[24 + i];
+                    name[i] = c > 32 && c < 127 && !strchr("|;=\\", c) ? (char)c : '_';
+                }
+                name[n] = 0;
+            }
+            snprintf(width, sizeof(width), "%u", (unsigned)ae_be16(p));
+            snprintf(height, sizeof(height), "%u", (unsigned)ae_be16(p + 2));
+            s->phase = AE_VNC_DONE; emit = 1; break;
+        }
+        default: goto invalid;
+    }
+    if (emit) {
+        char selected[4] = "-";
+        if (s->selected) snprintf(selected, sizeof(selected), "%u", (unsigned)s->selected);
+        ae_set(r, "vnc", s->phase == AE_VNC_DONE,
+            "protocol=rfb version=3.%u security_types=%s selected_security=%s server_name=%s width=%s height=%s",
+            (unsigned)s->minor, security, selected, name, width, height);
+    }
+    return emit;
+invalid:
+    s->phase = AE_VNC_DONE;
+    return 0;
+}
+
 /* Initial negotiation only; never search terminal data for command bytes. */
 static inline int ae_telnet(const unsigned char *p, int len, argos_enterprise_result_t *r) {
     if (!r) return 0;
@@ -635,6 +756,7 @@ static inline int ae_telnet(const unsigned char *p, int len, argos_enterprise_re
     return 1;
 }
 
+/* Shared bounded HTTP header primitives: no whole-payload scratch or bodies. */
 static inline int ae_http_equal(const unsigned char *p, int n, const char *s) {
     if (n != (int)strlen(s)) return 0;
     for (int i = 0; i < n; ++i)

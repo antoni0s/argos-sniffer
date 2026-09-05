@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include "argos_dedup.h"
@@ -16,6 +17,7 @@
 #define ARGOS_FLOW_PROBES 4U
 #define ARGOS_FLOW_TTL_SECS 60
 #define ARGOS_FLOW_PACKET_BUDGET 8U
+#define ARGOS_FLOW_CONTEXT_BYTES 16U
 
 typedef struct {
     uint64_t key;
@@ -32,7 +34,21 @@ typedef struct {
 
 typedef struct {
     argos_flow_entry_t table[ARGOS_FLOW_SLOTS];
+    /* Optional protocol context, indexed by this owner's slots, never a second key table. */
+    unsigned char *context;
 } argos_flow_state_t;
+
+static inline int argos_flow_prepare_context(argos_flow_state_t *state) {
+    if (!state) return 0;
+    if (!state->context)
+        state->context = (unsigned char *)calloc(ARGOS_FLOW_SLOTS, ARGOS_FLOW_CONTEXT_BYTES);
+    return state->context != NULL;
+}
+
+static inline void *argos_flow_context(argos_flow_state_t *state, argos_flow_entry_t *entry) {
+    return state && state->context && entry ?
+        state->context + (size_t)(entry - state->table) * ARGOS_FLOW_CONTEXT_BYTES : NULL;
+}
 
 /* SYN/SYN-ACK correlation has a different identity key, probe budget and
  * microsecond lifetime from application DONE state. It shares lifecycle
@@ -212,6 +228,8 @@ static inline argos_flow_entry_t *argos_flow_find_at(argos_flow_state_t *state,
     if (!create) return NULL;
     argos_flow_entry_t *e = &state->table[replace_slot];
     memset(e, 0, sizeof(*e));
+    if (state->context)
+        memset(argos_flow_context(state, e), 0, ARGOS_FLOW_CONTEXT_BYTES);
     e->key = key;
     e->last_seen = now;
     e->ip_version = ip_version;
@@ -246,9 +264,15 @@ static inline void argos_flow_reset_pair(argos_flow_state_t *state,
                                          const uint8_t *src, const uint8_t *dst,
                                          uint16_t sport, uint16_t dport) {
     argos_flow_entry_t *forward = argos_flow_find(state, ip_version, src, dst, sport, dport, 0);
-    if (forward) forward->valid = 0U;
+    if (forward) {
+        forward->valid = 0U;
+        if (state->context) memset(argos_flow_context(state, forward), 0, ARGOS_FLOW_CONTEXT_BYTES);
+    }
     argos_flow_entry_t *reverse = argos_flow_find(state, ip_version, dst, src, dport, sport, 0);
-    if (reverse) reverse->valid = 0U;
+    if (reverse) {
+        reverse->valid = 0U;
+        if (state->context) memset(argos_flow_context(state, reverse), 0, ARGOS_FLOW_CONTEXT_BYTES);
+    }
 }
 
 static inline void argos_flow_note_payload(argos_flow_state_t *state,
@@ -359,6 +383,7 @@ static inline void argos_runtime_state_destroy(argos_runtime_state_t *state) {
     if (!state) return;
     free(state->syn_track);
     free(state->dns_track);
+    free(state->application.context);
     argos_dedup_destroy(&state->dedup);
     memset(state, 0, sizeof(*state));
 }

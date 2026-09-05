@@ -11,7 +11,7 @@ retry allocation in packet processing.
 
 | Owner | Capacity / probes | Lifetime and saturation | Retained bytes |
 |---|---:|---|---:|
-| TCP application generation/DONE | 1,024 / 4 | 60 s; oldest entry in the four-slot collision window is replaced. Initial SYN resets both directions. Incomplete inspection completes after 8 payload packets. | 57,344 inline |
+| TCP application generation/DONE | 1,024 / 4 | 60 s; oldest entry in the four-slot collision window is replaced. Initial SYN resets both directions. Incomplete generic inspection completes after 8 payload packets. Optional VNC context uses the same slot index/lifecycle. | 57,352 inline + 16,384 heap only with VNC |
 | UDP class suppression | 256 / 2 | Fixed 5 s epoch; suppressed hits do not extend it; oldest entry in the two-slot collision window is replaced. | 14,336 inline |
 | SYN/SYN-ACK correlation | 1,024 / 8 | 120 s; expired/free slot first, otherwise oldest in the eight-slot window. Clock rollback invalidates the old epoch. | 65,536 enabled heap |
 | DNS request correlation | 1,024 / 8 | 5 s; expired/free slot first, otherwise oldest in the eight-slot window. Full tuple, TXID, qtype and qname hash identify an entry. | 212,992 enabled heap |
@@ -22,11 +22,11 @@ retry allocation in packet processing.
 | QUIC Initial scratch | one reusable workspace | Prepared when TLS/QUIC is enabled; never retained across owners and never allocated per packet. | 81,919 enabled heap |
 | QUIC heavy reassembly (`-W`) | 64 sessions | 5 s; completed/stale session is cleared. If all sessions are live, a new DCID is dropped rather than evicting active evidence. Each session retains at most 8,192 CRYPTO bytes plus a 1,024-byte presence bitmap. | 593,408 opt-in heap |
 
-`argos_runtime_state_t` is 71,704 bytes inline (application table, UDP table and
+`argos_runtime_state_t` is 71,712 bytes inline (application table, UDP table and
 three dynamic-owner handles). `argos_network_state_t` is 6,336 bytes inline and
 `argos_quic_state_t` is 1,576 bytes inline. With every current optional owner,
-both IP families and heavy QUIC enabled, the listed dynamic allocations total
-1,016,319 bytes and these three inline owners total 79,616 bytes: 1,095,935 bytes
+both IP families, VNC and heavy QUIC enabled, the listed dynamic allocations total
+1,032,703 bytes and these three inline owners total 79,624 bytes: 1,112,327 bytes
 combined. This excludes capture/kernel buffers, executable mappings, libc and
 transient parser stack. It is a maximum configuration inventory, not a claim
 that all features are enabled by default.
@@ -85,6 +85,16 @@ ends inspection; malformed/truncated input emits nothing. Exact selected SYN
 admission enables generation reset; expiry/eviction and shared completion apply.
 
 ## Verified semantics and remaining byte work
+
+VNC adds one 8-byte optional-context pointer to the existing application owner
+and allocates 16,384 zeroed bytes only at startup when selected. Each existing
+slot owns exactly 16 context bytes for phase, two next-sequence values, version,
+security choice and directional packet counters. The existing tuple key, four
+probes, 60-second expiry and SYN reset are reused; create/replacement/reset clears
+the corresponding context. At most eight payloads per direction and 1,024 bytes
+per message are inspected. No packet bytes/pointers, names, challenges or auth
+responses are retained. Startup allocation failure aborts before capture; destroy
+is repeat-safe. No packet-time allocation, second tracker or TCP reassembly.
 
 LPD reuses the existing directional application/DONE table, with **one** payload
 attempt (success or failure), a maximum 1,024-byte prefix through the first LF,

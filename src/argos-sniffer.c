@@ -147,6 +147,7 @@ static const char *argos_native_vector(argos_protocol_id_t protocol) {
         case ARGOS_PROTOCOL_LPD: return "LPD";
         case ARGOS_PROTOCOL_HTTP_PROXY: return "HTTP-PROXY";
         case ARGOS_PROTOCOL_TELNET: return "TELNET";
+        case ARGOS_PROTOCOL_VNC: return "VNC";
         default: return NULL;
     }
 }
@@ -294,6 +295,22 @@ static void emit_enterprise_result(argos_protocol_id_t protocol,
     else
         emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", text_mac,
                        src_ip, dst_ip, r->proto, r->detail, routed);
+}
+
+/* Both directions use the existing server->client slot and its lifecycle. */
+static int parse_vnc_flow(argos_flow_state_t *flow, uint8_t ip_version,
+                           const uint8_t *src, const uint8_t *dst,
+                           uint16_t sport, uint16_t dport, uint32_t seq,
+                           const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    _Static_assert(sizeof(ae_vnc_state_t) <= ARGOS_FLOW_CONTEXT_BYTES, "VNC slot context fits");
+    if (!flow || !flow->context || len <= 0 ||
+        argos_vnc_port(sport) == argos_vnc_port(dport)) return 0;
+    int server = argos_vnc_port(sport);
+    argos_flow_entry_t *entry = argos_flow_find(flow, ip_version,
+        server ? src : dst, server ? dst : src, server ? sport : dport,
+        server ? dport : sport, 1);
+    ae_vnc_state_t *context = (ae_vnc_state_t *)argos_flow_context(flow, entry);
+    return context && ae_vnc(context, server, seq, p, len, r);
 }
 
 /* One wire-format boundary for all observed identity parsers. Protocol parsers
@@ -1160,6 +1177,11 @@ int main(int argc, char *argv[]) {
 
     argos_dispatch_plan_t dispatch_plan;
     argos_dispatch_plan_compile(&dispatch_plan, &cli_selection);
+    if (!filter_mode1.is_active && argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_VNC) &&
+        !argos_flow_prepare_context(&runtime_state.application)) {
+        fprintf(stderr, "Error: unable to allocate VNC handshake context.\n");
+        goto cleanup_state;
+    }
 
     opt_syn = argos_feature_selection_has(
         &dispatch_plan.features, ARGOS_FEATURE_TCP_SYN);
@@ -1560,6 +1582,7 @@ int main(int argc, char *argv[]) {
                 int payload_offset = transport.payload_offset, payload_len = transport.payload_len;
                 int proxy_tcp = argos_dispatch_http_proxy_enabled(&dispatch_plan, sport, dport);
                 int telnet_tcp = argos_dispatch_telnet_enabled(&dispatch_plan, sport, dport);
+                int vnc_tcp = argos_dispatch_vnc_enabled(&dispatch_plan, sport, dport);
                 int http_tcp = argos_dispatch_protocol_enabled(
                     &dispatch_plan, ARGOS_PROTOCOL_HTTP) &&
                     (dport == 80U || dport == 8080U);
@@ -1578,7 +1601,7 @@ int main(int argc, char *argv[]) {
                      (dport == 88U && argos_dispatch_protocol_enabled(
                         &dispatch_plan, ARGOS_PROTOCOL_KERBEROS)));
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
-                                   http_tcp || proxy_tcp || telnet_tcp || tls_tcp || dot_tcp ||
+                                   http_tcp || proxy_tcp || telnet_tcp || vnc_tcp || tls_tcp || dot_tcp ||
                                    tcp_engine < ARGOS_PROTOCOL_COUNT || identity_tcp;
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
@@ -1718,6 +1741,18 @@ int main(int argc, char *argv[]) {
                 if (app_demand && tcp->syn && !tcp->ack)
                     argos_flow_reset_pair(&runtime_state.application, flow_ip_version,
                                           flow_src_addr, flow_dst_addr, sport, dport);
+                if (vnc_tcp) {
+                    if (tcp->syn && !tcp->ack)
+                        argos_flow_reset_pair(&runtime_state.application, flow_ip_version,
+                            flow_src_addr, flow_dst_addr, sport, dport);
+                    argos_enterprise_result_t vnc;
+                    if (payload_len > 0 && parse_vnc_flow(&runtime_state.application, flow_ip_version,
+                        flow_src_addr, flow_dst_addr, sport, dport, ntohl(tcp->seq) + (tcp->syn ? 1U : 0U),
+                        buffer + payload_offset, payload_len, &vnc))
+                        emit_enterprise_result(ARGOS_PROTOCOL_VNC, &vnc, src_mac,
+                            src_ip_str, dst_ip_str, routed_str,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_VNC));
+                }
                 if (app_track && argos_flow_should_skip(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr,
                                       sport, dport)) {
                     continue;

@@ -15,7 +15,7 @@ static argos_network_owner4_entry_t owner4[ARGOS_NETWORK_OWNER4_SLOTS];
 static argos_network_owner6_entry_t owner6[ARGOS_NETWORK_OWNER6_SLOTS];
 
 _Static_assert(sizeof(argos_flow_entry_t) == 56U, "flow entry budget changed");
-_Static_assert(sizeof(argos_flow_state_t) == 57344U, "flow table budget changed");
+_Static_assert(sizeof(argos_flow_state_t) == 57352U, "flow table plus optional context handle budget changed");
 _Static_assert(sizeof(argos_udp_suppress_entry_t) == 56U, "UDP suppression entry budget changed");
 _Static_assert(sizeof(argos_syn_track_t) == 64U, "SYN entry budget changed");
 _Static_assert(sizeof(argos_dns_track_t) == 208U, "DNS entry budget changed");

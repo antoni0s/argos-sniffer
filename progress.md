@@ -1,12 +1,16 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `571c579adda2e6e457e4f05b557bff025ac8473f` (PR #50).
-**Now:** Telnet runtime validation and agreed product naming on `v6-telnet-canonical-integration`; push/CI/merge pending.
-LPD and HTTP proxy runtime slices are merged; Telnet/VNC/WinRM remain open.
+Branch: `version-6`. Verified checkpoint: `747a1c53eaaf7b6789022c5a38dfb31c2ea748fa` (PR #51).
+**Now:** VNC implementation and local validation on `v6-vnc-canonical-integration`; push/CI/merge pending.
+LPD, HTTP proxy and Telnet runtime slices are merged; WinRM remains open.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
+
+- [x] Telnet native negotiation, independent TCP/SYN gates, generated help and
+  staging cleanup; agreed product name restored — PR #51.
+  Core 33987508144, network 33987508102, L2 33987508097 and staging 33987508060 PASS.
 
 - [x] HTTP proxy integrated with native output, independent shared-port/SYN gates,
   bounded privacy-safe headers, web/application help and staging cleanup — PR #50.
@@ -235,8 +239,10 @@ dependency must be resolved before integration, not that the protocol is dropped
   signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
 - [x] HTTP proxy runtime/code slice delivered as PR #50; deployed collector
   mapping remains open under C7/C10.
-- [ ] Telnet runtime slice: implementation and local validation; CI/merge pending.
-- [ ] VNC/WinRM.
+- [x] Telnet runtime/code slice delivered as PR #51; deployed collector mapping
+  remains open under C7/C10.
+- [ ] VNC runtime slice: implementation and local validation; CI/merge pending.
+- [ ] WinRM.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
@@ -287,33 +293,39 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish Telnet CI/merge/cleanup, then the VNC cross-direction readiness
-review, followed by WinRM and media. Native signatures must be frozen before wiring.
-**Blocked:** full freeze, collector compatibility and hardware acceptance; Thread,
-ESP/AH and TLS enrichment retain their recorded gates.
-**Delivery:** Telnet implementation now uses the existing handshake/control owner,
-with independent TCP/23 selection and generation SYN admission. Native TELNET field
-order is command, option, negotiation, username. Only the initial contiguous IAC
-prefix is inspected: one nonempty payload/direction, at most 1,024 bytes and 16
-commands; malformed/truncated framing rejects output, normal/quoted data ends the
-prefix. SB values, terminal strings, login/password and interactive bodies are
-never retained. Username is explicitly unknown. No reassembly or new state.
-Catalog-derived remote-access/application help removes the Telnet staging marker;
-full/sensor count is 75, home remains 38. Product title/subtitle now agree across
-help, --version and README; the runtime build remains 6.0.0-dev.
-Local measured full/stub text is 189004/176978 (+1820/+1868 from PR #50), data 3992
-and BSS 80360/78760 unchanged. Main stack remains 85,008; Telnet parser frame is
-320. Reviewed full-text ceiling 189068 covers bounded framing, independent gates
-and naming; no throughput improvement is claimed.
-Six focused ASan/UBSan paths pass (local LSan disabled under ptrace). Frozen legacy
-BPF equivalence passes 9,304,064 comparisons including TCP/23; kernel attachment/
-filtering passes 1,024 legacy and four proxy/Telnet/full combinations. All 81 strict
-standalone tests and five adoption checks pass; CI LSan/ARM64 and merge remain pending.
-**Cleanup:** unique Telnet staging fixtures migrated into permanent test_telnet.c;
-obsolete source/includes/workflow entries are removed as part of this slice.
-The prior HTTP proxy remote branch may still require user deletion because Git
-has no noninteractive credential and the connector has no delete-ref action:
-`git push origin --delete v6-http-proxy-canonical-integration`.
+**Next:** finish VNC strict/sanitizer verification, push/CI/merge/cleanup,
+then freeze WinRM native fields before wiring. Preserve progress/help/naming/cleanup.
+**Blocked:** full freeze, deployed collector compatibility and hardware acceptance;
+Thread, ESP/AH and TLS enrichment retain their recorded gates.
+**Delivery:** VNC is integrated in the existing handshake/control owner with
+progressive native VNC records and no ENT wrapper. Exact TCP 5900..5999 gates and
+startup-only optional context track confirmed RFB 3.3/3.7/3.8 server/client phases,
+security types 1/2, ClientInit and ServerInit. Exact sequence, eight payloads per
+direction and 1,024 bytes/message bound each retained generation. Immediate
+full-range retransmits do not emit; gaps/overlaps/wrong direction, unsupported or
+failed security, invalid/truncated framing complete the context without output.
+Challenges, auth responses, failure reasons and framebuffer data are not inspected
+or retained. Server name is accepted only after the handshake and capped/sanitized.
+The existing application owner grows from 57,344 to 57,352 inline bytes (one
+pointer); 16,384 bytes allocate only when VNC is selected. Runtime inline becomes
+71,712. No second flow table, packet-time allocation or reassembly. Allocation
+failure aborts before capture; expiry/eviction/SYN reset and destroy clear context.
+Catalog-derived help removes the VNC marker; full/sensor count is 76 and home stays
+38. The agreed product name/subtitle remain pinned in help/version/README tests.
+Measured full/stub text is 193334/181386 (+4330/+4408 from PR #51), data 3992 and
+BSS 80360/78760 unchanged. Main stack is 85,024 (+16); VNC parser frame is 368.
+Reviewed full-text ceiling 193400. The growth buys direction/phase/sequence and
+pixel-format validation; no throughput improvement is claimed.
+Focused ASan/UBSan on six VNC/state/BPF/startup paths passes (local LSan disabled
+under ptrace). BPF equivalence passes 9,992,192 frozen legacy comparisons with
+max instructions still 287→183 and lower aggregate interpreted work. Kernel gates
+pass 1,024 legacy plus six proxy/Telnet/VNC/full combinations. The full 82-test
+strict matrix and five adoption checks pass; CI LSan/ARM64 remains pending.
+**Cleanup:** unique staging VNC fixtures moved to permanent test_vnc.c; obsolete
+source/includes/workflow entries are deleted. The remote HTTP proxy/Telnet branches
+still need user deletion because Git authentication and connector delete-ref remain
+unavailable:
+`git push origin --delete v6-http-proxy-canonical-integration v6-telnet-canonical-integration`.
 **Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
 and final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;

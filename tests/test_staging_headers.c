@@ -26,7 +26,6 @@
 #include "../src/argos_s7.h"
 #include "../src/argos_tacacs.h"
 #include "../src/argos_thread.h"
-#include "../src/argos_vnc.h"
 #include "../src/argos_winrm.h"
 
 static void test_knx_bounds(void) {
