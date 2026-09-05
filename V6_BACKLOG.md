@@ -253,9 +253,9 @@ v6 requires an explicit user decision.
 The following already overlap production implementations and must be compared fixture-by-fixture,
 not connected as duplicate parsers:
 
-- [ ] `argos_lldp_med.h` -> canonical L2 engine.
-- [ ] `argos_lacp.h` -> canonical L2 engine.
-- [ ] `argos_stp.h` -> canonical L2 engine.
+- [x] `argos_lldp_med.h` -> canonical L2 engine; standalone header removed.
+- [x] `argos_lacp.h` -> canonical L2 engine; standalone header removed.
+- [x] `argos_stp.h` -> canonical L2 engine; standalone header removed.
 
 Keep the strongest bounded parser, preserve existing wire output until Phase 6, then remove the
 redundant staging header.
@@ -419,6 +419,19 @@ PTP|src_mac|src_ip|dst_ip|version=2 message=<message> domain=<domain> sequence=<
 The PTP vector and dedup namespace are both `PTP`; PTP must never be serialized through the
 legacy `ENT` envelope. Native EtherType 0x88f7 uses `-` for unavailable IP positions, while UDP
 319/320 supplies normalized source and destination IPs.
+
+The frozen L2 outputs are:
+
+```text
+LLDP-MED|src_mac|-|-|device_class=<class|-> capabilities=<hex|-> network_policy=<defined-tagged|defined-untagged|unknown-tagged|unknown-untagged|-> application=<application|-> vlan=<id|-> priority=<0..7|-> dscp=<0..63|-> inventory=<ordered-list|->[|routed]
+LACP|src_mac|-|-|version=<1|2> actor_system=<mac> actor_priority=<priority> actor_key=<key> actor_port=<port> actor_state=<hex> partner_system=<mac> partner_priority=<priority> partner_key=<key> partner_port=<port> partner_state=<hex>[|routed]
+STP|src_mac|-|-|type=<tcn|config|rstp|mstp> version=<0|2|3> flags=<hex|-> root_id=<priority.mac|-> root_cost=<cost|-> bridge_id=<priority.mac|-> port_id=<hex|-> message_age=<ticks|-> max_age=<ticks|-> hello_time=<ticks|-> forward_delay=<ticks|-> mst_revision=<revision|-> mst_digest=<hex|->[|routed]
+```
+
+LLDP-MED inventory uses a fixed `manufacturer,model,hardware,firmware,software` component order;
+components are emitted only when observed and use `key:value` comma-list syntax. Whitespace and
+record delimiters inside values normalize to `_`. Location, serial number and asset identifier are
+never retained or emitted. RSTP and MSTP remain `type` values of the single canonical `STP` vector.
 
 ## Completion definition for one protocol
 

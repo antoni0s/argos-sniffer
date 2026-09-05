@@ -107,9 +107,9 @@ int main(void) {
     assert(argos_protocol_set_has(&edges, ARGOS_PROTOCOL_AH));
     assert(!argos_protocol_set_has(&edges, (argos_protocol_id_t)ARGOS_PROTOCOL_COUNT));
 
-    assert((argos_protocol_catalog[ARGOS_PROTOCOL_LLDP_MED].status &
-            (ARGOS_PROTOCOL_STATUS_PRODUCTION | ARGOS_PROTOCOL_STATUS_STAGING)) ==
-           (ARGOS_PROTOCOL_STATUS_PRODUCTION | ARGOS_PROTOCOL_STATUS_STAGING));
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_LLDP_MED].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_STP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_LACP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_THREAD].status &
             ARGOS_PROTOCOL_STATUS_HOLD) != 0U);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_ESP].status &

@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `4e430b2…` (PR #44).
-**Now:** freeze the native PTP vector/dedup contract before the next protocol integration (C4/C7).
+**Now:** integrate LLDP-MED/LACP/STP into the canonical L2 owner and remove duplicate staging files.
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -212,7 +212,8 @@ ALL C10 row fields, CLI/help/BPF, budgets/fast-drop/privacy, collector/vector fi
 fold/remove temporary staging headers only after canonical ownership is proven. HOLD means its named
 dependency must be resolved before integration, not that the protocol is dropped from v6.
 
-- [ ] Reconcile LLDP-MED/LACP/STP fixture-by-fixture with canonical L2; one runtime parser, old wire preserved.
+- [x] Reconcile LLDP-MED/LACP/STP fixture-by-fixture with canonical L2; one runtime parser and
+  protocol-native vectors; duplicate staging headers removed.
 - [x] PTP native/UDP integration; canonical network owner and obsolete staging cleanup.
 - [ ] RIP.
 - [ ] Syslog/NetFlow/IPFIX/sFlow.
@@ -265,21 +266,21 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** merge the PTP output-contract correction, then continue the core exit review and next
-dependency-safe staging integration.
+**Next:** merge the canonical L2 integration, then integrate RIP through the network owner.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-ptp-canonical-vector` is active. PTP is production-wired through one canonical
-owner; the obsolete staging header and its staging-only workflow/test references are removed.
-Its frozen output is the native `PTP|...` vector with the `PTP` dedup namespace, never `ENT`.
+**Pending:** `v6-next-staging-integration` is active. LLDP-MED/LACP/STP use the canonical L2 owner,
+protocol-native vectors and matching dedup namespaces; their obsolete staging headers and test/
+workflow references are removed after unique boundary fixtures move to permanent suites.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
 PR #44: core 33977277636, L2 33977277545, staging 33977277630 PASS.
-Current PTP contract-fix full/stub text is 175178/163180 (-116/-68 from PR #44); data remains
-3992 and BSS 80360/78760. The integration adds bounded dual-path parsing/output with no new state.
-Local evidence: all 76 strict test files, 297,941 non-port/PTP checks and six relevant
-ASan/UBSan paths pass; local LeakSanitizer is unavailable under ptrace, so CI leak coverage remains
-the merge gate. Current listed
+Current L2 integration full/stub text is 173866/161852 (-1312/-1328 from PR #45); data remains
+3992 and BSS 80360/78760. The LLDP-MED detail bound is 768 bytes of automatic storage so the
+frozen inventory record cannot silently truncate; there is no new retained state or allocation.
+Optimized main stack is 84,992 bytes (+48 from the last 84,944-byte checkpoint).
+Local evidence: all 76 strict test files and ten relevant ASan/UBSan paths pass; local
+LeakSanitizer is unavailable under ptrace, so CI leak coverage remains the merge gate. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first

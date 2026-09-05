@@ -52,6 +52,7 @@ unbounded payload.
 | Address filter program | 2,312 bytes each; max 64 RPN tokens | Three compile-once programs exist in main; evaluation uses a bounded 64-integer stack and no string lookup/allocation. |
 | Telemetry event | 1,024 bytes | Per-call stack buffer; truncates to the existing bound. |
 | Sensor OBS envelope | 1,280 bytes | Per-call stack buffer only in sensor mode. No telemetry queue exists. Datagram sinks are nonblocking; stdout policy remains a C8 contract. |
+| LLDP-MED parse result | 768-byte detail within bounded automatic result storage | One L2 frame only; no heap, retained state, location, serial or asset identifier. The bound holds the frozen inventory vector without silent truncation. |
 
 TLS, enterprise, L2, identity and the remaining network protocol parsers do not
 own retained flow tables in current production. Their result structures and

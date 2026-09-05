@@ -53,10 +53,10 @@ int main(void) {
     snprintf(sensor_name, sizeof(sensor_name), "%s", "span-a");
     argos_telemetry_capture_context("eth1", 100U, 200U, 0, 0U);
     captured_length = 0U;
-    emit_telemetry("ENT|02:00:00:00:00:02|-|-|LACP|state=active\n");
+    emit_telemetry("LACP|02:00:00:00:00:02|-|-|version=1 actor_state=0x01\n");
     check(captured_length > 0U, "sensor telemetry captured");
     check(strcmp(captured_record,
-                 "OBS|span-a|eth1|100/200|ENT|02:00:00:00:00:02|-|-|LACP|state=active\n") == 0,
+                 "OBS|span-a|eth1|100/200|LACP|02:00:00:00:00:02|-|-|version=1 actor_state=0x01\n") == 0,
           "sensor envelope preserved byte-for-byte");
     const uint16_t ids[] = {0, 1, 100, 200, 4095};
     for (unsigned a = 0; a < 5; ++a) for (unsigned b = 0; b < 5; ++b)

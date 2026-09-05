@@ -17,10 +17,8 @@ on:
       - 'src/argos_ike.h'
       - 'src/argos_ipfix.h'
       - 'src/argos_knx.h'
-      - 'src/argos_lacp.h'
       - 'src/argos_ldap.h'
       - 'src/argos_ldaps.h'
-      - 'src/argos_lldp_med.h'
       - 'src/argos_lpd.h'
       - 'src/argos_matter.h'
       - 'src/argos_mongodb.h'
@@ -35,7 +33,6 @@ on:
       - 'src/argos_rtsp.h'
       - 'src/argos_s7.h'
       - 'src/argos_sflow.h'
-      - 'src/argos_stp.h'
       - 'src/argos_syslog.h'
       - 'src/argos_tacacs.h'
       - 'src/argos_telnet.h'
@@ -112,11 +109,11 @@ jobs:
           staging = {
               'argos_ah.h','argos_airplay.h','argos_cast.h','argos_dlna.h','argos_dnp3.h',
               'argos_esp.h','argos_ftp.h','argos_http_proxy.h','argos_ike.h','argos_ipfix.h',
-              'argos_knx.h','argos_lacp.h','argos_ldap.h','argos_ldaps.h','argos_lldp_med.h',
+              'argos_knx.h','argos_ldap.h','argos_ldaps.h',
               'argos_lpd.h','argos_matter.h','argos_mongodb.h','argos_netflow.h','argos_nvmeof.h',
               'argos_opcua.h','argos_openvpn.h','argos_redis.h','argos_rip.h',
               'argos_rtcp.h','argos_rtp.h','argos_rtsp.h','argos_s7.h','argos_sflow.h',
-              'argos_stp.h','argos_syslog.h','argos_tacacs.h','argos_telnet.h','argos_thread.h',
+              'argos_syslog.h','argos_tacacs.h','argos_telnet.h','argos_thread.h',
               'argos_vnc.h','argos_winrm.h'
           }
           present = {p.name for p in headers}

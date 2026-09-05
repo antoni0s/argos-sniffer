@@ -270,7 +270,7 @@ jobs:
           src = Path('src/argos-sniffer.c').read_text(); bpf = Path('src/argos_bpf.h').read_text(); l2 = Path('src/argos_l2.h').read_text()
           assert 'p[pos] == 0x00U && p[pos + 1U] == 0x12U && p[pos + 2U] == 0xbbU' in l2
           assert 'subtype == 3U' not in l2
-          assert 'ENT|%s|-|-|LLDP-MED|%s' in src
+          assert 'LLDP-MED|%s|-|-|%s%s' in src
           assert 'EMIT(abpf_pass_ethertype(p, 0x88cc)); /* LLDP / LLDP-MED */' in bpf
           assert 'SECRET-ROOM-42' not in src
           print('LLDP-MED integration/privacy regression: PASS')
@@ -291,7 +291,7 @@ jobs:
           src=Path('src/argos-sniffer.c').read_text(); l2=Path('src/argos_l2.h').read_text(); bpf=Path('src/argos_bpf.h').read_text()
           assert 'p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U' in l2
           assert 'r->version != 0U' in l2
-          assert 'ENT|%s|-|-|STP|%s' in src
+          assert 'STP|%s|-|-|%s%s' in src
           assert 'argos_dispatch_l2_protocol(l3_proto) == ARGOS_PROTOCOL_STP' in src
           assert 'argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_STP)' in src
           assert 'BPF_JGT | BPF_K, 1500' in bpf
@@ -314,8 +314,8 @@ jobs:
           assert 'p[0] != 0x01U' in l2
           assert 'p[2] != 0x01U || p[3] != 0x14U' in l2
           assert 'p[22] != 0x02U || p[23] != 0x14U' in l2
-          assert 'alacp_state_add' in l2
-          assert 'ENT|%s|-|-|LACP|%s' in src
+          assert 'actor_system=%s actor_priority=%u' in l2
+          assert 'LACP|%s|-|-|%s%s' in src
           assert 'EMIT(abpf_pass_ethertype(p, 0x8809)); /* Slow Protocols / LACP */' in bpf
           assert src.count('l3_proto == 0x8809U') >= 3
           print('LACP integration regression: PASS')

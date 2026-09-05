@@ -22,10 +22,16 @@ int main(void){
   expect(r.device_class==3,"endpoint class III"); expect(r.capabilities==0x0023,"capabilities bitmap");
   expect(r.have_policy && r.app_type==1 && r.policy_tagged && r.vlan==200 && r.priority==5 && r.dscp==46,"voice policy fields");
   expect(strcmp(r.manufacturer,"Cisco")==0 && strcmp(r.model,"CP-8841")==0,"inventory");
-  expect(strstr(r.detail,"class=endpoint3")!=NULL,"class detail");
-  expect(strstr(r.detail,"policy=voice,defined,tagged,vlan=200,prio=5,dscp=46")!=NULL,"policy detail");
+  expect(strcmp(r.detail,"device_class=endpoint3 capabilities=0x0023 network_policy=defined-tagged "
+         "application=voice vlan=200 priority=5 dscp=46 inventory=manufacturer:Cisco,model:CP-8841,firmware:14.2.1")==0,
+         "frozen LLDP-MED detail");
   expect(strstr(r.detail,"SECRET-ROOM-42")==NULL,"location privacy");
+  expect(strstr(r.detail,"serial:")==NULL && strstr(r.detail,"asset:")==NULL,"unique inventory privacy");
   unsigned char bad[8]={0}; put16(bad,(uint16_t)((127U<<9)|6U)); bad[2]=0;bad[3]=0x12;bad[4]=0xbb;bad[5]=2;bad[6]=1;bad[7]=2;
   expect(!argos_lldp_med_parse(bad,sizeof(bad),&r),"truncated MED rejected");
+  unsigned char edge[9]={0xfe,0x07,0,0x12,0xbb,1,0,1,1};
+  expect(argos_lldp_med_parse(edge,sizeof(edge),&r),"minimum MED capability TLV");
+  edge[1]=8; expect(!argos_lldp_med_parse(edge,sizeof(edge),&r),"declared MED overflow rejected");
+  edge[1]=7; expect(!argos_lldp_med_parse(edge,sizeof(edge)-1U,&r),"truncated MED TLV rejected");
   puts("LLDP-MED fingerprint fixtures: PASS"); return 0;
 }

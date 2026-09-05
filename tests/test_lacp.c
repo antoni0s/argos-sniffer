@@ -21,11 +21,14 @@ int main(void){
     expect(r.version==1 && r.actor_system_priority==32768 && r.actor_key==7,"actor identity");
     expect(r.actor_port_priority==128 && r.actor_port==3 && r.actor_state==0x3f,"actor port/state");
     expect(r.partner_system_priority==4096 && r.partner_key==7 && r.partner_port==9,"partner identity");
-    expect(strstr(r.detail,"actor=00:11:22:33:44:55")!=NULL,"actor MAC detail");
-    expect(strstr(r.detail,"state=0x3f(active,short,agg,sync,collect,dist)")!=NULL,"actor state detail");
-    expect(strstr(r.detail,"partner=aa:bb:cc:dd:ee:ff")!=NULL,"partner MAC detail");
+    expect(strcmp(r.detail,"version=1 actor_system=00:11:22:33:44:55 actor_priority=32768 "
+           "actor_key=7 actor_port=3 actor_state=0x3f partner_system=aa:bb:cc:dd:ee:ff "
+           "partner_priority=4096 partner_key=7 partner_port=9 partner_state=0x0d")==0,
+           "frozen LACP detail");
     p[0]=2; expect(!argos_lacp_parse(p,sizeof(p),&r),"non-LACP slow subtype rejected");
     p[0]=1; p[3]=19; expect(!argos_lacp_parse(p,sizeof(p),&r),"bad actor TLV length rejected");
+    p[3]=20; p[22]=3; expect(!argos_lacp_parse(p,sizeof(p),&r),"bad partner TLV type rejected");
+    p[22]=2; expect(!argos_lacp_parse(p,41U,&r),"truncated LACPDU rejected");
     puts("LACP fingerprint fixtures: PASS");
     return 0;
 }
