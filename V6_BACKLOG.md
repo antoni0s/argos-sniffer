@@ -181,13 +181,14 @@ blueprint. Preserve all special holds and all privacy rules above.
 
 - [x] Add an engine-enable bitmap with one bit per protocol and derived masks for groups,
   super-groups and profiles.
-- [ ] Compile CLI selections once at startup; packet processing must never walk CLI strings.
+- [x] Compile existing legacy CLI selections once at startup; packet processing never walks CLI
+  strings or accesses selection state. Qualified selectors remain blocked on fine-grained dispatch.
 - [x] Add profiles: `core`, `standard`, `full`, `home`, `enterprise`, `sensor`.
 - [x] Add super-groups: `network`, `application`, `enterprise`, `industrial`, `iot`, `vpn`.
 - [x] Preserve lowercase = normal/deduplicated and uppercase = unrated behavior in the
-  startup selection contract; runtime CLI adoption remains open.
+  startup selection contract and existing legacy runtime options.
 - [x] Add startup-only `--no-rate-limit=<all|super-group|group>` target compilation without
-  per-packet string lookups; runtime CLI adoption remains open.
+  per-packet string lookups; exposing the qualified option remains blocked on fine-grained dispatch.
 - [x] Keep `--help` to one screen and add thematic help screens:
   `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn`, `--help-capture`, `--help-output`,

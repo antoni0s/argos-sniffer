@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), and argv-order selector compilation semantics (PR #33). Generated help owns presentation (PR #34). Main still owns legacy booleans and does not consume the new selection. | Controlled runtime CLI/dispatch adoption with legacy equivalence. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose qualified selectors only with fine-grained C4 dispatch; preserve legacy equivalence. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -181,6 +181,23 @@ cost prevents duplicate membership truth and does not enter packet processing. A
 local strict tests passed; core 33962384705, L2 33962384687 and staging 33962384695
 PASS with sanitizer and ARM64 compile gates. Runtime selector/dispatcher adoption and
 executing-ARM64 byte-parity remain open; no staged parser became reachable.
+
+### Canonical legacy runtime adoption — PR #35, `f630a19708d4e5ca2a49aa1f8dd53d965bcf8f9f`
+
+Existing legacy category, default, all and enterprise options now compile into
+`argos_cli_selection_t` and project once before capture into the unchanged coarse runtime
+gates. IPv6, extended-metrics and stateful-QUIC parsing features project from the same owner;
+sensor deployment is recorded there while its established deployment boolean remains direct.
+Argument-order rate precedence and historical defaults remain exact. A permanent
+source invariant rejects any selection-state access after `argos_capture_open`, so packet
+processing performs no catalog scan or CLI-string work.
+
+Qualified profile/super-group/group/protocol selectors are deliberately not exposed yet:
+the current coarse enterprise gate could activate parsers outside a requested fine-grained
+mask. They require the C4 per-engine dispatcher and disabled-engine call-counter tests first.
+Full/stub text is 164710/152668, data 3832 and BSS 80360/78760; main stack remains 84944
+bytes. Core 33966752299, L2 33966752376 and staging 33966752328 PASS, including
+LeakSanitizer and ARM64 compilation. No staged parser became reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 

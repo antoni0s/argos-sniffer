@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `b9b62ca7…` (PR #34).
-**Now:** controlled runtime CLI selection adoption and legacy equivalence (C4).
+Branch: `version-6`. Verified checkpoint: `f630a197…` (PR #35).
+**Now:** fine-grained startup L2/L3/L4 dispatch-plan design and disabled-engine call-counter gates (C4).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -41,6 +41,7 @@ Branch: `version-6`. Verified checkpoint: `b9b62ca7…` (PR #34).
 - [x] Exact production-only profile masks and CLI namespace/compatibility policy — PR #32.
 - [x] Startup selector compiler contract with explicit-feature/profile precedence — PR #33.
 - [x] Generated bounded help owner and pre-runtime help/version paths — PR #34.
+- [x] Existing legacy CLI/default/all/enterprise/features compile through canonical masks once before capture; coarse runtime behavior remains equivalent and selection state cannot enter packet processing — PR #35.
 
 ## How to update — mandatory
 
@@ -95,14 +96,16 @@ Branch: `version-6`. Verified checkpoint: `b9b62ca7…` (PR #34).
 - [x] Separate enabled/unrated masks; production-only activation, lowercase normal/UPPERCASE
   unrated last-overlap precedence, and no-rate-limit affecting only already-enabled protocols.
 - [x] Exact legacy short-category/default/`-a`/`-A` mappings and separate controls for SYN,
-  IPv6, extended metrics, stateful QUIC and sensor deployment; no runtime wiring yet.
+  IPv6, extended metrics, stateful QUIC and sensor deployment; existing options consume them once
+  before capture through the canonical selection owner.
 - [x] `--no-rate-limit=<all|super-group|group>` target compilation is exact lowercase,
   production-only and can modify only already-enabled protocols; no runtime wiring yet.
 - [x] Exact production-only profile contents and naming/conflict policy: broad compatibility
   `--enterprise`, canonical `--super-group enterprise`, and `--profile enterprise`. Sensor evidence
   profile stays separate from deployment mode; no implicit identity/heavy/staged activation.
 - [x] Startup compiler API covers profile/super-group/group/protocol/legacy/no-rate order,
-  `--group identity` namespace and default/explicit-feature precedence. Runtime CLI adoption is C4.
+  `--group identity` namespace and default/explicit-feature precedence. Existing legacy options are
+  runtime-adopted; qualified selectors wait for the fine-grained C4 dispatcher.
 - [x] One-screen base help (29 lines/1140 bytes); no `--help-protocols`.
   Generate `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn` from the same runtime tables.
@@ -117,8 +120,10 @@ Branch: `version-6`. Verified checkpoint: `b9b62ca7…` (PR #34).
 
 ### C4. Cheap dispatch / gates
 
-- [ ] Startup L2/L3/L4/BPF plans; disabled engine skips parsing AND state lookup (call-counter tests);
-  safe VLAN/QinQ/PPPoE/IPv6 fallbacks; legacy selection equivalence.
+- [x] Existing legacy CLI selections project from canonical fixed masks once before capture with
+  preserved defaults/rate precedence; no CLI strings or selection state enter packet processing.
+- [ ] **NOW:** derive fine-grained startup L2/L3/L4/BPF plans; disabled engine skips parsing AND
+  state lookup (call-counter tests); preserve safe VLAN/QinQ/PPPoE/IPv6 fallbacks.
 - [ ] Wire existing production engines to bitmap: network/addressing/discovery; TLS/DoT/QUIC/HTTP;
   L2/routing/redundancy; enterprise/storage/database/identity/management; industrial/IoT/VPN.
   Golden output unchanged; kernel early-drop preserved.
@@ -238,16 +243,16 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** adopt the startup masks in CLI/cheap dispatch with legacy equivalence (C4).
+**Next:** derive the fine-grained startup dispatch plan and disabled-engine call-counter fixtures (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; staging runtime integration remains blocked on the core review.
-PR #34: core 33962384705, L2 33962384687, staging 33962384695 PASS.
-Native full/stub text 163774/152580; data 3832; BSS 80360/78760. Current listed
+PR #35: core 33966752299, L2 33966752376, staging 33966752328 PASS.
+Native full/stub text 164710/152668; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
-capture/kernel/transient stack. Help/catalog code is startup-only and does not enter packet
-processing; protocol inspection byte ceilings remain C5/C10.
+capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
+tests reject selection access in packet processing. Protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;

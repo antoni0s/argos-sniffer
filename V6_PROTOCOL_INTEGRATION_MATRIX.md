@@ -249,9 +249,13 @@ groups but retain one bit each. `tests/check_config_catalog.py` proves exact agr
 with the taxonomy table and `tests/test_config_catalog.c` pins IDs, membership,
 case semantics and masks on native/ARM64 builds.
 
-These bits are not runtime-wired yet. PR #29 adds fixed production-only enabled/unrated
-selection primitives and startup-order rate precedence, but existing category flags remain
-the current runtime behavior. PR #30 now characterizes their exact canonical protocol
+PR #35 runtime-wires the existing legacy category/default/all/enterprise options through the
+canonical fixed masks once before capture, then projects them and the IPv6/extended-metrics/
+stateful-QUIC parsing features into the unchanged coarse gates. Sensor deployment is recorded
+in the canonical feature state while retaining its direct compatibility boolean. No selection
+state or CLI string reaches packet processing. PR #29 adds fixed
+production-only enabled/unrated selection primitives and startup-order rate precedence, while
+PR #30 characterizes the exact canonical protocol
 bundles and keeps SYN/IPv6/extended-metrics/stateful-QUIC/sensor controls outside the
 protocol bitmap; this remains startup-only and is not a runtime adoption. The current
 `--enterprise` bundle spans 50 production semantics and is not the canonical enterprise
@@ -262,11 +266,11 @@ namespace while preserving broad `--enterprise`, privacy-mode `--identity` and d
 `--sensor` compatibility semantics. None of these APIs are wired into packet processing.
 PR #33 adds the exact argv-order startup selector compiler, including profile replacement,
 additive qualified selectors, explicit-feature preservation and identity-group disambiguation.
-It is not yet consumed by main/getopt. PR #34 generates bounded profile and thematic
+Its legacy subset is consumed by main/getopt. PR #34 generates bounded profile and thematic
 membership help from these same tables and derives staging markers from source status;
-informational paths run before all capture/state/sink setup. BPF/dispatcher consumption,
-runtime selectors and per-row collector mappings remain C4/C10 work. No staging parser
-became enabled.
+informational paths run before all capture/state/sink setup. Qualified selectors, fine-grained
+BPF/dispatcher consumption and per-row collector mappings remain C4/C10 work. No staging
+parser became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 
