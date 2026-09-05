@@ -278,7 +278,8 @@ review; their current isolation is temporary.
 PR #44: core 33977277636, L2 33977277545, staging 33977277630 PASS.
 Current RIP integration full/stub text is 175698/163704; data remains 3992 and BSS 80360/78760.
 The RIP/RIPng result is 144 bytes of automatic storage and the parser caps input at 4,096 bytes;
-there is no new retained state or packet-time allocation.
+there is no new retained state or packet-time allocation. The reviewed native full-text ceiling
+is 175700, two bytes above the measured build; this replaces the pre-RIP 175294 ceiling.
 Optimized main stack is 84,992 bytes (+48 from the last 84,944-byte checkpoint).
 Local evidence: all 76 strict test files and ten relevant ASan/UBSan paths pass; local
 LeakSanitizer is unavailable under ptrace, so CI leak coverage remains the merge gate. Current listed

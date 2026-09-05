@@ -347,6 +347,17 @@ All unique staging fixtures move to permanent `test_ptp.c` and the native/UDP no
 Current full/stub text is 175294/163248 (+1668/+1684 from PR #43), data 3992 and BSS
 80360/78760 unchanged. Full strict, sanitizer, LeakSanitizer and ARM64 gates remain required.
 
+### Canonical RIP/RIPng runtime integration — PR #47
+
+RIPv1/RIPv2 and RIPng parsing is folded into `argos_network.h`, with exact UDP 520/521
+dispatch/BPF ownership and native `RIP|src_mac|src_ip|dst_ip|key=value ...[|routed]` output.
+The parser retains only version, command, route-entry count, authentication type and next-hop
+presence; passwords, digests, key identifiers, sequence data and route prefixes remain opaque.
+Input is capped at 4,096 bytes / 204 fixed-width slots, the automatic result is 144 bytes, and
+there is no new retained state or packet-time allocation. Full/stub text is 175698/163704, data
+3992 and BSS 80360/78760; the reviewed full-text ceiling is 175700. The staging header is deleted
+after permanent strict, malformed, sanitizer, BPF and ARM64 fixtures replace its unique tests.
+
 ## Concrete blockers, not hypothetical architecture work
 
 For every remaining staging integration, freeze the canonical vector name and ordered fields in

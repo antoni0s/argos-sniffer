@@ -90,9 +90,10 @@ jobs:
           set -eu
           # C3/C4: qualified selectors compile once before capture into the same
           # fixed masks already consumed by runtime and classic BPF. Pulling the
-          # selector/profile compiler plus fixed no-port/PTP readiness routes cost
-          # +5997 full text and +160 data including canonical PTP native/UDP
-          # parsing and output; there is no new state or BSS growth.
+          # selector/profile compiler plus fixed no-port/PTP readiness routes and
+          # canonical RIP/RIPng parsing/output produce 175698 bytes of full text.
+          # RIP adds no data, retained state or BSS; the reviewed ceiling keeps a
+          # two-byte compiler-stability margin over the measured native build.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 175294
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 175700
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360
