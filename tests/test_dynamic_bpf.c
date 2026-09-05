@@ -80,25 +80,32 @@ static size_t eth(unsigned char *p, uint16_t type) { memset(p, 0, 64); put16(p +
 static void expect(int ok, const char *what) { if (!ok) { fprintf(stderr, "FAIL: %s\n", what); exit(1); } }
 static int pass(const argos_bpf_program_t *p, const unsigned char *pkt, size_t n) { return run_bpf(p, pkt, n) != 0U; }
 
-/* Translate frozen CLI-era flags for equivalence fixtures only. Production
- * startup uses argos_bpf_config_compile() from the canonical dispatch plan. */
-static void legacy_route_demand(argos_bpf_config_t *c, int l2, int ipv6) {
-    if (l2)
-        c->l2_routes |= ARGOS_DISPATCH_L2_ARP | ARGOS_DISPATCH_L2_LLDP;
-    if (c->enterprise) {
-        c->l2_routes |= ARGOS_DISPATCH_L2_LLDP | ARGOS_DISPATCH_L2_LLC |
-                        ARGOS_DISPATCH_L2_SLOW | ARGOS_DISPATCH_L2_EAPOL |
-                        ARGOS_DISPATCH_L2_PROFINET;
-        c->l3_routes |= ARGOS_DISPATCH_L3_IGMP | ARGOS_DISPATCH_L3_OSPF |
-                        ARGOS_DISPATCH_L3_VRRP;
-    }
-    if (c->syn || c->http || c->tls || c->enterprise)
-        c->l4_routes |= ARGOS_DISPATCH_L4_TCP;
-    if (c->multi || c->dhcp || c->netbios || c->dns || c->tls || c->enterprise)
-        c->l4_routes |= ARGOS_DISPATCH_L4_UDP;
-    if (c->l4_routes || c->enterprise)
-        c->l3_routes |= ARGOS_DISPATCH_L3_IPV4;
-    if (ipv6) c->l3_routes |= ARGOS_DISPATCH_L3_IPV6;
+/* Translate frozen CLI-era flags through the production canonical compiler.
+ * This helper exists only for legacy BPF equivalence fixtures. */
+static void legacy_bpf_config(unsigned mask, uint16_t wireguard_port,
+                              argos_bpf_config_t *c) {
+    argos_cli_selection_t cli;
+    argos_dispatch_plan_t plan;
+    argos_cli_selection_init(&cli);
+    static const argos_legacy_category_id_t categories[] = {
+        ARGOS_LEGACY_CATEGORY_SYN, ARGOS_LEGACY_CATEGORY_MULTI,
+        ARGOS_LEGACY_CATEGORY_DHCP, ARGOS_LEGACY_CATEGORY_NETBIOS,
+        ARGOS_LEGACY_CATEGORY_DNS, ARGOS_LEGACY_CATEGORY_HTTP,
+        ARGOS_LEGACY_CATEGORY_TLS, ARGOS_LEGACY_CATEGORY_L2,
+    };
+    for (unsigned bit = 0; bit < sizeof(categories) / sizeof(categories[0]); ++bit)
+        if (mask & (1U << bit))
+            argos_cli_selection_apply_legacy(&cli, categories[bit], 0);
+    if (mask & (1U << 8))
+        argos_cli_selection_apply_feature(&cli, ARGOS_FEATURE_IPV6, 0);
+    if (mask & (1U << 9))
+        argos_cli_selection_apply_legacy(
+            &cli, ARGOS_LEGACY_CATEGORY_ENTERPRISE, 0);
+    argos_dispatch_plan_compile(&plan, &cli);
+    argos_bpf_config_compile(c, &plan, wireguard_port);
+    /* The frozen exhaustive matrix includes synthetic ipv6-only flag states
+     * that normal CLI finalization cannot produce. Preserve that test axis. */
+    if (mask & (1U << 8)) c->l3_routes |= ARGOS_DISPATCH_L3_IPV6;
 }
 
 static void canonical_bpf(const char *protocol, int ipv6,
@@ -114,24 +121,117 @@ static void canonical_bpf(const char *protocol, int ipv6,
     argos_bpf_config_compile(c, &plan, wireguard_port);
 }
 
+static void exact_transport_ports(unsigned char *pkt) {
+    static const struct { uint16_t port; argos_protocol_id_t protocol; } tcp[] = {
+        {22U, ARGOS_PROTOCOL_SSH}, {88U, ARGOS_PROTOCOL_KERBEROS},
+        {111U, ARGOS_PROTOCOL_SUNRPC}, {179U, ARGOS_PROTOCOL_BGP},
+        {445U, ARGOS_PROTOCOL_SMB}, {502U, ARGOS_PROTOCOL_MODBUS},
+        {631U, ARGOS_PROTOCOL_IPP}, {1433U, ARGOS_PROTOCOL_MSSQL},
+        {1521U, ARGOS_PROTOCOL_ORACLE}, {1883U, ARGOS_PROTOCOL_MQTT},
+        {2000U, ARGOS_PROTOCOL_SCCP}, {2049U, ARGOS_PROTOCOL_NFS},
+        {3260U, ARGOS_PROTOCOL_ISCSI}, {3306U, ARGOS_PROTOCOL_MYSQL},
+        {3389U, ARGOS_PROTOCOL_RDP}, {5060U, ARGOS_PROTOCOL_SIP},
+        {5432U, ARGOS_PROTOCOL_POSTGRESQL}, {9100U, ARGOS_PROTOCOL_PJL},
+        {9100U, ARGOS_PROTOCOL_JETDIRECT},
+        {44818U, ARGOS_PROTOCOL_ETHERNET_IP}, {44818U, ARGOS_PROTOCOL_CIP},
+    };
+    static const struct { uint16_t port; argos_protocol_id_t protocol; } udp[] = {
+        {88U, ARGOS_PROTOCOL_KERBEROS}, {111U, ARGOS_PROTOCOL_SUNRPC},
+        {123U, ARGOS_PROTOCOL_NTP}, {161U, ARGOS_PROTOCOL_SNMP},
+        {162U, ARGOS_PROTOCOL_SNMP}, {389U, ARGOS_PROTOCOL_CLDAP},
+        {389U, ARGOS_PROTOCOL_NETLOGON}, {427U, ARGOS_PROTOCOL_VMWARE_SLP},
+        {623U, ARGOS_PROTOCOL_IPMI}, {623U, ARGOS_PROTOCOL_RMCP},
+        {623U, ARGOS_PROTOCOL_ASF}, {1812U, ARGOS_PROTOCOL_RADIUS},
+        {1813U, ARGOS_PROTOCOL_RADIUS}, {1985U, ARGOS_PROTOCOL_HSRP},
+        {2049U, ARGOS_PROTOCOL_NFS}, {3478U, ARGOS_PROTOCOL_STUN_TURN},
+        {5060U, ARGOS_PROTOCOL_SIP}, {5678U, ARGOS_PROTOCOL_MNDP},
+        {5683U, ARGOS_PROTOCOL_COAP},
+        {44818U, ARGOS_PROTOCOL_ETHERNET_IP}, {44818U, ARGOS_PROTOCOL_CIP},
+        {47808U, ARGOS_PROTOCOL_BACNET},
+    };
+    argos_bpf_config_t c;
+    argos_bpf_program_t p;
+    for (size_t i = 0; i < sizeof(tcp) / sizeof(tcp[0]); ++i) {
+        canonical_bpf(argos_protocol_catalog[tcp[i].protocol].name, 0, 0, &c);
+        expect(argos_bpf_build(&c, &p), "build exact TCP protocol BPF");
+        int destination_pass = pass(
+            &p, pkt, tcp4(pkt, 50000U, tcp[i].port, 0x18U, 24U));
+        if (!destination_pass)
+            fprintf(stderr, "exact TCP miss: %s/%u\n",
+                    argos_protocol_catalog[tcp[i].protocol].name, tcp[i].port);
+        expect(destination_pass,
+               "exact TCP destination port passes");
+        expect(pass(&p, pkt, tcp4(pkt, tcp[i].port, 50000U, 0x18U, 24U)),
+               "exact TCP source port passes");
+        expect(!pass(&p, pkt, tcp4(pkt, 50000U, 65535U, 0x18U, 24U)),
+               "unselected TCP port drops");
+    }
+    for (size_t i = 0; i < sizeof(udp) / sizeof(udp[0]); ++i) {
+        canonical_bpf(argos_protocol_catalog[udp[i].protocol].name, 0, 0, &c);
+        expect(argos_bpf_build(&c, &p), "build exact UDP protocol BPF");
+        int destination_pass = pass(
+            &p, pkt, udp4(pkt, 50000U, udp[i].port, 32U));
+        if (!destination_pass)
+            fprintf(stderr, "exact UDP miss: %s/%u\n",
+                    argos_protocol_catalog[udp[i].protocol].name, udp[i].port);
+        expect(destination_pass,
+               "exact UDP destination port passes");
+        expect(pass(&p, pkt, udp4(pkt, udp[i].port, 50000U, 32U)),
+               "exact UDP source port passes");
+        expect(!pass(&p, pkt, udp4(pkt, 50000U, 65535U, 32U)),
+               "unselected UDP port drops");
+    }
+
+    static const struct { const char *protocol; uint16_t port; } discovery[] = {
+        {"dhcp", 67U}, {"nbns", 137U}, {"ssdp", 1900U}, {"upnp", 1900U},
+        {"wsd", 3702U}, {"mdns", 5353U}, {"dns", 53U},
+    };
+    for (size_t i = 0; i < sizeof(discovery) / sizeof(discovery[0]); ++i) {
+        canonical_bpf(discovery[i].protocol, 0, 0, &c);
+        expect(argos_bpf_build(&c, &p), "build exact discovery BPF");
+        expect(pass(&p, pkt, udp4(pkt, 50000U, discovery[i].port, 32U)),
+               "exact discovery destination passes");
+        expect(pass(&p, pkt, udp4(pkt, discovery[i].port, 50000U, 32U)),
+               "exact discovery source passes");
+    }
+
+    canonical_bpf("dot", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build exact DoT BPF");
+    expect(pass(&p, pkt, tcp4(pkt, 50000U, 853U, 0x18U, 24U)), "DoT admits TCP/853");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000U, 443U, 0x18U, 24U)), "DoT excludes TLS/443");
+    canonical_bpf("tls", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build exact TLS BPF");
+    expect(pass(&p, pkt, tcp4(pkt, 50000U, 443U, 0x18U, 24U)), "TLS destination passes");
+    expect(!pass(&p, pkt, udp4(pkt, 50000U, 443U, 1200U)), "TLS excludes QUIC/UDP");
+    canonical_bpf("quic", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build exact QUIC BPF");
+    expect(pass(&p, pkt, udp4(pkt, 50000U, 443U, 1200U)), "QUIC destination passes");
+    expect(!pass(&p, pkt, udp4(pkt, 443U, 50000U, 1200U)), "QUIC source direction drops");
+    canonical_bpf("ntp", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build exact NTP BPF");
+    expect(!pass(&p, pkt, udp4(pkt, 50000U, 161U, 32U)), "NTP excludes SNMP port");
+    canonical_bpf("ssh", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build exact SSH BPF");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000U, 179U, 0x18U, 24U)), "SSH excludes BGP port");
+    canonical_bpf("ntlm", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build exact NTLM BPF");
+    expect(pass(&p, pkt, tcp4(pkt, 50000U, 445U, 0x18U, 24U)), "NTLM destination passes");
+    expect(!pass(&p, pkt, tcp4(pkt, 445U, 50000U, 0x18U, 24U)), "NTLM source direction drops");
+}
+
 int main(void) {
     unsigned char pkt[2048]; argos_bpf_program_t p; argos_bpf_config_t c;
-    memset(&c, 0, sizeof(c)); c.dns = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build DNS");
+    exact_transport_ports(pkt);
+    canonical_bpf("dns", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build DNS");
     expect(pass(&p, pkt, udp4(pkt, 50000, 53, 20)), "DNS query passes");
     expect(pass(&p, pkt, udp4(pkt, 53, 50000, 20)), "DNS response passes");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 5353, 20)), "mDNS drops in DNS-only mode");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x10, 20)), "TLS drops in DNS-only mode");
 
-    memset(&c, 0, sizeof(c)); c.http = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build HTTP");
+    canonical_bpf("http", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build HTTP");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 80, 0x18, 20)), "HTTP payload passes");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 80, 0x10, 0)), "HTTP empty ACK drops");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS port drops in HTTP-only mode");
 
-    memset(&c, 0, sizeof(c)); c.syn = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build SYN");
+    legacy_bpf_config(1U << 0, 0, &c); expect(argos_bpf_build(&c, &p), "build SYN");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x10, 20)), "non-control TCP drops in SYN-only mode");
 
-    memset(&c, 0, sizeof(c)); legacy_route_demand(&c, 1, 0); expect(argos_bpf_build(&c, &p), "build L2");
+    legacy_bpf_config(1U << 7, 0, &c); expect(argos_bpf_build(&c, &p), "build L2");
     expect(pass(&p, pkt, eth(pkt, 0x0806)), "ARP passes in L2 mode");
     expect(pass(&p, pkt, eth(pkt, 0x88cc)), "LLDP passes in L2 mode");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 53, 20)), "IPv4 DNS drops in L2-only mode");
@@ -162,7 +262,7 @@ int main(void) {
     expect(argos_bpf_build(&c, &p), "build canonical WireGuard");
     expect(pass(&p, pkt, udp4(pkt, 50000, 51821, 148)), "canonical WireGuard port passes");
 
-    memset(&c, 0, sizeof(c)); c.tls = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build TLS");
+    legacy_bpf_config(1U << 6, 0, &c); expect(argos_bpf_build(&c, &p), "build TLS");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS HTTPS port passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 465, 0x18, 20)), "TLS SMTPS port passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 853, 0x18, 20)), "DNS-over-TLS port passes");
@@ -178,7 +278,7 @@ int main(void) {
     expect(!pass(&p, pkt, udp4(pkt, 443, 50000, 1200)), "QUIC server direction drops in client-only TLS mode");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 853, 1200)), "DoT is TCP; UDP/853 drops in TLS mode");
 
-    memset(&c, 0, sizeof(c)); c.enterprise = 1; c.wireguard_port = 51821; legacy_route_demand(&c, 0, 1); expect(argos_bpf_build(&c, &p), "build enterprise");
+    legacy_bpf_config((1U << 9) | (1U << 8), 51821, &c); expect(argos_bpf_build(&c, &p), "build enterprise");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 44818, 0x18, 24)), "EtherNet/IP TCP/44818 passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 1883, 0x18, 24)), "MQTT TCP/1883 destination passes");
     expect(pass(&p, pkt, tcp4(pkt, 44818, 50000, 0x18, 24)), "EtherNet/IP TCP response passes");
@@ -207,7 +307,7 @@ int main(void) {
     expect(pass(&p, pkt, eth(pkt, 0x86dd)), "IPv6 passes when enabled");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 25, 0x18, 20)), "unparsed enterprise TCP port drops");
 
-    memset(&c, 0, sizeof(c)); c.enterprise = 1; legacy_route_demand(&c, 0, 0);
+    legacy_bpf_config(1U << 9, 0, &c);
     expect(argos_bpf_build(&c, &p), "enterprise-only BPF builds");
     memset(pkt, 0, sizeof(pkt)); put16(pkt + 12, 0x88cc);
     expect(pass(&p, pkt, 64), "enterprise-only admits LLDP-MED EtherType");

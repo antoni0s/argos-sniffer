@@ -37,8 +37,8 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose qualified selectors only with fine-grained C4 dispatch; preserve legacy equivalence. |
-| 4 | Cheap dispatch / gating | A fixed 48-byte plan owns canonical protocol/features plus bounded L2/L3/L4 route demand. Native-L2 and non-port network callers consume individual bits before parser work; ARP/NDP owner allocation follows enabled-family demand. A 16-byte startup projection gives classic BPF the same route demand while preserving conservative encapsulation fallbacks. | Adopt remaining TCP/UDP callers and full no-port IPv4/IPv6 reachability. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose the qualified selectors through getopt now that fine-grained runtime/BPF gates exist; preserve legacy equivalence. |
+| 4 | Cheap dispatch / gating | A fixed 48-byte plan owns canonical protocol/features plus bounded L2/L3/L4 and transport demand. Current production callers consume individual bits before parser/state work; a 32-byte startup BPF projection builds exact protocol ports while preserving conservative encapsulation fallbacks. | Complete full no-port IPv4/IPv6 reachability and hardware throughput/drop gates. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
 | 7 | Observation / output / JSONL | Engines return protocol-specific results; main assembles legacy strings. `argos_telemetry.h` formats a 1024-byte event and optional 1280-byte OBS wrapper. JSONL is not implemented. | Separate borrowed packet lifetime from owned bounded evidence, field/privacy/escaping limits, newline/truncation semantics, stream backpressure policy, collector compatibility. |
@@ -254,7 +254,7 @@ The BPF config grows from 12 to 16 startup-only bytes; program capacity, data an
 not grow. Core 33972559406, L2 33972559421 and staging 33972559401 passed, including
 LeakSanitizer and ARM64 compilation. No staged parser became reachable.
 
-### Canonical TCP/UDP engine gates — candidate
+### Canonical TCP/UDP engine gates — PR #40
 
 Every current TCP/UDP production caller now derives demand from the fixed dispatch plan before
 parser or application-state work. Bounded port switches replace repeated enterprise-port scans;
@@ -267,9 +267,26 @@ The local fixed-port benchmark (12 million calls per path) measured active TCP/U
 0.334–0.357 of the frozen linear scan and disabled dispatch at 0.182–0.242. This is structural
 CPU evidence, not an AF_PACKET throughput claim. Full/stub text is 168810/156756 (+2521/+2513
 from PR #39), data 3832 and BSS 80360/78760 unchanged. All 75 strict tests and six focused
-ASan/UBSan runs pass locally; CI LeakSanitizer and ARM64 execution/compile gates remain required.
+ASan/UBSan runs passed locally; core 33974018459, L2 33974018398 and staging 33974018417
+passed, including CI LeakSanitizer and ARM64 compile gates.
 The temporary coarse TCP/UDP BPF port-family projection is the immediate next C4 slice. Qualified
 selectors remain unexposed until that gate passes. No staged parser became reachable.
+
+### Exact TCP/UDP classic-BPF ports — candidate
+
+The 32-byte startup BPF config now retains the fixed production protocol mask rather than eight
+coarse family booleans. Before capture, the builder derives exact HTTP, TLS, DoT, QUIC, discovery,
+NTLM, WireGuard and current enterprise TCP/UDP ports; shared parser aliases deduplicate to one
+wire port. STUN/TURN keeps its bounded kernel fast-drop block, and NTLM admits only client-to-SMB
+identity traffic. Packet execution never scans the bitmap or catalog.
+
+Every current port owner is covered in both directions where its runtime supports both; dedicated
+fixtures pin DoT versus TLS, TLS versus QUIC, NTLM direction, unrelated-port rejection and shared
+aliases. The frozen legacy matrix remains identical across 7,239,680 packets, with maximum BPF
+length 287→183 and total interpreted work 189,935,226→188,153,978. The kernel verifier accepts all
+1,024 legacy configurations. Full/stub text is 169297/157275 (+487/+519 from PR #40), data 3832
+and BSS 80360/78760 unchanged; the BPF config grows by 16 startup-only bytes. Full strict,
+sanitizer and ARM64 CI remain the merge gate. No staged/HOLD bit becomes selectable or reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 

@@ -167,13 +167,16 @@ static void link_ownership(void) {
 }
 
 static void filter_lifecycle(void) {
-    argos_bpf_config_t bpf = {0};
-    bpf.syn = bpf.multi = bpf.dhcp = bpf.netbios = bpf.dns = 1;
-    bpf.http = bpf.tls = bpf.enterprise = 1;
-    bpf.wireguard_port = 51820;
-    bpf.l2_routes = UINT16_MAX;
-    bpf.l3_routes = UINT16_MAX;
-    bpf.l4_routes = UINT16_MAX;
+    argos_cli_selection_t cli;
+    argos_dispatch_plan_t plan;
+    argos_bpf_config_t bpf;
+    argos_cli_selection_init(&cli);
+    argos_cli_selection_apply_legacy_all(&cli, 0);
+    argos_cli_selection_apply_legacy(
+        &cli, ARGOS_LEGACY_CATEGORY_ENTERPRISE, 0);
+    argos_cli_selection_apply_feature(&cli, ARGOS_FEATURE_IPV6, 0);
+    argos_dispatch_plan_compile(&plan, &cli);
+    argos_bpf_config_compile(&bpf, &plan, 51820U);
     for (int mode = 0; mode < 6; ++mode) {
         fault = mode == 4 ? 11 : 0; filter_calls = 0;
         filter_failure = mode == 1;

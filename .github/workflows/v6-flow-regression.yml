@@ -109,6 +109,7 @@ jobs:
           assert 'argos_udp_suppress_recent(runtime_state.udp_suppress' in s
           assert 'Handshake/cookie types' in s and 'keepalives are always parsed' in s
           assert 'DNS/DHCP/QUIC/STUN/CoAP/NTP' in s
-          assert 'if (runtime_cfg.enterprise_enabled && argos_enterprise_udp_port(sport, dport))' in s
+          assert 'if (udp_engine < ARGOS_PROTOCOL_COUNT &&' in s
+          assert 'argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_WIREGUARD)' in s
           print('Unified flow-state permanent invariants: PASS')
           PY

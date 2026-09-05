@@ -79,6 +79,13 @@ assert "argos_dispatch_plan_compile" in dispatch
 # not regress to the removed broad l2/ipv6 fields or main-local reconstruction.
 assert "argos_bpf_config_compile(&bpf_cfg, &dispatch_plan" in main_source
 assert ".l2 =" not in main_source and ".ipv6 =" not in main_source
+assert "cfg->protocols = plan->protocols.enabled" in bpf_source
+for obsolete in ("cfg->multi", "cfg->dhcp", "cfg->netbios", "cfg->dns",
+                 "cfg->http", "cfg->tls", "cfg->enterprise"):
+    assert obsolete not in bpf_source, f"coarse BPF gate remains: {obsolete}"
+for protocol in ("HTTP", "NTLM", "TLS", "DOT", "QUIC", "DHCP", "NBNS", "DNS",
+                 "SSDP", "UPNP", "WSD", "MDNS", "WIREGUARD", "STUN_TURN"):
+    assert f"HAS({protocol})" in bpf_source, f"exact BPF gate missing: {protocol}"
 for route in (
     "ARGOS_DISPATCH_L2_ARP", "ARGOS_DISPATCH_L2_LLDP",
     "ARGOS_DISPATCH_L2_LLC", "ARGOS_DISPATCH_L2_SLOW",

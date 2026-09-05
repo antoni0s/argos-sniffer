@@ -13,17 +13,14 @@ static unsigned long cases;
 static void bpf_matrix(void) {
     unsigned char p[256];
     for (unsigned mask = 0; mask < 1024U; ++mask) {
-        argos_bpf_config_t c = {0}; argos_bpf_program_t b;
-        c.syn = mask & 1U; c.multi = (mask >> 1) & 1U;
-        c.dhcp = (mask >> 2) & 1U; c.netbios = (mask >> 3) & 1U;
-        c.dns = (mask >> 4) & 1U; c.http = (mask >> 5) & 1U;
-        c.tls = (mask >> 6) & 1U; c.enterprise = (mask >> 9) & 1U;
-        legacy_route_demand(&c, (mask >> 7) & 1U, (mask >> 8) & 1U);
+        argos_bpf_config_t c; argos_bpf_program_t b;
+        legacy_bpf_config(mask, 0U, &c);
         CHECK(argos_bpf_build(&c, &b), "all legacy flag combinations fit BPF capacity");
         for (unsigned proto = 0; proto < 256U; ++proto) {
             if (proto == 6U || proto == 17U) continue;
             size_t n = proto4(p, (uint8_t)proto);
-            int wanted = c.enterprise && (proto == 2U || proto == 89U || proto == 112U);
+            int wanted = (mask & (1U << 9)) != 0U &&
+                         (proto == 2U || proto == 89U || proto == 112U);
             CHECK(pass(&b, p, n) == wanted, "exact current non-port IPv4 whitelist");
         }
         size_t n = eth(p, 0x88f7);
@@ -41,14 +38,12 @@ static void bpf_matrix(void) {
         }
     }
     /* Coincident configuration is admission, NOT a PTP parser/CLI bit. */
-    argos_bpf_config_t c = {0}; argos_bpf_program_t b;
-    c.enterprise = 1; c.wireguard_port = 319; legacy_route_demand(&c, 0, 0);
+    argos_bpf_config_t c; argos_bpf_program_t b;
+    legacy_bpf_config(1U << 9, 319U, &c);
     CHECK(argos_bpf_build(&c, &b), "custom WireGuard BPF");
     size_t n = udp4(p, 50000, 319, 34);
     CHECK(pass(&b, p, n), "custom WireGuard port can coincide with PTP");
-    c.syn = c.multi = c.dhcp = c.netbios = c.dns = c.http = c.tls = 1;
-    c.wireguard_port = 51820;
-    legacy_route_demand(&c, 1, 1);
+    legacy_bpf_config((1U << 10) - 1U, 51820U, &c);
     CHECK(argos_bpf_build(&c, &b), "all-enabled plus default WireGuard fits capacity");
 }
 

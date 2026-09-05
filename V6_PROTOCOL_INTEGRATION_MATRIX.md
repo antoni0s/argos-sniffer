@@ -284,9 +284,9 @@ each selectable production bit as an independent gate and reject staging/HOLD ac
 The current C4 slice consumes individual bits before every native-L2 parser and before NDP/RA,
 IGMP/MLD, OSPF and VRRP. Existing overlapping LLDP-MED/STP/LACP implementations gain canonical
 gates; their isolated staging headers remain unreachable and are not integrated or duplicated.
-Current TCP/UDP production callers now consume exact protocol bits through bounded port-owner
-resolution. The BPF port lists still use temporary coarse family flags and must become exact
-before qualified selectors are exposed.
+Current TCP/UDP production callers consume exact protocol bits through bounded port-owner
+resolution. The active BPF slice builds matching exact protocol port lists while preserving the
+frozen legacy matrix; qualified selectors remain unexposed until that candidate merges.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 

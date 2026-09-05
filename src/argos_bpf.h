@@ -21,11 +21,13 @@
 #define ARGOS_TCP_CONTROL_MASK 0x07U /* FIN|SYN|RST */
 
 typedef struct {
-    uint8_t syn, multi, dhcp, netbios, dns, http, tls, enterprise;
+    argos_protocol_set_t protocols;
     uint16_t wireguard_port;
     uint16_t l2_routes;
     uint16_t l3_routes;
     uint16_t l4_routes;
+    uint16_t transport_routes;
+    uint8_t syn;
 } argos_bpf_config_t;
 
 typedef struct {
@@ -59,36 +61,29 @@ static inline int abpf_add_port(uint16_t *ports, size_t *count, size_t cap, uint
     return 1;
 }
 
-/* Project the canonical startup plan once. Port-family booleans remain a
- * temporary compatibility layer until the following C4 per-engine port slice;
- * link/network and transport-family admission already consume plan routes. */
+/* Project only fixed canonical control data. The BPF builder consumes protocol
+ * bits at startup to construct exact port lists; packet execution never scans
+ * the catalog or this bitmap. */
 static inline void argos_bpf_config_compile(argos_bpf_config_t *cfg,
                                             const argos_dispatch_plan_t *plan,
                                             uint16_t wireguard_port) {
     if (!cfg) return;
     memset(cfg, 0, sizeof(*cfg));
     if (!plan) return;
+    cfg->protocols = plan->protocols.enabled;
     cfg->syn = (uint8_t)argos_feature_selection_has(
         &plan->features, ARGOS_FEATURE_TCP_SYN);
-    cfg->multi = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_MULTI);
-    cfg->dhcp = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_DHCP);
-    cfg->netbios = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_NETBIOS);
-    cfg->dns = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_DNS);
-    cfg->http = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_HTTP);
-    cfg->tls = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_TLS);
-    cfg->enterprise = (uint8_t)argos_dispatch_legacy_enabled(
-        plan, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
     cfg->wireguard_port = argos_dispatch_protocol_enabled(
         plan, ARGOS_PROTOCOL_WIREGUARD) ? wireguard_port : 0U;
     cfg->l2_routes = plan->l2_routes;
     cfg->l3_routes = plan->l3_routes;
     cfg->l4_routes = plan->l4_routes;
+    cfg->transport_routes = plan->transport_routes;
+}
+
+static inline int argos_bpf_protocol_enabled(const argos_bpf_config_t *cfg,
+                                             argos_protocol_id_t protocol) {
+    return cfg && argos_protocol_set_has(&cfg->protocols, protocol);
 }
 
 static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_program_t *p) {
@@ -100,42 +95,63 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 #define ADD(set,n,val) do { if (!abpf_add_port((set), &(n), sizeof(set)/sizeof((set)[0]), (uint16_t)(val))) return 0; } while (0)
 #define EMIT(x) do { if (!(x)) return 0; } while (0)
 
-    if (cfg->http) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
-    if (cfg->tls) {
+#define HAS(protocol) argos_bpf_protocol_enabled(cfg, ARGOS_PROTOCOL_##protocol)
+    if (HAS(HTTP)) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
+    if (HAS(TLS)) {
         for (size_t i = 0; i < ARGOS_TLS_TCP_PORT_COUNT; ++i) {
             ADD(td, td_n, ARGOS_TLS_TCP_PORTS[i]);
             ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i]);
         }
-        ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT);
     }
-    if (cfg->dhcp) { ADD(ud, ud_n, 67); ADD(us, us_n, 67); }
-    if (cfg->netbios) { ADD(ud, ud_n, 137); ADD(us, us_n, 137); }
-    if (cfg->dns) { ADD(ud, ud_n, 53); ADD(us, us_n, 53); }
-    if (cfg->multi) {
+    if (HAS(DOT)) { ADD(td, td_n, 853); ADD(ts, ts_n, 853); }
+    if (HAS(QUIC))
+        ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT);
+    if (HAS(DHCP)) { ADD(ud, ud_n, 67); ADD(us, us_n, 67); }
+    if (HAS(NBNS)) { ADD(ud, ud_n, 137); ADD(us, us_n, 137); }
+    if (HAS(DNS)) { ADD(ud, ud_n, 53); ADD(us, us_n, 53); }
+    if (HAS(SSDP) || HAS(UPNP)) {
         ADD(ud, ud_n, 1900); ADD(us, us_n, 1900);
+    }
+    if (HAS(WSD)) {
         ADD(ud, ud_n, 3702); ADD(us, us_n, 3702);
+    }
+    if (HAS(MDNS)) {
         ADD(ud, ud_n, 5353); ADD(us, us_n, 5353);
     }
-    if (cfg->enterprise) {
-        for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i) {
+    argos_dispatch_plan_t transport_plan;
+    memset(&transport_plan, 0, sizeof(transport_plan));
+    transport_plan.protocols.enabled = cfg->protocols;
+    transport_plan.transport_routes = cfg->transport_routes;
+    for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i) {
+        if (argos_dispatch_tcp_port_engine(
+                &transport_plan, 0U, ARGOS_ENTERPRISE_TCP_PORTS[i]) <
+            ARGOS_PROTOCOL_COUNT) {
             ADD(td, td_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
             ADD(ts, ts_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
         }
-        for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i) {
-            if (ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT) continue;
+    }
+    /* NTLM identity shares SMB's destination port but not its parser bit.
+     * Add it after the canonical enterprise order so legacy work is unchanged. */
+    if (HAS(NTLM)) ADD(td, td_n, 445);
+    for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i) {
+        if (ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT) continue;
+        if (argos_dispatch_udp_port_engine(
+                &transport_plan, 0U, ARGOS_ENTERPRISE_UDP_PORTS[i]) <
+            ARGOS_PROTOCOL_COUNT) {
             ADD(ud, ud_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
             ADD(us, us_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
         }
-        if (cfg->wireguard_port != 0U) {
-            ADD(ud, ud_n, cfg->wireguard_port);
-            ADD(us, us_n, cfg->wireguard_port);
-        }
+    }
+    if (cfg->wireguard_port != 0U && HAS(WIREGUARD)) {
+        ADD(ud, ud_n, cfg->wireguard_port);
+        ADD(us, us_n, cfg->wireguard_port);
     }
 
+    const int stun_turn = HAS(STUN_TURN);
     const int need_tcp = (cfg->l4_routes & ARGOS_DISPATCH_L4_TCP) != 0U &&
                          (cfg->syn || td_n || ts_n);
     const int need_udp = (cfg->l4_routes & ARGOS_DISPATCH_L4_UDP) != 0U &&
-                         (ud_n || us_n);
+                         (ud_n || us_n || stun_turn);
     const int need_ipv4 = (cfg->l3_routes & ARGOS_DISPATCH_L3_IPV4) != 0U;
 
     /* Tagged/PPPoE frames remain conservative pass-through because classic
@@ -240,7 +256,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         p->code[udp_ja].k = (uint32_t)(udp_start - udp_ja - 1U);
         EMIT(abpf_stmt(p, BPF_LDX | BPF_B | BPF_MSH, 14));
         size_t stun_dport_ja = (size_t)-1, stun_sport_ja = (size_t)-1;
-        if (cfg->enterprise) {
+        if (stun_turn) {
             /* UDP/3478 is special: TURN relay data can be an elephant flow.
              * Jump matched 3478 packets to a small STUN-only admission block
              * after the generic UDP port checks. */
@@ -264,7 +280,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             }
         }
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
-        if (cfg->enterprise) {
+        if (stun_turn) {
             size_t stun_start = p->len;
             p->code[stun_dport_ja].k = (uint32_t)(stun_start - stun_dport_ja - 1U);
             p->code[stun_sport_ja].k = (uint32_t)(stun_start - stun_sport_ja - 1U);
@@ -288,6 +304,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
     }
 
 #undef ADD
+#undef HAS
 #undef EMIT
     /* Port matches share one ACCEPT target, instead of one RET per port.
      * UINT8_MAX is a construction-only true-branch marker. With <=256

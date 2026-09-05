@@ -88,8 +88,8 @@ jobs:
           set -eu
           # C4 dispatch: canonical masks compile once and gate runtime plus classic BPF.
           # CPU/latency and ownership take priority over tiny text differences.
-          # +2521 full text over PR #39 replaces coarse transport gates with fixed
-          # per-engine routing; benchmarked dispatch work falls, with no data/BSS growth.
+          # +487/+519 full/stub text over PR #40 replaces coarse BPF families with
+          # exact protocol ports; legacy packet work and data/BSS remain unchanged.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 168810
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 169297
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360
