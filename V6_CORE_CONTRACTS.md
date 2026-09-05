@@ -36,7 +36,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 | Order | Contract | Verified source fact | Required before freeze |
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
-| 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). | Freeze per-engine packet/byte/state budgets, clock behavior, expiry, saturation/eviction and tuple-reuse semantics. |
+| 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
 | 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
@@ -46,7 +46,8 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 | 9 | Helper/API cleanup | TLS and enterprise port helpers are shared by parsers and BPF; raw identity is separate. | Fold only after config/dispatch boundaries settle; avoid making BPF depend on protocol implementations. Remove duplicate parsing, not just file names. |
 | 10 | Regression matrix | Standalone parser tests plus native/ARM64 builds exist. | Add end-to-end capture→normalize→dispatch→observation coverage, allocation trap, saturation/expiry tests, output golden corpus and hardware acceptance. |
 
-None of the ten complete contracts is frozen by this audit. Existing legacy wire
+The current-production retained-state ownership sub-contract (C2) is frozen; the
+other complete contracts are not frozen by this audit. Existing legacy wire
 behavior and privacy requirements remain compatibility constraints throughout.
 The capture extraction passed its combined-tree gate: native full/stub, ARM64
 full/stub, all standalone tests, capture sanitizers and staging isolation/sanitizers.
@@ -168,8 +169,24 @@ ASan/UBSan/LSan and ARM64 full/stub/fixture compilation (not hardware execution)
 Native full/stub text is 156309/144022 (-124/+204), BSS unchanged at 80304/80296,
 main stack 84944 (-16). Size budgets are unchanged; no throughput claim.
 
-Remaining C2/C8 work includes complete clock/saturation/budget/backpressure testing
-and sink setup extraction. This does not freeze C2 or C8.
+Remaining C8 work includes backpressure testing and sink setup extraction. Future
+protocol inspection ceilings remain C5/C10 integration gates, not unfrozen ownership.
+
+#### State capacity and saturation — PR #27, `ddaa7c73c81ee31245173aac3923f196afb9f918`
+
+`V6_STATE_BUDGETS.md` is the authoritative current-production inventory. Compile-time
+LP64/ARM64 assertions pin entry/table/control sizes; deterministic fixtures cover
+application, UDP, SYN, DNS, dedup and IPv4/IPv6 collision saturation, plus QUIC
+full-table drop, expiry reuse and completed-DCID reuse. Heavy QUIC drops new live
+sessions at capacity rather than evicting active evidence. No runtime source, wire
+format, state capacity or production binary size changed.
+
+Core 33946696301, L2 33946696283 and staging 33946696275 PASS, including strict
+full/stub, ASan/UBSan/LSan and ARM64 compilation. Native full/stub text remains
+157560/144886 and BSS 80360/78760. The all-enabled/heavy listed owners total at
+most 1,095,935 bytes excluding capture/kernel/transient stack. This freezes existing
+retained-state ownership only; planned protocol `max_packets`/`max_bytes` remain
+unverified C5/C10 requirements and staging integration remains blocked.
 
 #### Dedup preparation — PR #22, `833849024c09b4064d9091bedf85f18545780801`
 

@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `a32c4011…` (PR #26).
-**Now:** freeze saturation/eviction/tuple-reuse and per-engine budgets (C2).
+Branch: `version-6`. Verified checkpoint: `ddaa7c73…` (PR #27).
+**Now:** canonical protocol bitmap/config membership tables (C3).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -33,6 +33,7 @@ Branch: `version-6`. Verified checkpoint: `a32c4011…` (PR #26).
 - [x] Enabled-only QUIC workspace/session preparation removes packet allocations and rejects forged tags before decrypt work — PR #24.
 - [x] Streaming fixed-stack TLS fingerprint hashing removes the last audited parser allocation and ~8 KiB MD5 stack — PR #25.
 - [x] State clock rollback fails open consistently; QUIC success suppression moved into its explicit owner — PR #26.
+- [x] Current production owner capacities, byte costs, saturation/eviction and tuple reuse are pinned and inventoried — PR #27.
 
 ## How to update — mandatory
 
@@ -71,12 +72,13 @@ Branch: `version-6`. Verified checkpoint: `a32c4011…` (PR #26).
 
 - [x] Remove packet-time QUIC scratch/state allocations; prepare only enabled capacity outside
   packet handling; heavy QUIC remains opt-in/default cheap.
-- [ ] **NOW:** Packet/byte/state budgets, collisions/eviction/saturation and tuple reuse;
-  measure stack/heap/BSS/cache cost separately. No unbounded retained payload.
+- [x] Existing production retained-state capacities, expiry/rollback, collision/eviction/saturation,
+  tuple reuse and native/ARM64 byte budgets are frozen in `V6_STATE_BUDGETS.md`.
+  Per-protocol inspection ceilings remain explicitly under C5/C10; no unbounded retained payload.
 
 ### C3. Config / bitmap / help
 
-- [ ] Single protocol bits and shared PROFILE → SUPER GROUP → GROUP → PROTOCOL tables.
+- [ ] **NOW:** Single protocol bits and shared PROFILE → SUPER GROUP → GROUP → PROTOCOL tables.
   Profiles: core/standard/full/home/enterprise/sensor. Super-groups:
   network/application/enterprise/industrial/iot/vpn. All canonical groups/protocols in the matrix;
   duplicate NFS/NTLM membership must not duplicate parsing/emission.
@@ -148,6 +150,8 @@ Branch: `version-6`. Verified checkpoint: `a32c4011…` (PR #26).
   BPF must not import parsing implementations. Common types/utilities only for truly shared concepts.
 - [ ] Main becomes capture→normalize→gate/dispatch→bounded engine→observation→identity/telemetry.
   Cohesive engines, no one-header-per-protocol; final packet-loop/allocation/cache/memory/privacy audit.
+- [ ] Remove temporary staging headers/tests only after their parser is reconciled into a canonical
+  owner and its unique fixtures remain permanent; never keep duplicate runtime parsers.
 
 ### C10. Acceptance and final readiness review
 
@@ -217,14 +221,16 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** C2 budget/saturation/tuple-reuse audit, then C3 canonical bitmap/config tables.
+**Next:** C3 canonical bitmap/config tables, then startup cheap dispatch/gates (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate; C2/C8 remain incomplete.
-PR #26: core 33921014158, L2 33921014199, staging 33921014217 PASS.
-Native full/stub text 157560/144886; BSS 80360/78760. No new state/probes;
-stub drops the former unrelated 1536-byte QUIC success global.
+**Pending:** no open candidate; staging runtime integration remains blocked on the core review.
+PR #27: core 33946696301, L2 33946696283, staging 33946696275 PASS.
+Native full/stub text 157560/144886; BSS 80360/78760, unchanged. Current listed
+owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
+capture/kernel/transient stack; protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
+**Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
