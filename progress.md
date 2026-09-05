@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `c5542289…` (PR #42).
-**Now:** validate canonical PTP runtime integration and obsolete staging cleanup (C1/C4).
+Branch: `version-6`. Verified checkpoint: `4e430b2…` (PR #44).
+**Now:** freeze the native PTP vector/dedup contract before the next protocol integration (C4/C7).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -265,18 +265,21 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** merge canonical PTP integration, then continue the core exit review and next
+**Next:** merge the PTP output-contract correction, then continue the core exit review and next
 dependency-safe staging integration.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-ptp-runtime-integration` is active. PTP is production-wired through one canonical
+**Pending:** `v6-ptp-canonical-vector` is active. PTP is production-wired through one canonical
 owner; the obsolete staging header and its staging-only workflow/test references are removed.
+Its frozen output is the native `PTP|...` vector with the `PTP` dedup namespace, never `ENT`.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
-PR #43: core 33976100718, L2 33976100721, staging 33976100714 PASS.
-Current PTP candidate full/stub text 175294/163248; data 3992; BSS 80360/78760.
-The +1668/+1684 text adds bounded dual-path parsing/output with no new state. Full strict and
-sanitizer evidence is the active gate. Current listed
+PR #44: core 33977277636, L2 33977277545, staging 33977277630 PASS.
+Current PTP contract-fix full/stub text is 175178/163180 (-116/-68 from PR #44); data remains
+3992 and BSS 80360/78760. The integration adds bounded dual-path parsing/output with no new state.
+Local evidence: all 76 strict test files, 297,941 non-port/PTP checks and six relevant
+ASan/UBSan paths pass; local LeakSanitizer is unavailable under ptrace, so CI leak coverage remains
+the merge gate. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first

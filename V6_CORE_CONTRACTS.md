@@ -328,10 +328,12 @@ ASan/UBSan runs. Full/stub text is 173626/161564 (+785/+701 from PR #42), data 3
 80360/78760 unchanged. Core 33976100718, L2 33976100721 and staging 33976100714 passed,
 including LeakSanitizer and ARM64 compilation.
 
-### Canonical PTP runtime integration — candidate
+### Canonical PTP runtime integration — PR #44 (`4e430b2…`)
 
 PTPv2 common-header parsing is folded into `argos_network.h`; native EtherType 0x88f7 and bounded
-UDP 319/320 payloads call the same parser and emit the existing bounded `ENT|...|PTP` envelope.
+UDP 319/320 payloads call the same parser. The follow-up contract fix emits the frozen native
+`PTP|src_mac|src_ip|dst_ip|key=value ...[|routed]` vector and uses the `PTP` dedup namespace;
+the legacy `ENT` envelope is forbidden for PTP.
 The canonical bit controls runtime, BPF and independent rate mode. Parsing stops at the declared
 common-message slice and retains no payload/TLV or state. Profile counts return to full/sensor 67
 and home 36; thematic help derives an unstarred production entry from the same catalog.
@@ -342,6 +344,10 @@ Current full/stub text is 175294/163248 (+1668/+1684 from PR #43), data 3992 and
 80360/78760 unchanged. Full strict, sanitizer, LeakSanitizer and ARM64 gates remain required.
 
 ## Concrete blockers, not hypothetical architecture work
+
+For every remaining staging integration, freeze the canonical vector name and ordered fields in
+`V6_BACKLOG.md` before runtime wiring. New protocol outputs use their protocol vector directly and
+must not be introduced through `ENT`; this prevents a second serialization migration after merge.
 
 ### Runtime network context — PR #12
 
