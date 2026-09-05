@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `6bc9b4dd…` (PR #29).
-**Now:** exact legacy-category mapping, non-protocol feature controls and profile masks (C3).
+Branch: `version-6`. Verified checkpoint: `01cb582d…` (PR #30).
+**Now:** exact production-only profile masks and CLI naming/compatibility policy (C3).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -36,6 +36,7 @@ Branch: `version-6`. Verified checkpoint: `6bc9b4dd…` (PR #29).
 - [x] Current production owner capacities, byte costs, saturation/eviction and tuple reuse are pinned and inventoried — PR #27.
 - [x] Canonical 101-protocol IDs, fixed bitmap and 6-super-group/28-group membership catalog — PR #28.
 - [x] Production-only enabled/unrated masks, last-overlap precedence and safe no-rate-limit semantics — PR #29.
+- [x] Exact legacy short/default/all/enterprise bundles and separate non-protocol feature controls — PR #30.
 
 ## How to update — mandatory
 
@@ -85,9 +86,11 @@ Branch: `version-6`. Verified checkpoint: `6bc9b4dd…` (PR #29).
   resolves to one bit and cannot duplicate parsing/emission.
 - [x] Separate enabled/unrated masks; production-only activation, lowercase normal/UPPERCASE
   unrated last-overlap precedence, and no-rate-limit affecting only already-enabled protocols.
-- [ ] **NOW:** Exact profile contents, legacy short-flag mapping/conflicts and separate non-protocol
-  feature controls; validate `--no-rate-limit=<all|super-group|group>` startup compilation.
-  No per-packet string lookups.
+- [x] Exact legacy short-category/default/`-a`/`-A` mappings and separate controls for SYN,
+  IPv6, extended metrics, stateful QUIC and sensor deployment; no runtime wiring yet.
+- [ ] **NOW:** Exact production-only profile contents and naming/conflict policy for the current broad
+  `--enterprise` bundle versus the canonical enterprise super-group; validate
+  `--no-rate-limit=<all|super-group|group>` startup compilation. No per-packet string lookups.
 - [ ] Resolve identity-group selector while preserving `--identity[=hash|raw]`/legacy alias;
   separate sensor profile from deployment mode; no implicit raw identity or staged protocol activation.
 - [ ] One-screen base help with measured line/byte budget; no `--help-protocols`.
@@ -229,7 +232,7 @@ C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; staging runtime integration remains blocked on the core review.
-PR #29: core 33947638500, L2 33947638504, staging 33947638519 PASS.
+PR #30: core 33948114721, L2 33948114726, staging 33948114731 PASS.
 Native full/stub text 157560/144886; BSS 80360/78760, unchanged. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. The config masks add zero production binary bytes until runtime

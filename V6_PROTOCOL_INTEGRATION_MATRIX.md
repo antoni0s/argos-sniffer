@@ -251,9 +251,12 @@ case semantics and masks on native/ARM64 builds.
 
 These bits are not runtime-wired yet. PR #29 adds fixed production-only enabled/unrated
 selection primitives and startup-order rate precedence, but existing category flags remain
-the current runtime behavior and must not be treated as the final legacy mapping. Profile
-contents, non-protocol feature controls, BPF/dispatcher consumption and help generation
-remain C3/C4 work. No collector mapping was verified by this checkpoint and no staging
+the current runtime behavior. PR #30 now characterizes their exact canonical protocol
+bundles and keeps SYN/IPv6/extended-metrics/stateful-QUIC/sensor controls outside the
+protocol bitmap; this remains startup-only and is not a runtime adoption. The current
+`--enterprise` bundle spans 50 production semantics and is not the canonical enterprise
+super-group. Profile contents, that CLI compatibility conflict, BPF/dispatcher consumption
+and help generation remain C3/C4 work. No collector mapping was verified and no staging
 parser became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
