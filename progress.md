@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `f630a197…` (PR #35).
-**Now:** fine-grained startup L2/L3/L4 dispatch-plan design and disabled-engine call-counter gates (C4).
+**Now:** per-engine runtime gate adoption and canonical BPF projection (C4).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -42,6 +42,7 @@ Branch: `version-6`. Verified checkpoint: `f630a197…` (PR #35).
 - [x] Startup selector compiler contract with explicit-feature/profile precedence — PR #33.
 - [x] Generated bounded help owner and pre-runtime help/version paths — PR #34.
 - [x] Existing legacy CLI/default/all/enterprise/features compile through canonical masks once before capture; coarse runtime behavior remains equivalent and selection state cannot enter packet processing — PR #35.
+- [x] Fixed 48-byte startup dispatch plan derives bounded L2/L3/L4 route demand from canonical masks; exhaustive bit/call-counter fixtures keep disabled protocols outside parser/state work. Actual production branches remain the next C4 gate.
 
 ## How to update — mandatory
 
@@ -122,8 +123,11 @@ Branch: `version-6`. Verified checkpoint: `f630a197…` (PR #35).
 
 - [x] Existing legacy CLI selections project from canonical fixed masks once before capture with
   preserved defaults/rate precedence; no CLI strings or selection state enter packet processing.
-- [ ] **NOW:** derive fine-grained startup L2/L3/L4/BPF plans; disabled engine skips parsing AND
-  state lookup (call-counter tests); preserve safe VLAN/QinQ/PPPoE/IPv6 fallbacks.
+- [x] Derive a fixed startup L2/L3/L4 route plan without packet-time catalog/string scans;
+  exhaustive production-bit fixtures prove the protocol gate itself skips simulated parser and
+  state calls. This is the control contract, not proof that every main-loop caller uses it yet.
+- [ ] **NOW:** adopt the plan before every production parser/state call and project canonical
+  demand into BPF; add actual-call counters and preserve safe VLAN/QinQ/PPPoE/IPv6 fallbacks.
 - [ ] Wire existing production engines to bitmap: network/addressing/discovery; TLS/DoT/QUIC/HTTP;
   L2/routing/redundancy; enterprise/storage/database/identity/management; industrial/IoT/VPN.
   Golden output unchanged; kernel early-drop preserved.
@@ -243,16 +247,21 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** derive the fine-grained startup dispatch plan and disabled-engine call-counter fixtures (C4).
+**Next:** replace coarse production parser/state gates with canonical plan checks, beginning with
+L2/non-port and BPF projection, then TCP/UDP families; retain exact legacy output/equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** no open candidate; staging runtime integration remains blocked on the core review.
+**Pending:** local `v6-c4-dispatch-plan` implementation `48049cc5…`; push/remote CI requires
+explicit user approval and no remote branch/PR exists yet. Staging runtime integration remains
+blocked on the core review.
 PR #35: core 33966752299, L2 33966752376, staging 33966752328 PASS.
 Native full/stub text 164710/152668; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
-tests reject selection access in packet processing. Protocol inspection byte ceilings remain C5/C10.
+tests reject selection access in packet processing. The new dispatch owner is 48 startup bytes;
+local full/stub text is 165565/153555 (+855/+887), data/BSS unchanged. Route compilation is
+startup-only and actual per-engine runtime wiring remains open. Protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;

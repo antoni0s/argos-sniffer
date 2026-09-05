@@ -46,6 +46,7 @@ unbounded payload.
 | Epoll result batch | max 16 events | Caller-owned reusable packet-loop array. |
 | Kernel receive buffer request | 2 MiB per AF_PACKET socket | Kernel-owned request; effective allocation is OS-controlled and not included in user-space totals. |
 | Runtime config | 20 bytes | Startup/control state; no packet-derived evidence. |
+| Dispatch plan | 48 bytes | Startup-derived fixed protocol/feature masks and L2/L3/L4 route flags; no packet-derived evidence or retained payload. |
 | Classic BPF builder | 2,052 bytes; max 256 instructions | Startup stack only; attached filter is kernel-owned. |
 | Address filter program | 2,312 bytes each; max 64 RPN tokens | Three compile-once programs exist in main; evaluation uses a bounded 64-integer stack and no string lookup/allocation. |
 | Telemetry event | 1,024 bytes | Per-call stack buffer; truncates to the existing bound. |

@@ -117,6 +117,7 @@
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
 #include "argos_config.h"
+#include "argos_dispatch.h"
 #include "argos_help.h"
 #include "argos_telemetry.h"
 #include "argos_packet.h"
@@ -1058,10 +1059,13 @@ int main(int argc, char *argv[]) {
 
     if (!filter_mode1.is_active) argos_cli_selection_finalize(&cli_selection);
 
+    argos_dispatch_plan_t dispatch_plan;
+    argos_dispatch_plan_compile(&dispatch_plan, &cli_selection);
+
 #define ARGOS_PROJECT_LEGACY(name, category) \
     do { \
-        opt_##name = argos_cli_legacy_category_enabled(&cli_selection, category); \
-        opt_##name##_rl = argos_cli_legacy_category_rate_limited(&cli_selection, category); \
+        opt_##name = argos_dispatch_legacy_enabled(&dispatch_plan, category); \
+        opt_##name##_rl = argos_dispatch_legacy_rate_limited(&dispatch_plan, category); \
     } while (0)
     ARGOS_PROJECT_LEGACY(syn, ARGOS_LEGACY_CATEGORY_SYN);
     ARGOS_PROJECT_LEGACY(multi, ARGOS_LEGACY_CATEGORY_MULTI);
@@ -1072,15 +1076,15 @@ int main(int argc, char *argv[]) {
     ARGOS_PROJECT_LEGACY(tls, ARGOS_LEGACY_CATEGORY_TLS);
     ARGOS_PROJECT_LEGACY(l2, ARGOS_LEGACY_CATEGORY_L2);
 #undef ARGOS_PROJECT_LEGACY
-    opt_v6 = argos_feature_selection_has(&cli_selection.features, ARGOS_FEATURE_IPV6);
-    opt_ext_metrics = argos_feature_selection_has(&cli_selection.features,
+    opt_v6 = argos_feature_selection_has(&dispatch_plan.features, ARGOS_FEATURE_IPV6);
+    opt_ext_metrics = argos_feature_selection_has(&dispatch_plan.features,
                                                   ARGOS_FEATURE_EXTENDED_METRICS);
-    opt_quic_heavy = argos_feature_selection_has(&cli_selection.features,
+    opt_quic_heavy = argos_feature_selection_has(&dispatch_plan.features,
                                                  ARGOS_FEATURE_QUIC_STATEFUL);
-    runtime_cfg.enterprise_enabled = argos_cli_legacy_category_enabled(
-        &cli_selection, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
-    runtime_cfg.enterprise_rate_limited = argos_cli_legacy_category_rate_limited(
-        &cli_selection, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
+    runtime_cfg.enterprise_enabled = argos_dispatch_legacy_enabled(
+        &dispatch_plan, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
+    runtime_cfg.enterprise_rate_limited = argos_dispatch_legacy_rate_limited(
+        &dispatch_plan, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
 
     if (opt_ext_metrics) {
         if (!argos_runtime_state_enable_extended_metrics(&runtime_state)) {

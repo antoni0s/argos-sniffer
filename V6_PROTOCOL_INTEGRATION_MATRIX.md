@@ -272,6 +272,12 @@ informational paths run before all capture/state/sink setup. Qualified selectors
 BPF/dispatcher consumption and per-row collector mappings remain C4/C10 work. No staging
 parser became enabled.
 
+The pending C4 dispatch-plan candidate adds a fixed 48-byte startup owner for canonical
+protocol/features and bounded L2/L3/L4 route demand. Exhaustive call-counter fixtures verify
+each selectable production bit as an independent gate and reject staging/HOLD activation.
+Main consumes the plan only for the existing legacy projection; individual production parser/
+state callers and BPF are still coarse and must be adopted before qualified selectors are exposed.
+
 ### Encapsulation field verification — PR #16 production `18b21557…`
 
 `src/argos_packet.h:argos_packet_decode` retains the existing CDP OUI 00000c/PID

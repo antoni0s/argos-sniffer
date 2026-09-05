@@ -198,7 +198,8 @@ blueprint. Preserve all special holds and all privacy rules above.
 
 ### Phase 4 — Cheap dispatcher and BPF gating
 
-- [ ] Derive a compact L2/L3/L4 dispatch plan from the enable bitmap at startup.
+- [x] Derive a compact fixed L2/L3/L4 route plan from the enable bitmap at startup; it is
+  consumed for legacy projection before capture and cannot activate staging/HOLD bits.
 - [ ] Skip disabled engines before payload parsing or state lookup.
 - [ ] Generate the classic-BPF whitelist from enabled protocol families while preserving safe
   fallbacks for VLAN, QinQ, PPPoE and IPv6 extension headers.

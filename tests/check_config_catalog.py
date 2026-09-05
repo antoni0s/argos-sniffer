@@ -5,6 +5,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 backlog = (ROOT / "V6_BACKLOG.md").read_text(encoding="utf-8")
 header = (ROOT / "src/argos_config.h").read_text(encoding="utf-8")
+dispatch = (ROOT / "src/argos_dispatch.h").read_text(encoding="utf-8")
 main_source = (ROOT / "src/argos-sniffer.c").read_text(encoding="utf-8")
 
 taxonomy = backlog.split("## Canonical CLI taxonomy backlog", 1)[1]
@@ -54,18 +55,22 @@ assert len(protocols) == 101
 assert len(actual) == 28
 
 # Runtime adoption gate: legacy argv flags must compile through the canonical
-# owner once, then project to the unchanged coarse dispatcher before capture.
+# owner once, then produce the fixed startup dispatch plan before capture.
 required_main_markers = (
     "argos_cli_selection_init(&cli_selection)",
     "argos_cli_selection_apply_legacy(&cli_selection",
     "argos_cli_selection_apply_legacy_all(&cli_selection",
     "argos_cli_selection_finalize(&cli_selection)",
-    "argos_cli_legacy_category_enabled(&cli_selection",
-    "argos_cli_legacy_category_rate_limited(&cli_selection",
+    "argos_dispatch_plan_compile(&dispatch_plan, &cli_selection)",
+    "argos_dispatch_legacy_enabled(&dispatch_plan",
+    "argos_dispatch_legacy_rate_limited(&dispatch_plan",
 )
 for marker in required_main_markers:
     assert marker in main_source, f"missing runtime config adoption marker: {marker}"
 assert "opt_syn = opt_multi = opt_dhcp" not in main_source
 packet_loop = main_source.split("argos_capture_open(&capture", 1)[1]
 assert "cli_selection" not in packet_loop, "selection compiler leaked into packet processing"
+assert "dispatch_plan" not in packet_loop, "startup dispatch plan leaked into packet processing"
+assert "argos_protocol_catalog" not in packet_loop, "protocol catalog leaked into packet processing"
+assert "argos_dispatch_plan_compile" in dispatch
 print("Canonical config catalog matches V6_BACKLOG taxonomy: PASS")
