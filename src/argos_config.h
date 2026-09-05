@@ -210,6 +210,21 @@ typedef struct {
     argos_feature_set_t unrated;
 } argos_feature_selection_t;
 
+typedef struct {
+    argos_protocol_selection_t protocols;
+    argos_feature_selection_t features;
+    argos_feature_selection_t explicit_features;
+    unsigned has_explicit_protocol_selection;
+} argos_cli_selection_t;
+
+typedef enum {
+    ARGOS_CLI_SELECTOR_PROFILE = 0,
+    ARGOS_CLI_SELECTOR_SUPER_GROUP,
+    ARGOS_CLI_SELECTOR_GROUP,
+    ARGOS_CLI_SELECTOR_PROTOCOL,
+    ARGOS_CLI_SELECTOR_NO_RATE_LIMIT
+} argos_cli_selector_kind_t;
+
 typedef enum {
     ARGOS_LEGACY_CATEGORY_SYN = 0,
     ARGOS_LEGACY_CATEGORY_MULTI,
@@ -738,6 +753,96 @@ static inline int argos_profile_name_lookup(const char *name, argos_profile_id_t
             *profile = (argos_profile_id_t)i; return 1;
         }
     return 0;
+}
+
+/* Compile canonical selectors once, in argv order, before capture/state setup.
+ * A profile replaces the current protocol/profile-feature base while preserving
+ * separately explicit feature options; later group/super-group/protocol selectors
+ * add to it. Protocol case retains the established rate-mode rule.
+ * A no-rate target changes only bits enabled at that point. Feature-only options
+ * do not suppress the historical default evidence set. Packet processing must
+ * consume only the resulting fixed masks, never selector strings. */
+static inline void argos_cli_selection_init(argos_cli_selection_t *selection) {
+    if (selection) memset(selection, 0, sizeof(*selection));
+}
+
+static inline void argos_cli_selection_apply_feature(
+    argos_cli_selection_t *selection, argos_feature_id_t feature, int unrated) {
+    if (!selection || (unsigned)feature >= ARGOS_FEATURE_COUNT) return;
+    argos_feature_selection_apply(&selection->explicit_features, feature, unrated);
+    argos_feature_selection_apply(&selection->features, feature, unrated);
+}
+
+static inline int argos_cli_selection_apply_named(
+    argos_cli_selection_t *selection, argos_cli_selector_kind_t kind,
+    const char *name) {
+    if (!selection || !name || !*name) return 0;
+    argos_protocol_set_t mask;
+    switch (kind) {
+        case ARGOS_CLI_SELECTOR_PROFILE: {
+            argos_profile_id_t profile;
+            argos_protocol_selection_t protocols;
+            argos_feature_selection_t features;
+            if (!argos_profile_name_lookup(name, &profile) ||
+                !argos_profile_selection(profile, &protocols, &features)) return 0;
+            selection->protocols = protocols;
+            selection->features = features;
+            selection->features.enabled |= selection->explicit_features.enabled;
+            selection->features.unrated |= selection->explicit_features.unrated;
+            selection->has_explicit_protocol_selection = 1U;
+            return 1;
+        }
+        case ARGOS_CLI_SELECTOR_SUPER_GROUP: {
+            argos_super_group_id_t super_group;
+            if (!argos_super_group_name_lookup(name, &super_group)) return 0;
+            argos_super_group_protocol_mask(super_group, &mask);
+            argos_protocol_selection_apply_mask(&selection->protocols, &mask, 0);
+            break;
+        }
+        case ARGOS_CLI_SELECTOR_GROUP: {
+            argos_group_id_t group;
+            if (!argos_group_name_lookup(name, &group)) return 0;
+            argos_group_protocol_mask(group, &mask);
+            argos_protocol_selection_apply_mask(&selection->protocols, &mask, 0);
+            break;
+        }
+        case ARGOS_CLI_SELECTOR_PROTOCOL: {
+            argos_protocol_id_t protocol;
+            int unrated;
+            if (!argos_protocol_name_lookup(name, &protocol, &unrated) ||
+                !argos_protocol_selection_apply_protocol(&selection->protocols,
+                                                         protocol, unrated)) return 0;
+            break;
+        }
+        case ARGOS_CLI_SELECTOR_NO_RATE_LIMIT:
+            return argos_protocol_selection_apply_no_rate_limit(&selection->protocols,
+                                                                 name);
+        default: return 0;
+    }
+    selection->has_explicit_protocol_selection = 1U;
+    return 1;
+}
+
+static inline void argos_cli_selection_apply_legacy(
+    argos_cli_selection_t *selection, argos_legacy_category_id_t category,
+    int unrated) {
+    if (!selection || (unsigned)category >= ARGOS_LEGACY_CATEGORY_COUNT) return;
+    argos_legacy_selection_apply(&selection->protocols, &selection->features,
+                                 category, unrated);
+    selection->has_explicit_protocol_selection = 1U;
+}
+
+static inline void argos_cli_selection_apply_legacy_all(
+    argos_cli_selection_t *selection, int unrated) {
+    if (!selection) return;
+    argos_legacy_selection_apply_all(&selection->protocols, &selection->features,
+                                     unrated);
+    selection->has_explicit_protocol_selection = 1U;
+}
+
+static inline void argos_cli_selection_finalize(argos_cli_selection_t *selection) {
+    if (!selection || selection->has_explicit_protocol_selection) return;
+    argos_legacy_selection_apply_default(&selection->protocols, &selection->features);
 }
 
 /* Runtime modes are explicit state, not combinations of loosely-related
