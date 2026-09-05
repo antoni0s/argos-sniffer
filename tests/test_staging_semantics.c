@@ -10,7 +10,6 @@
 #include "../src/argos_dnp3.h"
 #include "../src/argos_esp.h"
 #include "../src/argos_ftp.h"
-#include "../src/argos_http_proxy.h"
 #include "../src/argos_ike.h"
 #include "../src/argos_knx.h"
 #include "../src/argos_ldap.h"
@@ -40,7 +39,6 @@ static void test_dlna(void){static const unsigned char ok[]="contentFeatures.dln
 static void test_dnp3(void){unsigned char p[10]={0x05,0x64,0x05,0,0,0,0,0,0,0};argos_dnp3_result_t r;assert(argos_dnp3_parse(p,SZ(p),&r)==1);p[0]=4;assert(argos_dnp3_parse(p,SZ(p),&r)==0);p[0]=5;assert(argos_dnp3_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_esp(void){unsigned char p[8]={0,0,0,1,0,0,0,2};argos_esp_result_t r;assert(argos_esp_parse(p,SZ(p),&r)==1);p[3]=0;assert(argos_esp_parse(p,SZ(p),&r)==0);p[3]=1;assert(argos_esp_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_ftp(void){static const unsigned char ok[]="USER alice\r\n",bad[]="NOOP\r\n";argos_ftp_result_t r;assert(argos_ftp_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_ftp_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_ftp_parse(ok,2U,&r)==0);} 
-static void test_http_proxy(void){static const unsigned char ok[]="CONNECT proxy.example:443 HTTP/1.1\r\n\r\n",bad[]="GET / HTTP/1.1\r\nHost: example\r\n\r\n";argos_http_proxy_result_t r;assert(argos_http_proxy_parse(ok,SZ(ok)-1U,&r)==1);assert(r.is_connect==1&&strcmp(r.host,"proxy.example:443")==0);assert(argos_http_proxy_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_http_proxy_parse(ok,3U,&r)==0);} 
 static void test_ike(void){unsigned char p[28]={0};argos_ike_result_t r;p[0]=1;p[17]=0x20;p[18]=34;p[19]=8;p[27]=28;assert(argos_ike_parse(p,SZ(p),&r)==1);p[17]=0x30;assert(argos_ike_parse(p,SZ(p),&r)==0);p[17]=0x20;assert(argos_ike_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_knx(void){unsigned char p[6]={0x06,0x10,0x02,0x01,0,0x06};argos_knx_result_t r;assert(argos_knx_parse(p,SZ(p),&r)==1);p[0]=5;assert(argos_knx_parse(p,SZ(p),&r)==0);p[0]=6;assert(argos_knx_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_ldap(void){unsigned char ok[7]={0x30,0x05,0x02,0x01,0x01,0x42,0},bad[7]={0x30,0x03,0x02,0x01,0x01,0x42,0};argos_ldap_result_t r;assert(argos_ldap_parse(ok,SZ(ok),&r)==1);assert(argos_ldap_parse(bad,SZ(bad),&r)==0);assert(argos_ldap_parse(ok,SZ(ok)-1U,&r)==0);} 
@@ -61,4 +59,4 @@ static void test_thread(void){unsigned char ss[5]={0xb1,0x12,0x34,0x56,0x78};arg
 static void test_vnc(void){static const unsigned char ok[]="RFB 003.008\n",bad[]="RFB 00x.008\n";argos_vnc_result_t r;assert(argos_vnc_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_vnc_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_vnc_parse(ok,SZ(ok)-2U,&r)==0);} 
 static void test_winrm(void){static const unsigned char ok[]="POST /wsman HTTP/1.1\r\nContent-Type: application/soap+xml\r\n\r\n",bad[]="GET / HTTP/1.1\r\n\r\n";argos_winrm_result_t r;assert(argos_winrm_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_winrm_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_winrm_parse(ok,7U,&r)==0);} 
 
-int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_knx();test_ldap();test_ldaps();test_matter();test_mongodb();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}
+int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_ike();test_knx();test_ldap();test_ldaps();test_matter();test_mongodb();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}

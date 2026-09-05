@@ -153,6 +153,7 @@ for marker in (
 for parser, gate in {
     "parse_tls_sni(": "tls_tcp || dot_tcp",
     "argos_enterprise_parse_tcp(": "tcp_engine < ARGOS_PROTOCOL_COUNT",
+    "ae_http_proxy(": "proxy_tcp && payload_len > 0",
     "argos_enterprise_parse_udp(": "udp_engine < ARGOS_PROTOCOL_COUNT",
     "argos_identity_ntlm_type3(": "ARGOS_PROTOCOL_NTLM",
     "argos_identity_radius_access_request(": "ARGOS_PROTOCOL_RADIUS",
@@ -175,7 +176,7 @@ assert 'argos_network_ripng_parse(' in main_source
 assert 'dedup_should_suppress(mac_str, "RIP", rip.detail' in main_source
 assert 'emit_telemetry("RIP|%s|%s|%s|%s%s\\n"' in main_source
 assert 'emit_telemetry("ENT|%s|%s|%s|RIP|' not in main_source
-for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW", "LPD"):
+for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW", "LPD", "HTTP-PROXY"):
     assert f'return "{vector}"' in main_source
     assert f'emit_telemetry("ENT|%s|%s|%s|{vector}|' not in main_source
 assert 'dedup_should_suppress(text_mac, vector ? vector : "ENT"' in main_source
@@ -184,6 +185,7 @@ assert "emit_enterprise_result(tcp_engine, &ent_tcp" in main_source
 assert "emit_enterprise_result(udp_engine, &ent_udp" in main_source
 assert "if (engine == ARGOS_PROTOCOL_LPD) return 1;" in main_source
 assert not (ROOT / "src" / ("argos_" + "lpd.h")).exists()
+assert not (ROOT / "src" / ("argos_" + "http_proxy.h")).exists()
 for obsolete in ("argos_syslog.h", "argos_netflow.h", "argos_ipfix.h", "argos_sflow.h"):
     assert not (ROOT / "src" / obsolete).exists(), f"obsolete staging header remains: {obsolete}"
 for vector in ("LLDP-MED", "STP", "LACP"):

@@ -104,7 +104,10 @@ For each production or staged protocol document:
 
 - TLS / DoT;
 - QUIC Initial;
-- HTTP / HTTP proxy;
+- HTTP; HTTP proxy now has a 4,096-byte header cap and eight-payload directional
+  ceiling, early completion, SYN reset, presence-only proxy headers and native
+  ordered output. Username remains unknown; credentials/bodies/URI paths are
+  excluded. Collector deployment and hardware measurements remain open;
 - SMB / NTLM;
 - NFS / SunRPC;
 - RDP / SSH;

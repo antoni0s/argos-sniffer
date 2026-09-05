@@ -394,7 +394,7 @@ Candidate vectors and their required metadata are:
 | STP | type, version, flags, root_id, root_cost, bridge_id, port_id, message_age, max_age, hello_time, forward_delay, mst_revision, mst_digest |
 | RIP | `RIP|src_mac|src_ip|dst_ip|version=<1\|2\|ng> command=<request\|response> entries=<n> auth=<none\|simple\|md5\|-> next_hop_present=<0\|1>[\|routed]`; auth secrets and route prefixes are never retained/emitted |
 | PTP | version, message, domain, sequence, transport_specific, two_step, clock_identity |
-| HTTP-PROXY | method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
+| HTTP-PROXY | frozen order: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
 | TELNET | command, option, negotiation, username |
 | VNC | protocol, version, security_types, selected_security, server_name, width, height |
 | WINRM | transport, wsman, soap, method, auth, username, encrypted |
@@ -415,6 +415,19 @@ Candidate vectors and their required metadata are:
 | IKE | version, exchange, username, flags, message_id, initiator_spi, responder_spi, natt |
 | ESP | spi, sequence |
 | AH | next_header, payload_length, spi, sequence |
+
+HTTP-PROXY uses the same native envelope. Method is an uppercase ASCII letters, up
+to 15 bytes (or `-` for responses); mode is `connect`, `absolute` or `forwarded`.
+Target host is a lowercase bounded authority host (ASCII letters/digits/`-._`,
+or a validated bracketed IPv6 literal), up to 191 bytes; target_port is 1..65535
+or `-`. Absolute http/https defaults to 80/443; CONNECT requires an explicit port.
+URI userinfo is rejected; paths, queries, fragments and header values never enter
+the observation. Username is `-`: auth credentials are not decoded. Proxy_auth,
+via, forwarded and xff are presence bits; auth_scheme is the first scheme token
+normalized to basic/digest/ntlm/negotiate/bearer/other, or `-` when absent.
+TCP ports are 80/3128/8080/8118/8888 in both directions, independently gated from
+HTTP. Only a complete header block within 4,096 bytes can emit; the existing
+eight-payload directional budget and completion/SYN lifecycle apply. No reassembly.
 
 LPD uses `LPD|src_mac|src_ip|dst_ip|command=... queue=... username=...[|routed]`.
 Queue and agent are bounded ASCII tokens (95 and 63 bytes); record delimiters

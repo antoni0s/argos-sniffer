@@ -56,6 +56,17 @@ static inline int argos_dispatch_protocol_enabled(
     return plan && argos_protocol_set_has(&plan->protocols.enabled, protocol);
 }
 
+/* Shared with capture filtering; never add HTTP ports to enterprise ownership. */
+static const uint16_t ARGOS_HTTP_PROXY_TCP_PORTS[] = {80, 3128, 8080, 8118, 8888};
+static inline int argos_dispatch_http_proxy_enabled(
+    const argos_dispatch_plan_t *plan, uint16_t sport, uint16_t dport)
+{
+    if (!argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_HTTP_PROXY)) return 0;
+    for (unsigned i = 0; i < sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]); ++i)
+        if (sport == ARGOS_HTTP_PROXY_TCP_PORTS[i] || dport == ARGOS_HTTP_PROXY_TCP_PORTS[i]) return 1;
+    return 0;
+}
+
 static inline int argos_dispatch_protocol_rate_limited(
     const argos_dispatch_plan_t *plan, argos_protocol_id_t protocol)
 {
@@ -324,7 +335,7 @@ static inline void argos_dispatch_plan_compile(
         plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_UDP_OWNER;
 
     if (argos_feature_selection_has(&plan->features, ARGOS_FEATURE_TCP_SYN) ||
-        ARGOS_DISPATCH_HAS(HTTP) || ARGOS_DISPATCH_HAS(TLS) ||
+        ARGOS_DISPATCH_HAS(HTTP) || ARGOS_DISPATCH_HAS(HTTP_PROXY) || ARGOS_DISPATCH_HAS(TLS) ||
         ARGOS_DISPATCH_HAS(DOT) || ARGOS_DISPATCH_HAS(NTLM) ||
         (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_TCP_OWNER) != 0U)
         plan->l4_routes |= ARGOS_DISPATCH_L4_TCP;

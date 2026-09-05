@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `6c140253c5e51a7ec0850d0add05203eaebeebc1` (PR #49).
-**Now:** HTTP proxy integration on `v6-http-proxy-canonical-integration`;
+**Now:** HTTP proxy implementation verified locally; push/CI/merge on `v6-http-proxy-canonical-integration`;
 LPD runtime slice is merged. Telnet/VNC/WinRM remain in the same open group.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
@@ -225,7 +225,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   native privacy-safe `RIP|...` output, permanent fixtures and staging-header removal.
 - [x] Syslog/NetFlow/IPFIX/sFlow: canonical enterprise owner, native non-`ENT`
   signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
-- [ ] HTTP proxy/Telnet/VNC/WinRM.
+- [ ] HTTP proxy runtime slice: local code/fixtures pass; CI/merge pending.
+- [ ] Telnet/VNC/WinRM.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
@@ -276,33 +277,32 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish HTTP proxy/Telnet/VNC/WinRM within application control, then media.
+**Next:** complete HTTP proxy CI/merge, then Telnet/VNC/WinRM and media.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Delivery:** LPD slice merged as PR #49, tested head
-`ed250557ff0be98df98ef8b9a5f5ab0af97b2be1`. The native ordered signature is frozen
-before wiring; exact TCP/515 dispatch, printing/application group membership and
-generated help use the production catalog. The old staging parser and references
-are removed after unique fixtures moved to `tests/test_lpd.c`.
-Current full/stub text is 182268/170254 (+1360/+1268 from PR #48), data 3992 and
-BSS 80360/78760 unchanged. Main stack remains 84,992. The reviewed full-text
-ceiling is 182320. LPD uses one attempt per retained direction/generation and a
-1,024-byte prefix through LF, no new state/allocation/reassembly. Invalid input
-also completes inspection; server replies, print bodies and subcommands are not
-parsed. Existing SYN/expiry/eviction behavior is preserved.
-Local evidence: all 79 strict standalone tests, five adoption checks and six focused
-ASan/UBSan paths pass (local leak detection disabled under ptrace). Native full/stub
-builds and 8,443,904 legacy BPF comparisons pass. The legacy oracle now freezes
-its port tables from its original commit, independent of production additions;
-the matrix explicitly includes LPD and exporter ports. CI LSan, ARM64 full/stub
-and fixture compilation passed. Collector wire
-acceptance is not deployed collector verification. Hardware/capture throughput
-and executing-ARM64 acceptance remain open.
-**Cleanup:** local integrated branch was removed after exact tree equality with
-the squash merge. Remote branch deletion failed because noninteractive Git has
-no username/credential and the configured connector exposes no delete-ref action.
-User cleanup: `git push origin --delete v6-app-control-canonical-integration`.
-The new HTTP proxy branch contains this handoff checkpoint only; no HTTP proxy
-runtime change or additional protocol completion is claimed.
+**Delivery:** HTTP proxy native ordered signature is frozen before wiring.
+The existing enterprise handshake/control section now owns bounded proxy parsing;
+independent canonical bit and TCP 80/3128/8080/8118/8888 gates preserve HTTP and
+enterprise dispatch behavior. Proxy-only SYNs reach generation reset without SYN
+telemetry. Web/application groups, profiles, generated help and rate modes derive
+from the production catalog (74 full/sensor; 38 home).
+Local evidence: all 80 strict standalone tests, five adoption checks and six focused
+ASan/UBSan paths pass (local leak detection disabled under ptrace). Full/stub text
+187184/175110 (+4916/+4856 from PR #49), data 3992, BSS 80360/78760 unchanged.
+Main stack is 85,008 (+16); parser stack is 448, no retained-state/allocation growth.
+The reviewed full-text ceiling is 187248. The bounded grammar, IPv6 validation and
+independent gates justify this small code growth; no speedup is claimed.
+Legacy BPF equivalence covers 9,132,032 comparisons including all new proxy ports.
+Kernel checks cover 1,024 legacy plus proxy-only/full configurations. CI LSan and
+ARM64 compilation are pending on the pushed candidate. Collector deployment,
+hardware/capture throughput and executing-ARM64 acceptance remain open.
+The obsolete staging parser/includes/workflow entries are removed after unique
+fixtures migrated to tests/test_http_proxy.c. No credentials, URI paths or bodies
+are emitted; username is explicitly unknown. Eight attempts of 4,096 bytes maximum
+per retained direction, complete on valid headers; no reassembly.
+**Cleanup:** current branch remains active until verified merge. The previous
+remote branch still needs deletion because noninteractive Git has no credential
+and the connector exposes no delete-ref action:
+`git push origin --delete v6-app-control-canonical-integration`.
 **Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
 and final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;

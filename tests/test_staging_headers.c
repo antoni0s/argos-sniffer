@@ -10,7 +10,6 @@
 #include "../src/argos_dnp3.h"
 #include "../src/argos_esp.h"
 #include "../src/argos_ftp.h"
-#include "../src/argos_http_proxy.h"
 #include "../src/argos_ike.h"
 #include "../src/argos_knx.h"
 #include "../src/argos_ldap.h"

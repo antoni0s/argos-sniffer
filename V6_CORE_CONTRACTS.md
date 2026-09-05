@@ -399,7 +399,24 @@ BSS 80360/78760 and main stack 84992 unchanged. Sharing serialization removes
 two duplicated TCP/UDP formatting blocks while preserving existing output.
 The bounded parser adds no allocation or retained RAM; full text guard 182320
 keeps the existing 52-byte compiler margin. No throughput gain is claimed.
-HTTP proxy/Telnet/VNC/WinRM remain open within the application-control group.
+Telnet/VNC/WinRM remain open within the application-control group.
+
+### Application-control slice: HTTP proxy
+
+The existing handshake/control owner parses complete HTTP/1.0 or HTTP/1.1 proxy
+headers within 4,096 bytes. Main independently gates proxy work on its canonical
+bit and five shared TCP ports, preserving enterprise source/destination ownership.
+Classic BPF admits only selected proxy-port SYNs for generation reset when SYN
+telemetry is off. Proxy-only traffic avoids unrelated HTTP/TLS completion scans.
+No allocation or retained-state growth; the existing eight-payload, directional,
+60-second application budget and early completion apply. This remains passive
+header evidence, without reassembly, encrypted payload inspection or identity
+extraction from credentials. The native ordered vector, privacy rules and missing
+values are frozen in V6_BACKLOG; current collector deployment remains unverified.
+Unique staging fixtures are migrated to test_http_proxy, which exercises the
+production parser and serializer. Obsolete staging source/includes/workflow
+entries are removed. Canonical catalog membership drives web/application help,
+profiles and rate modes. Permanent strict/sanitizer/LSan/ARM64 gates cover it.
 The final BPF oracle audit also freezes its original port tables from commit
 `12166a0bf0cc2180f0bcc0d92170081c0dcf7552` instead of importing current production
 lists. The expanded 8,443,904-case matrix includes LPD/exporter ports and preserves

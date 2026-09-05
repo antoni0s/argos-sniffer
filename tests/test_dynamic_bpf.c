@@ -233,6 +233,18 @@ int main(void) {
     expect(pass(&p, pkt, tcp4(pkt, 50000, 80, 0x18, 20)), "HTTP payload passes");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 80, 0x10, 0)), "HTTP empty ACK drops");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS port drops in HTTP-only mode");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 3128, 0x18, 20)), "proxy drops in HTTP-only mode");
+    expect(!pass(&p, pkt, tcp4(pkt, 80, 50000, 0x18, 20)), "legacy HTTP response gate unchanged");
+    canonical_bpf("http-proxy", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build proxy");
+    for (unsigned i = 0; i < sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]); ++i) {
+        uint16_t port = ARGOS_HTTP_PROXY_TCP_PORTS[i];
+        expect(pass(&p, pkt, tcp4(pkt, 50000, port, 0x18, 20)), "proxy request passes");
+        expect(pass(&p, pkt, tcp4(pkt, port, 50000, 0x18, 20)), "proxy response passes");
+        expect(pass(&p, pkt, tcp4(pkt, 50000, port, 0x02, 0)), "proxy generation SYN passes");
+        expect(!pass(&p, pkt, tcp4(pkt, 50000, port, 0x10, 0)), "proxy empty ACK drops");
+        expect(!pass(&p, pkt, udp4(pkt, 50000, port, 20)), "proxy excludes UDP");
+    }
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "proxy excludes TLS");
 
     legacy_bpf_config(1U << 0, 0, &c); expect(argos_bpf_build(&c, &p), "build SYN");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");
