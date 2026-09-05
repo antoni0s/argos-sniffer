@@ -128,7 +128,7 @@ NETWORK
       mdns, ssdp, upnp, llmnr, wsd, nbns
 
   --l2-discovery
-      lldp, cdp, edp, fdp, mndp, lldp-med*, stp*, lacp*
+      lldp, cdp, edp, fdp, mndp, lldp-med, stp, lacp
 
   --multicast
       igmp, mld
@@ -302,7 +302,7 @@ Example:
 ```text
 ftp*
 nvmeof*
-lldp-med*
+lldp-med
 ```
 
 Before the final v6 release, this marker must be generated from actual engine implementation status or removed. It must never become stale hand-maintained documentation.

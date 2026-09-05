@@ -14,10 +14,12 @@ int main(void){
  argos_stp_result_t r;
  expect(argos_rstp_parse(p,39,&r),"valid RSTP BPDU");
  expect(r.version==2 && r.type==2 && r.root_cost==19,"RSTP common fields");
- expect(strstr(r.detail,"role=designated")!=NULL,"RSTP designated role");
- expect(strstr(r.detail,"proposal=1")!=NULL && strstr(r.detail,"agreement=1")!=NULL,"RSTP flags");
+ expect(strcmp(r.detail,"type=rstp version=2 flags=0x7e root_id=1000.00:01:02:03:04:05 root_cost=19 "
+        "bridge_id=8000.10:11:12:13:14:15 port_id=0x8002 message_age=256 max_age=5120 "
+        "hello_time=512 forward_delay=3840 mst_revision=- mst_digest=-")==0,"frozen RSTP detail");
  expect(!argos_stp_parse(p,39,&r),"classic STP parser rejects RSTP");
  p[38]=1; expect(!argos_rstp_parse(p,39,&r),"nonzero version1 length rejected");
+ p[38]=0; expect(!argos_rstp_parse(p,38,&r),"truncated RSTP rejected");
  p[38]=0; p[5]=3; expect(!argos_rstp_parse(p,39,&r),"MSTP rejected by RSTP parser");
  puts("RSTP fixtures: PASS"); return 0;
 }

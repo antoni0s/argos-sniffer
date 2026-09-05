@@ -14,10 +14,8 @@
 #include "../src/argos_ike.h"
 #include "../src/argos_ipfix.h"
 #include "../src/argos_knx.h"
-#include "../src/argos_lacp.h"
 #include "../src/argos_ldap.h"
 #include "../src/argos_ldaps.h"
-#include "../src/argos_lldp_med.h"
 #include "../src/argos_lpd.h"
 #include "../src/argos_matter.h"
 #include "../src/argos_mongodb.h"
@@ -32,7 +30,6 @@
 #include "../src/argos_rtsp.h"
 #include "../src/argos_s7.h"
 #include "../src/argos_sflow.h"
-#include "../src/argos_stp.h"
 #include "../src/argos_syslog.h"
 #include "../src/argos_tacacs.h"
 #include "../src/argos_telnet.h"
@@ -53,10 +50,8 @@ static void test_http_proxy(void){static const unsigned char ok[]="CONNECT proxy
 static void test_ike(void){unsigned char p[28]={0};argos_ike_result_t r;p[0]=1;p[17]=0x20;p[18]=34;p[19]=8;p[27]=28;assert(argos_ike_parse(p,SZ(p),&r)==1);p[17]=0x30;assert(argos_ike_parse(p,SZ(p),&r)==0);p[17]=0x20;assert(argos_ike_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_ipfix(void){unsigned char p[16]={0};argos_ipfix_result_t r;p[1]=10;p[3]=16;assert(argos_ipfix_parse(p,SZ(p),&r)==1);p[1]=9;assert(argos_ipfix_parse(p,SZ(p),&r)==0);p[1]=10;assert(argos_ipfix_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_knx(void){unsigned char p[6]={0x06,0x10,0x02,0x01,0,0x06};argos_knx_result_t r;assert(argos_knx_parse(p,SZ(p),&r)==1);p[0]=5;assert(argos_knx_parse(p,SZ(p),&r)==0);p[0]=6;assert(argos_knx_parse(p,SZ(p)-1U,&r)==0);} 
-static void test_lacp(void){unsigned char p[42]={0};argos_lacp_result_t r;p[0]=1;p[1]=1;p[2]=1;p[3]=0x14;p[22]=2;p[23]=0x14;assert(argos_lacp_parse(p,SZ(p),&r)==1);p[22]=3;assert(argos_lacp_parse(p,SZ(p),&r)==0);p[22]=2;assert(argos_lacp_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_ldap(void){unsigned char ok[7]={0x30,0x05,0x02,0x01,0x01,0x42,0},bad[7]={0x30,0x03,0x02,0x01,0x01,0x42,0};argos_ldap_result_t r;assert(argos_ldap_parse(ok,SZ(ok),&r)==1);assert(argos_ldap_parse(bad,SZ(bad),&r)==0);assert(argos_ldap_parse(ok,SZ(ok)-1U,&r)==0);} 
 static void test_ldaps(void){unsigned char p[5]={22,3,3,0,0};argos_ldaps_result_t r;assert(argos_ldaps_parse(p,SZ(p),&r)==1);p[0]=19;assert(argos_ldaps_parse(p,SZ(p),&r)==0);p[0]=22;assert(argos_ldaps_parse(p,SZ(p)-1U,&r)==0);} 
-static void test_lldp_med(void){unsigned char p[9]={0xfe,0x07,0,0x12,0xbb,1,0,1,1};argos_lldp_med_result_t r;assert(argos_lldp_med_parse(p,SZ(p),&r)==1);p[1]=8;assert(argos_lldp_med_parse(p,SZ(p),&r)==0);p[1]=7;assert(argos_lldp_med_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_lpd(void){unsigned char p[3]={2,'q','\n'};argos_lpd_result_t r;assert(argos_lpd_parse(p,SZ(p),&r)==1);p[0]=0;assert(argos_lpd_parse(p,SZ(p),&r)==0);p[0]=2;assert(argos_lpd_parse(p,1U,&r)==0);} 
 static void test_matter(void){unsigned char p[8]={0};argos_matter_result_t r;assert(argos_matter_parse(p,SZ(p),&r)==1);p[0]=0x20;assert(argos_matter_parse(p,SZ(p),&r)==0);p[0]=0;assert(argos_matter_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_mongodb(void){unsigned char p[16]={0};argos_mongodb_result_t r;p[0]=16;p[12]=0xdd;p[13]=7;assert(argos_mongodb_parse(p,SZ(p),&r)==1);p[12]=p[13]=0;assert(argos_mongodb_parse(p,SZ(p),&r)==0);p[12]=0xdd;p[13]=7;assert(argos_mongodb_parse(p,SZ(p)-1U,&r)==0);} 
@@ -71,7 +66,6 @@ static void test_rtp(void){unsigned char p[12]={0x80,96,0,1,0,0,0,2,0,0,0,3};arg
 static void test_rtsp(void){static const unsigned char ok[]="OPTIONS rtsp://example RTSP/1.0\r\n\r\n",bad[]="options rtsp://example RTSP/1.0\r\n\r\n",edge[]="OPTIONS x RTSP/1.0";argos_rtsp_result_t r;assert(argos_rtsp_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_rtsp_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_rtsp_parse(edge,17U,&r)==0);} 
 static void test_s7(void){unsigned char p[10]={0x32,1,0,0,0,1,0,0,0,0};argos_s7_result_t r;assert(argos_s7_parse(p,SZ(p),&r)==1);p[0]=0x31;assert(argos_s7_parse(p,SZ(p),&r)==0);p[0]=0x32;assert(argos_s7_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_sflow(void){unsigned char p[28]={0};argos_sflow_result_t r;p[3]=5;p[7]=1;assert(argos_sflow_parse(p,SZ(p),&r)==1);p[3]=4;assert(argos_sflow_parse(p,SZ(p),&r)==0);p[3]=5;assert(argos_sflow_parse(p,SZ(p)-1U,&r)==0);} 
-static void test_stp_family(void){unsigned char s[7]={0x42,0x42,3,0,0,0,0x80};argos_stp_result_t sr;assert(argos_stp_parse(s,SZ(s),&sr)==1);s[0]=0;assert(argos_stp_parse(s,SZ(s),&sr)==0);s[0]=0x42;assert(argos_stp_parse(s,SZ(s)-1U,&sr)==0);unsigned char q[39]={0};q[0]=0x42;q[1]=0x42;q[2]=3;q[5]=2;q[6]=2;assert(argos_rstp_parse(q,SZ(q),&sr)==1);q[5]=1;assert(argos_rstp_parse(q,SZ(q),&sr)==0);q[5]=2;assert(argos_rstp_parse(q,SZ(q)-1U,&sr)==0);unsigned char m[105]={0};argos_mstp_result_t mr;m[0]=0x42;m[1]=0x42;m[2]=3;m[5]=3;m[6]=2;m[40]=64;assert(argos_mstp_parse(m,SZ(m),&mr)==1);m[41]=1;assert(argos_mstp_parse(m,SZ(m),&mr)==0);m[41]=0;assert(argos_mstp_parse(m,SZ(m)-1U,&mr)==0);} 
 static void test_syslog(void){static const unsigned char ok[]="<13>1 x",bad[]="<192>x";argos_syslog_result_t r;assert(argos_syslog_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_syslog_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_syslog_parse(ok,2U,&r)==0);} 
 static void test_tacacs(void){unsigned char p[12]={0xc0,1,1,0,0,0,0,1,0,0,0,0};argos_tacacs_result_t r;assert(argos_tacacs_parse(p,SZ(p),&r)==1);p[0]=0xb0;assert(argos_tacacs_parse(p,SZ(p),&r)==0);p[0]=0xc0;assert(argos_tacacs_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_telnet(void){unsigned char ok[3]={0xff,0xfb,1},bad[2]={1,2};argos_telnet_result_t r;assert(argos_telnet_parse(ok,SZ(ok),&r)==1);assert(argos_telnet_parse(bad,SZ(bad),&r)==0);assert(argos_telnet_parse(ok,1U,&r)==0);} 
@@ -79,4 +73,4 @@ static void test_thread(void){unsigned char ss[5]={0xb1,0x12,0x34,0x56,0x78};arg
 static void test_vnc(void){static const unsigned char ok[]="RFB 003.008\n",bad[]="RFB 00x.008\n";argos_vnc_result_t r;assert(argos_vnc_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_vnc_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_vnc_parse(ok,SZ(ok)-2U,&r)==0);} 
 static void test_winrm(void){static const unsigned char ok[]="POST /wsman HTTP/1.1\r\nContent-Type: application/soap+xml\r\n\r\n",bad[]="GET / HTTP/1.1\r\n\r\n";argos_winrm_result_t r;assert(argos_winrm_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_winrm_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_winrm_parse(ok,7U,&r)==0);} 
 
-int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_ipfix();test_knx();test_lacp();test_ldap();test_ldaps();test_lldp_med();test_lpd();test_matter();test_mongodb();test_netflow();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rip();test_rtcp();test_rtp();test_rtsp();test_s7();test_sflow();test_stp_family();test_syslog();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}
+int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_ipfix();test_knx();test_ldap();test_ldaps();test_lpd();test_matter();test_mongodb();test_netflow();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rip();test_rtcp();test_rtp();test_rtsp();test_s7();test_sflow();test_syslog();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}

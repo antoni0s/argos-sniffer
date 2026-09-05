@@ -51,9 +51,9 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | l2-discovery | edp | production | l2 owner | EtherType/SNAP as verified at integration | EDP: peer/platform metadata | one PDU | verify current parser |
 | l2-discovery | fdp | production | l2 owner | vendor L2 discovery trigger | FDP: peer/platform metadata | one PDU | verify current parser |
 | l2-discovery | mndp | production | l2/discovery owner | UDP 5678 | MNDP: identity/platform/version/interface metadata | one message | bounded attributes |
-| l2-discovery | lldp-med | staging | fold into `argos_l2.h` | EtherType 0x88cc + MED TLVs | `LLDP-MED`: device_class, capabilities, network_policy, application, vlan, priority, dscp, inventory; fingerprint = MED capability/policy/inventory tuple | complete after MED TLVs; never duplicate base LLDP telemetry | staging fixture + reconciliation against canonical LLDP |
-| l2-discovery | stp | staging | fold into `argos_l2.h` | STP multicast / LLC BPDU | `STP`: type, version, flags, root_id, root_cost, bridge_id, port_id, timers, MST revision/digest; fingerprint = version + bridge/root/timer/MST profile | one BPDU | malformed BPDU + no duplicate production parser |
-| l2-discovery | lacp | staging | fold into `argos_l2.h` | EtherType 0x8809 slow protocols | `LACP`: actor/partner system, key, port, state; fingerprint = actor/partner state tuple | one bounded LACPDU | malformed TLV + canonical L2 reconciliation |
+| l2-discovery | lldp-med | production | `argos_l2.h` | EtherType 0x88cc + MED TLVs | `LLDP-MED`: device_class, capabilities, network_policy, application, vlan, priority, dscp, inventory; fingerprint = MED capability/policy/inventory tuple | complete after MED TLVs; location/serial/asset excluded; no duplicate base LLDP telemetry | permanent fixture + canonical LLDP reconciliation |
+| l2-discovery | stp | production | `argos_l2.h` | STP multicast / LLC BPDU | `STP`: type, version, flags, root_id, root_cost, bridge_id, port_id, timers, MST revision/digest; fingerprint = version + bridge/root/timer/MST profile | one BPDU | malformed BPDU + single canonical parser |
+| l2-discovery | lacp | production | `argos_l2.h` | EtherType 0x8809 slow protocols | `LACP`: actor/partner system, priority, key, port and state; fingerprint = actor/partner state tuple | one bounded LACPDU | malformed TLV + canonical L2 reconciliation |
 | multicast | igmp | production | network owner | IP proto 2 | IGMP: version/type/group/source count; behavioral evidence | one control message | bounds on source lists |
 | multicast | mld | production | network owner | ICMPv6 MLD types | MLD: version/type/group/source count | one control message | IPv6 bounds |
 | routing | bgp | production | network/routing owner | TCP 179 | BGP: message type, version/open capabilities/ASN class if already observed; fingerprint = capability set | complete after OPEN for fingerprinting | never parse bulk UPDATE payload beyond bounded metadata |
@@ -220,7 +220,7 @@ For every protocol with possible bulk traffic, the final runtime integration mus
 This checklist is mandatory v6 delivery scope. Complete every group in order; a HOLD delays its row
 until the prerequisite is implemented but does not remove it from the release.
 
-1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP.
+1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP. PTP is integrated in the canonical network owner.
 3. **Management exporters** — Syslog, NetFlow, IPFIX, sFlow.
 4. **Application control** — HTTP proxy, Telnet, VNC, WinRM, LPD.
@@ -241,9 +241,9 @@ This verifies individual fields only, **not whole-row integration readiness**.
 | Protocol | Verified owner / entry | Current gate and wire fact | Still unverified / blocked |
 |---|---|---|---|
 | TLS / DoT | `src/argos_tls.h`: `argos_tls_client_parse`, `argos_tls_server_parse`; main owns serialization | Independent canonical TLS/DoT bits; TCP 443/465/853/993/995/8443/8883; one parse, exact `TLS` and additive `DOT` emission/rate gates, `TLSSRV` for server evidence | Normalized observation fields, byte budgets, collector mapping; enrichment remains staging |
-| LLDP-MED | `src/argos_l2.h`: `argos_lldp_med_parse` | Enterprise gate, EtherType 0x88cc, legacy `ENT|...|LLDP-MED|...` | Standalone staging reconciliation, canonical bit/vector and collector mapping |
-| LACP | `src/argos_l2.h`: `argos_lacp_parse` | Enterprise gate, EtherType 0x8809, legacy `ENT|...|LACP|...` | Standalone staging reconciliation and complete per-row audit |
-| STP family | `src/argos_l2.h`: `argos_stp_parse`, `argos_rstp_parse`, `argos_mstp_parse` | Baseline LLC defect repaired in PR #7: native/VLAN/QinQ BPF→normalization→canonical parser fixture; declared 802.3 length bounds input | Canonical bit, staging reconciliation, full protocol budgets and collector mapping remain open; no full-row readiness claim |
+| LLDP-MED | `src/argos_l2.h`: `argos_lldp_med_parse` | EtherType 0x88cc, canonical bit/rate gate and native `LLDP-MED|...` vector | Production; collector mapping remains C7/C10 |
+| LACP | `src/argos_l2.h`: `argos_lacp_parse` | EtherType 0x8809, canonical bit/rate gate and native `LACP|...` vector | Production; collector mapping remains C7/C10 |
+| STP family | `src/argos_l2.h`: `argos_stp_parse`, `argos_rstp_parse`, `argos_mstp_parse` | Native/VLAN/QinQ BPF→normalization→canonical parser; declared 802.3 bounds and one native `STP|...` vector | Production; collector mapping remains C7/C10 |
 | PTP | Canonical `argos_network.h:argos_network_ptp_parse`; obsolete staging header removed | Native 0x88f7 and UDP 319/320 share one runtime helper, exact bit/rate/BPF gates and frozen native `PTP|...` output | Production; retain collector golden coverage in C7/C10 |
 | ESP / AH | Isolated `src/argos_esp.h` / `src/argos_ah.h`, no runtime calls | Fixed userspace owner switches and IPv4 BPF gates exist behind unselectable HOLD bits; IPv6 remains conservative and normalization skips AH to the following header | Hold: main adapters plus AH sidecar ownership/readiness review |
 | Thread | Isolated `src/argos_thread.h`, no runtime call | No raw IEEE802.15.4 link type in current capture contract | Hold: capture/link-type semantics |
@@ -282,8 +282,8 @@ PR #36 adds a fixed 48-byte startup owner for canonical
 protocol/features and bounded L2/L3/L4 route demand. Exhaustive call-counter fixtures verify
 each selectable production bit as an independent gate and reject staging/HOLD activation.
 The current C4 slice consumes individual bits before every native-L2 parser and before NDP/RA,
-IGMP/MLD, OSPF and VRRP. Existing overlapping LLDP-MED/STP/LACP implementations gain canonical
-gates; their isolated staging headers remain unreachable and are not integrated or duplicated.
+IGMP/MLD, OSPF and VRRP. LLDP-MED/STP/LACP now use the canonical `argos_l2.h` owner, protocol-native
+vectors and dedup namespaces; their duplicate isolated staging headers are removed.
 Current TCP/UDP production callers consume exact protocol bits through bounded port-owner
 resolution. PR #41 builds matching exact protocol port lists while preserving the frozen legacy
 matrix. The C3 qualified-selector audit found no LLMNR runtime/BPF owner for UDP/TCP 5355, so its

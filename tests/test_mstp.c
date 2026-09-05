@@ -18,9 +18,13 @@ int main(void){
  expect(r.version3_length==80 && r.config_revision==7 && r.msti_count==1,"MST config fields");
  expect(r.cist_internal_root_cost==1234 && r.cist_remaining_hops==19,"CIST fields");
  expect(r.first_msti_root_cost==55 && r.first_msti_remaining_hops==18,"MSTI fields");
- expect(strstr(r.detail,"digest=000102030405060708090a0b0c0d0e0f")!=NULL,"config digest detail");
+ expect(strcmp(r.detail,"type=mstp version=3 flags=0x3c root_id=0000.00:00:00:00:00:00 root_cost=0 "
+        "bridge_id=0000.00:00:00:00:00:00 port_id=0x0000 message_age=0 max_age=0 "
+        "hello_time=0 forward_delay=0 mst_revision=7 mst_digest=000102030405060708090a0b0c0d0e0f")==0,
+        "frozen MSTP detail");
  expect(strstr(r.detail,"INTERNAL-REGION") == NULL,"raw config name not emitted");
  p[39]=0; p[40]=65; expect(!argos_mstp_parse(p,121,&r),"misaligned MSTI payload rejected");
  p[40]=80; p[41]=1; expect(!argos_mstp_parse(p,121,&r),"nonzero format selector rejected");
+ p[41]=0; expect(!argos_mstp_parse(p,104,&r),"truncated MSTP rejected");
  puts("MSTP fixtures: PASS"); return 0;
 }

@@ -169,4 +169,9 @@ assert "l3_proto == 0x88f7U" in main_source
 assert 'dedup_should_suppress(mac, "PTP",' in main_source
 assert 'emit_telemetry("PTP|%s|%s|%s|%s%s\\n"' in main_source
 assert 'emit_telemetry("ENT|%s|%s|%s|PTP|' not in main_source
+for vector in ("LLDP-MED", "STP", "LACP"):
+    assert f'dedup_should_suppress(mac_str, "{vector}"' in main_source
+    assert f'emit_telemetry("{vector}|%s|-|-|%s%s\\n"' in main_source
+for legacy in ("LLDP-MED", "STP", "RSTP", "MSTP", "LACP"):
+    assert f'emit_telemetry("ENT|%s|-|-|{legacy}|' not in main_source
 print("Canonical config catalog matches V6_BACKLOG taxonomy: PASS")

@@ -1354,9 +1354,9 @@ int main(int argc, char *argv[]) {
                 if (argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_LLDP_MED)) {
                     argos_lldp_med_result_t med;
                     if (argos_lldp_med_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &med)) {
-                        if (!dedup_should_suppress(mac_str, "ENT", med.detail,
+                        if (!dedup_should_suppress(mac_str, "LLDP-MED", med.detail,
                                 argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_LLDP_MED)))
-                            emit_telemetry("ENT|%s|-|-|LLDP-MED|%s\n", mac_str, med.detail);
+                            emit_telemetry("LLDP-MED|%s|-|-|%s%s\n", mac_str, med.detail, routed_str);
                     }
                 }
                 continue;
@@ -1365,22 +1365,22 @@ int main(int argc, char *argv[]) {
                 argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_STP)) {
                 argos_stp_result_t stp;
                 if (argos_stp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &stp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail,
+                    if (!dedup_should_suppress(mac_str, "STP", stp.detail,
                             argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_STP)))
-                        emit_telemetry("ENT|%s|-|-|STP|%s\n", mac_str, stp.detail);
+                        emit_telemetry("STP|%s|-|-|%s%s\n", mac_str, stp.detail, routed_str);
                     continue;
                 }
                 if (argos_rstp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &stp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", stp.detail,
+                    if (!dedup_should_suppress(mac_str, "STP", stp.detail,
                             argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_STP)))
-                        emit_telemetry("ENT|%s|-|-|RSTP|%s\n", mac_str, stp.detail);
+                        emit_telemetry("STP|%s|-|-|%s%s\n", mac_str, stp.detail, routed_str);
                     continue;
                 }
                 argos_mstp_result_t mstp;
                 if (argos_mstp_parse(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset), &mstp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", mstp.detail,
+                    if (!dedup_should_suppress(mac_str, "STP", mstp.detail,
                             argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_STP)))
-                        emit_telemetry("ENT|%s|-|-|MSTP|%s\n", mac_str, mstp.detail);
+                        emit_telemetry("STP|%s|-|-|%s%s\n", mac_str, mstp.detail, routed_str);
                     continue;
                 }
             }
@@ -1388,9 +1388,9 @@ int main(int argc, char *argv[]) {
                 argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_LACP)) {
                 argos_lacp_result_t lacp;
                 if (argos_lacp_parse(buffer + l3_offset, (size_t)((int)len - l3_offset), &lacp)) {
-                    if (!dedup_should_suppress(mac_str, "ENT", lacp.detail,
+                    if (!dedup_should_suppress(mac_str, "LACP", lacp.detail,
                             argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_LACP)))
-                        emit_telemetry("ENT|%s|-|-|LACP|%s\n", mac_str, lacp.detail);
+                        emit_telemetry("LACP|%s|-|-|%s%s\n", mac_str, lacp.detail, routed_str);
                 }
                 continue;
             }

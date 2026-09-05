@@ -65,12 +65,16 @@ profile names are reserved without inventing their contents. Startup-only exact
 lowercase/UPPERCASE lookup distinguishes normal/unrated protocol selections and
 rejects mixed case. Group, super-group and profile-name lookup is lowercase exact.
 
-Current implementation status is explicit metadata, not an activation: overlapping
-production/staging TLS enrichment and LLDP-MED/STP/LACP are marked as both; Thread,
+At that checkpoint implementation status was explicit metadata, not an activation: overlapping
+production/staging TLS enrichment and LLDP-MED/STP/LACP were marked as both; Thread,
 ESP and AH retain HOLD. No staged parser is reachable from the catalog. The main
 loop, legacy CLI booleans, BPF, help, wire output and allocation behavior are unchanged.
 Because the catalog is not yet consumed by production, optimized full/stub text,
 data and BSS remain 157560/144886, 1408 and 80360/78760 respectively.
+
+The later canonical L2 integration removes the staging status and duplicate standalone headers
+for LLDP-MED/STP/LACP. Their protocol-native vectors and dedup namespaces replace the temporary
+legacy `ENT` envelopes; RSTP/MSTP are `type` values of the single `STP` vector.
 
 `tests/check_config_catalog.py` fails if the backlog taxonomy and source catalog
 drift. `tests/test_config_catalog.c` verifies all IDs, group/super-group counts,
@@ -881,8 +885,8 @@ chooses the safe order, canonical owner and required adaptations; it is not a la
 whether those protocols will be included. HOLD dependencies must be closed before their rows ship.
 
 1. **Immediately runtime-ready staging parsers: none.** Core gates remain open.
-2. LLDP-MED/LACP/STP require reconciliation with the canonical L2 engine. STP
-   normalization was repaired in PR #7; keep exactly one runtime parser per protocol.
+2. LLDP-MED/LACP/STP reconciliation is complete in the canonical L2 engine: each has one runtime
+   parser, a frozen native vector/dedup namespace and permanent fixtures; duplicate headers are gone.
 3. TLS client/server enrichment must become fields of the existing parse result,
    not a second ClientHello/ServerHello parse. ATS1 remains the current server
    fingerprint. JA4S choice, ordering and naming are not frozen.
@@ -896,10 +900,9 @@ whether those protocols will be included. HOLD dependencies must be closed befor
    Flow-shape remains experimental; no new flow tracker is authorized.
 7. Other isolated protocols need the full per-row matrix audit, wrapper/result
    adaptation, budget and collector fixtures. Standalone tests are not approval.
-8. Explicit holds remain Thread, ESP/AH; PTP is blocked on dual-path reachability.
+8. Explicit holds remain Thread and ESP/AH; PTP dual-path integration is complete.
 
-After core freeze, use the master matrix's integration order: overlapping L2
-reconciliation → RIP/PTP (subject to reachability) → exporters → application
+After core freeze, use the master matrix's remaining integration order: RIP → exporters → application
 control → media → enterprise storage/directory → industrial → IoT → VPN.
 TLS enrichment is a separate bounded step after the TLS/public-observation freeze.
 No dependency is waived by a protocol's position in that sequence, and no staged protocol may be
