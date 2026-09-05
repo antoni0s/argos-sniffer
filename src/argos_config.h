@@ -223,6 +223,12 @@ typedef enum {
     ARGOS_LEGACY_CATEGORY_COUNT
 } argos_legacy_category_id_t;
 
+typedef enum {
+    ARGOS_RATE_TARGET_ALL = 0,
+    ARGOS_RATE_TARGET_SUPER_GROUP,
+    ARGOS_RATE_TARGET_GROUP
+} argos_rate_target_kind_t;
+
 typedef struct {
     const char *name;
 } argos_super_group_descriptor_t;
@@ -614,6 +620,48 @@ static inline int argos_super_group_name_lookup(const char *name,
             *super_group = (argos_super_group_id_t)i; return 1;
         }
     return 0;
+}
+
+/* Compile a --no-rate-limit target once during startup. Targets are lowercase
+ * exact and limited to all, a super-group or a group; individual protocols use
+ * their existing uppercase selector. Only production bits are returned. */
+static inline int argos_rate_target_mask(const char *name,
+                                         argos_protocol_set_t *out,
+                                         argos_rate_target_kind_t *kind) {
+    if (!name || !*name || !out) return 0;
+    if (strcmp(name, "all") == 0) {
+        argos_production_protocol_mask(out);
+        if (kind) *kind = ARGOS_RATE_TARGET_ALL;
+        return 1;
+    }
+    argos_super_group_id_t super_group;
+    if (argos_super_group_name_lookup(name, &super_group)) {
+        argos_protocol_set_t production;
+        argos_super_group_protocol_mask(super_group, out);
+        argos_production_protocol_mask(&production);
+        argos_protocol_set_intersect(out, &production);
+        if (kind) *kind = ARGOS_RATE_TARGET_SUPER_GROUP;
+        return 1;
+    }
+    argos_group_id_t group;
+    if (argos_group_name_lookup(name, &group)) {
+        argos_protocol_set_t production;
+        argos_group_protocol_mask(group, out);
+        argos_production_protocol_mask(&production);
+        argos_protocol_set_intersect(out, &production);
+        if (kind) *kind = ARGOS_RATE_TARGET_GROUP;
+        return 1;
+    }
+    argos_protocol_set_clear(out);
+    return 0;
+}
+
+static inline int argos_protocol_selection_apply_no_rate_limit(
+    argos_protocol_selection_t *selection, const char *target_name) {
+    argos_protocol_set_t target;
+    if (!selection || !argos_rate_target_mask(target_name, &target, NULL)) return 0;
+    argos_protocol_selection_unrate_enabled(selection, &target);
+    return 1;
 }
 
 static inline int argos_profile_name_lookup(const char *name, argos_profile_id_t *profile) {
