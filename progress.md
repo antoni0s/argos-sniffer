@@ -303,10 +303,10 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** freeze RTP/RTCP dynamic-port admission, ownership, native field/privacy
-and completion policy before wiring. Do not broaden UDP capture merely to find
-RTP; prefer signaling-derived or another bounded startup/runtime gate with measured
-disabled/enabled cost. Preserve progress/help/naming/cleanup.
+**Next:** integrate bounded RTSP negotiation first so validated Transport ports can
+become an RTP/RTCP admission source. Do not broaden UDP capture merely to find RTP.
+After RTSP, freeze signaling-derived dynamic BPF/state updates and RTP/RTCP native
+field/privacy/completion policy. Preserve progress/help/naming/cleanup.
 **Blocked:** full freeze, deployed collector compatibility and hardware acceptance;
 Thread, ESP/AH and TLS enrichment retain their recorded gates.
 **Delivery:** VNC is integrated in the existing handshake/control owner with
@@ -370,6 +370,10 @@ gated on a bounded port-owner source (for example verified SIP/RTSP negotiation)
 an explicit configured port range with measured enabled cost; the decision must
 also freeze which sequence/timestamp/SSRC fields are session evidence rather than
 stable device fingerprints.
+Current-source dependency check: production SIP emits signaling/User-Agent only
+and does not parse SDP media ports; staged RTSP copies a raw Transport value but
+does not validate or extract client/server port pairs. Therefore RTSP negotiation
+is the dependency-safe next slice inside the same realtime/media milestone.
 **Model:** Astra for dynamic-port/ownership freeze; Sol after the RTP/RTCP gate is
 frozen and implementation becomes bounded parser/test work.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;

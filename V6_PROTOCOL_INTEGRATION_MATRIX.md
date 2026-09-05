@@ -98,6 +98,9 @@ runtime/dispatcher/BPF owner admits their negotiated UDP ports. Promotion must n
 fall back to arbitrary-UDP capture. Freeze either signaling-derived bounded port
 ownership or an explicit configured range, then validate RTP extension/padding and
 RTCP compound framing before moving fixtures or deleting the staging files.
+The current SIP owner has no SDP port extraction and staged RTSP has no validated
+Transport port parser, so bounded RTSP negotiation is the dependency-safe first
+implementation slice for this milestone.
 | media | cast | staging | application facade/section | Cast framing/ports as verified | `CAST`: transport, framing, frame_length, encrypted; fingerprint = framing/transport profile | framing evidence only | no protobuf/media payload retention |
 | media | airplay | staging | application facade/section | HTTP-like AirPlay ports/magic | `AIRPLAY`: protocol, method, username, server, user_agent, feature_present, pairing_present; fingerprint = feature/UA/server profile | control headers only | never emit pairing secrets |
 | media | dlna | staging | application facade/section | HTTP/UPnP AV headers | `DLNA`: dlna, upnp_av, profile_present, server, user_agent, transfer_mode; fingerprint = DLNA profile + UA/server | headers only | no media payload |
