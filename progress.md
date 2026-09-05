@@ -1,12 +1,16 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `9a27388c404aa220ce6b472b9f6b6a610eb56547` (PR #48).
-**Now:** application-control integration; LPD delivery reference is PR #49.
+Branch: `version-6`. Verified checkpoint: `6c140253c5e51a7ec0850d0add05203eaebeebc1` (PR #49).
+**Now:** HTTP proxy integration on `v6-http-proxy-canonical-integration`;
+LPD runtime slice is merged. Telnet/VNC/WinRM remain in the same open group.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
 
+- [x] LPD runtime integration with native output, printing/application help,
+  inspect-once bounds, staging cleanup and frozen BPF oracle — PR #49.
+  Core 33984221086, network 33984221081, L2 33984221082 and staging 33984221091 PASS.
 - [x] Management exporters integrated with native vectors and staging cleanup — PR #48;
   core 33982645819, network 33982645829, staging 33982645897 and L2 33982645803 PASS.
 - [x] TLS/QUIC consolidation and enterprise/L2 fingerprint foundations.
@@ -274,8 +278,8 @@ Detailed protocol field tables remain authoritative specifications, not duplicat
 
 **Next:** finish HTTP proxy/Telnet/VNC/WinRM within application control, then media.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Delivery:** LPD slice in PR #49 on `v6-app-control-canonical-integration`;
-PR checks/merge status are authoritative for its exact tested head. The native ordered signature is frozen
+**Delivery:** LPD slice merged as PR #49, tested head
+`ed250557ff0be98df98ef8b9a5f5ab0af97b2be1`. The native ordered signature is frozen
 before wiring; exact TCP/515 dispatch, printing/application group membership and
 generated help use the production catalog. The old staging parser and references
 are removed after unique fixtures moved to `tests/test_lpd.c`.
@@ -289,9 +293,16 @@ Local evidence: all 79 strict standalone tests, five adoption checks and six foc
 ASan/UBSan paths pass (local leak detection disabled under ptrace). Native full/stub
 builds and 8,443,904 legacy BPF comparisons pass. The legacy oracle now freezes
 its port tables from its original commit, independent of production additions;
-the matrix explicitly includes LPD and exporter ports. CI LSan/ARM64 remain mandatory merge gates. Collector wire
+the matrix explicitly includes LPD and exporter ports. CI LSan, ARM64 full/stub
+and fixture compilation passed. Collector wire
 acceptance is not deployed collector verification. Hardware/capture throughput
 and executing-ARM64 acceptance remain open.
+**Cleanup:** local integrated branch was removed after exact tree equality with
+the squash merge. Remote branch deletion failed because noninteractive Git has
+no username/credential and the configured connector exposes no delete-ref action.
+User cleanup: `git push origin --delete v6-app-control-canonical-integration`.
+The new HTTP proxy branch contains this handoff checkpoint only; no HTTP proxy
+runtime change or additional protocol completion is claimed.
 **Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
 and final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
