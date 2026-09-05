@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `b788ba51…` (PR #38).
-**Now:** finish the canonical BPF candidate, then remaining TCP/UDP per-engine runtime gates (C4).
+**Now:** merge PR #39 canonical BPF projection, then remaining TCP/UDP per-engine runtime gates (C4).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -258,7 +258,7 @@ parser/state gates while retaining exact legacy output/equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c4-canonical-bpf` is the local implementation candidate; no PR exists yet.
+**Pending:** PR #39 carries `v6-c4-canonical-bpf`; required CI is the merge gate.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
 PR #38 is the verified production checkpoint; its required core, L2 and staging checks passed.

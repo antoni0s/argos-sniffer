@@ -84,10 +84,10 @@ jobs:
       - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # C4 dispatch: canonical masks compile once and gate native-L2/non-port parsers.
+          # C4 dispatch: canonical masks compile once and gate runtime plus classic BPF.
           # CPU/latency and ownership take priority over tiny text differences.
-          # +708/+656 full/stub text over PR #36 buys independent parser/rate gates
-          # and enabled-family owner allocation; no data/BSS growth or headroom.
+          # +16 full text over PR #38 buys one startup BPF projection and independent
+          # L2/L3 route admission; exhaustive execution falls, with no data/BSS growth.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 166273
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 166289
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360
