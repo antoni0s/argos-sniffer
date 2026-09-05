@@ -54,6 +54,10 @@ Branch: `version-6`. Verified checkpoint: `da957069…` (PR #31).
 - On completion, move/summarize the item in **Done**: one short outcome + PR/commit.
   Remove transient logs, failed attempts and repeated implementation notes from this file;
   preserve evidence in Git/PR/tests and unresolved requirements in open tasks.
+- A consolidation is not complete while an obsolete implementation/header remains. After
+  canonical adoption and full gates, delete superseded source/staging files and temporary tests;
+  first move every unique fixture/assertion into the permanent canonical test suite. Verify no
+  include, build, workflow or documentation reference remains. Never keep duplicate parsers.
 - Split partial tasks; do not tick an entire group until every named requirement is satisfied.
   Carry residual work forward explicitly, then proceed to the next dependency-safe task.
 - Reconcile all four backlogs/matrix plus the core audit after each step. Every new
@@ -158,8 +162,9 @@ Branch: `version-6`. Verified checkpoint: `da957069…` (PR #31).
   BPF must not import parsing implementations. Common types/utilities only for truly shared concepts.
 - [ ] Main becomes capture→normalize→gate/dispatch→bounded engine→observation→identity/telemetry.
   Cohesive engines, no one-header-per-protocol; final packet-loop/allocation/cache/memory/privacy audit.
-- [ ] Remove temporary staging headers/tests only after their parser is reconciled into a canonical
-  owner and its unique fixtures remain permanent; never keep duplicate runtime parsers.
+- [ ] For every consolidation, migrate unique fixtures, delete superseded headers/implementations
+  and temporary tests, then prove no include/build/workflow/doc reference remains. Never keep
+  duplicate or dead parsers; file removal is part of the same completion gate.
 
 ### C10. Acceptance and final readiness review
 
