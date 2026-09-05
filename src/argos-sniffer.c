@@ -752,6 +752,18 @@ static void parse_mdns(const unsigned char *payload, int len, const char *mac, c
                    parsed.question, routed_str);
 }
 
+static void emit_ptp_vector(const unsigned char *payload, size_t payload_len,
+                            const char *mac, const char *src_ip, const char *dst_ip,
+                            const char *routed, int rate_limited) {
+    argos_network_ptp_result_t ptp;
+    if (!argos_network_ptp_parse(payload, payload_len, &ptp)) return;
+    char signature[768];
+    (void)snprintf(signature, sizeof(signature), "%s|PTP|%s", src_ip, ptp.detail);
+    if (!dedup_should_suppress(mac, "ENT", signature, rate_limited))
+        emit_telemetry("ENT|%s|%s|%s|PTP|%s%s\n",
+                       mac, src_ip, dst_ip, ptp.detail, routed);
+}
+
 /* ============================================================================
  * SECTION: Mode 1 - Target Packet Inspector
  * Dumps live captured packets in a tcpdump-like format when Mode 1 is active
@@ -1382,6 +1394,14 @@ int main(int argc, char *argv[]) {
                 }
                 continue;
             }
+            if (l3_proto == 0x88f7U &&
+                argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_PTP)) {
+                emit_ptp_vector(buffer + l3_offset, (size_t)(l3_packet_end - l3_offset),
+                                mac_str, "-", "-", routed_str,
+                                argos_dispatch_protocol_rate_limited(
+                                    &dispatch_plan, ARGOS_PROTOCOL_PTP));
+                continue;
+            }
             argos_protocol_id_t l2_engine = argos_dispatch_l2_protocol(l3_proto);
             if (l2_engine < ARGOS_PROTOCOL_COUNT && l2_engine != ARGOS_PROTOCOL_STP &&
                 l2_engine != ARGOS_PROTOCOL_ARP && l2_engine != ARGOS_PROTOCOL_LACP &&
@@ -1810,11 +1830,12 @@ int main(int argc, char *argv[]) {
                 int wireguard_udp =
                     (sport == runtime_cfg.wireguard_port || dport == runtime_cfg.wireguard_port) &&
                     argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_WIREGUARD);
+                int ptp_udp = argos_dispatch_ptp_udp_enabled(&dispatch_plan, sport, dport);
                 argos_protocol_id_t udp_engine = argos_dispatch_udp_port_engine(
                     &dispatch_plan, sport, dport);
                 int udp_relevant = dhcp_engine < ARGOS_PROTOCOL_COUNT ||
                                    discovery_engine < ARGOS_PROTOCOL_COUNT || nbns_udp ||
-                                   dns_udp || quic_udp || wireguard_udp ||
+                                   dns_udp || quic_udp || wireguard_udp || ptp_udp ||
                                    udp_engine < ARGOS_PROTOCOL_COUNT;
                 if (!udp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
@@ -1959,6 +1980,12 @@ int main(int argc, char *argv[]) {
                                dport, routed_str,
                                argos_dispatch_protocol_rate_limited(
                                    &dispatch_plan, ARGOS_PROTOCOL_QUIC));
+                }
+                else if (ptp_udp) {
+                    emit_ptp_vector(payload, (size_t)payload_len, mac_str,
+                                    src_ip_str, dst_ip_str, routed_str,
+                                    argos_dispatch_protocol_rate_limited(
+                                        &dispatch_plan, ARGOS_PROTOCOL_PTP));
                 }
                 if (udp_engine == ARGOS_PROTOCOL_HSRP && ttl == 1U) {
                     char ent_mac[18], ent_sig[512];

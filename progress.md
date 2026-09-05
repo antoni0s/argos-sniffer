@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `c5542289…` (PR #42).
-**Now:** validate fixed no-port IP and PTP dual-path readiness routes without staging activation (C1/C4).
+**Now:** validate canonical PTP runtime integration and obsolete staging cleanup (C1/C4).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -51,6 +51,7 @@ protocol listed for v6 must be integrated before the v6 release after its readin
   lower verifier length/work and independent shared-port aliases — PR #41.
 - [x] Qualified profile/super-group/group/protocol/no-rate selectors compile once before capture;
   source-truth audit keeps no-op LLMNR staged and mandatory for v6 — PR #42.
+- [x] Fixed native/UDP PTP and ESP/AH no-port readiness routes with staging/HOLD isolation — PR #43.
 
 ## How to update — mandatory
 
@@ -85,8 +86,8 @@ protocol listed for v6 must be integrated before the v6 release after its readin
 
 - [ ] Lossless VLAN presence/equal-tag/overflow policy needs schema approval.
 - [ ] No-port IPv4/IPv6 dispatch/BPF and first-AH API adoption after canonical enable bits (C3/C4);
-  fixed ESP/AH and native/UDP PTP readiness routes are implemented but remain unavailable pending
-  runtime adapter/readiness promotion. Thread stays HOLD until raw
+  PTP dual-path integration is complete; ESP/AH remain HOLD pending runtime adapters and AH sidecar
+  ownership. Thread stays HOLD until raw
   IEEE802.15.4/6LoWPAN capture is defined. C1 remains open across those dependencies.
 - [ ] Freeze packet/capture only after complete frame-to-observation reachability coverage.
 
@@ -212,7 +213,8 @@ fold/remove temporary staging headers only after canonical ownership is proven. 
 dependency must be resolved before integration, not that the protocol is dropped from v6.
 
 - [ ] Reconcile LLDP-MED/LACP/STP fixture-by-fixture with canonical L2; one runtime parser, old wire preserved.
-- [ ] RIP/PTP (PTP dual-path prerequisite).
+- [x] PTP native/UDP integration; canonical network owner and obsolete staging cleanup.
+- [ ] RIP.
 - [ ] Syslog/NetFlow/IPFIX/sFlow.
 - [ ] HTTP proxy/Telnet/VNC/WinRM/LPD.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
@@ -263,19 +265,18 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** merge fixed no-port IP and PTP dual-path readiness routes, then complete the C1 runtime
-adapter/readiness review without activating staged output prematurely.
+**Next:** merge canonical PTP integration, then continue the core exit review and next
+dependency-safe staging integration.
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c1-no-port-ptp-reachability` is active. Fixed PTP EtherType/UDP 319–320 and
-ESP/AH IP-protocol routes are testable through dispatch/BPF, while CLI staging/HOLD rejection remains.
+**Pending:** `v6-ptp-runtime-integration` is active. PTP is production-wired through one canonical
+owner; the obsolete staging header and its staging-only workflow/test references are removed.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
-PR #42: core 33975658784, L2 33975658739, staging 33975658786 PASS.
-Current candidate full/stub text 173626/161564; data 3992; BSS 80360/78760.
-The +785/+701 text from PR #42 is fixed readiness code; unavailable bits add no packet-time work or
-persistent state. Local strict matrix is 75/75 and four focused ASan/UBSan runs pass; LeakSanitizer
-remains a CI gate because the local ptrace runner cannot execute it. Current listed
+PR #43: core 33976100718, L2 33976100721, staging 33976100714 PASS.
+Current PTP candidate full/stub text 175294/163248; data 3992; BSS 80360/78760.
+The +1668/+1684 text adds bounded dual-path parsing/output with no new state. Full strict and
+sanitizer evidence is the active gate. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first

@@ -125,12 +125,11 @@ int main(void)
                l2_engines[i].engine);
     assert(argos_dispatch_l2_protocol(0x0800U) == ARGOS_PROTOCOL_COUNT);
 
-    /* Staging/HOLD bits are not CLI-selectable, but their fixed route adapters
-     * can be characterized without making any parser runtime-reachable. */
+    /* PTP is production-selectable; HOLD ESP/AH adapters remain characterized
+     * only through manually constructed masks. */
     argos_cli_selection_init(&cli);
-    assert(!argos_protocol_selection_apply_protocol(&cli.protocols,
-                                                     ARGOS_PROTOCOL_PTP, 0));
-    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_PTP);
+    assert(argos_protocol_selection_apply_protocol(&cli.protocols,
+                                                    ARGOS_PROTOCOL_PTP, 0));
     argos_dispatch_plan_compile(&plan, &cli);
     assert(argos_dispatch_l2_enabled(&plan, ARGOS_DISPATCH_L2_PTP));
     assert(argos_dispatch_l2_frame_enabled(&plan, 0x88f7U));

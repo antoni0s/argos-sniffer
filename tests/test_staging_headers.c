@@ -25,7 +25,6 @@
 #include "../src/argos_nvmeof.h"
 #include "../src/argos_opcua.h"
 #include "../src/argos_openvpn.h"
-#include "../src/argos_ptp.h"
 #include "../src/argos_redis.h"
 #include "../src/argos_rip.h"
 #include "../src/argos_rtcp.h"

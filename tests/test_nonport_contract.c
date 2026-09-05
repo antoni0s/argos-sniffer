@@ -5,7 +5,7 @@
 #include "../src/argos_packet.h"
 #include "../src/argos_ah.h"
 #include "../src/argos_esp.h"
-#include "../src/argos_ptp.h"
+#include "../src/argos_network.h"
 
 static unsigned long cases;
 #define CHECK(x, s) do { expect((x), (s)); ++cases; } while (0)
@@ -49,7 +49,8 @@ static void bpf_matrix(void) {
     argos_cli_selection_t cli;
     argos_dispatch_plan_t plan;
     argos_cli_selection_init(&cli);
-    argos_protocol_set_add(&cli.protocols.enabled, ARGOS_PROTOCOL_PTP);
+    CHECK(argos_protocol_selection_apply_protocol(&cli.protocols, ARGOS_PROTOCOL_PTP, 0),
+          "production PTP bit is selectable");
     argos_dispatch_plan_compile(&plan, &cli);
     argos_bpf_config_compile(&c, &plan, 0U);
     CHECK(argos_bpf_build(&c, &b), "staging PTP reachability projection fits BPF");
@@ -153,9 +154,8 @@ static void ipsec_views(void) {
 static void ptp_views(void) {
     unsigned char message[34] = {0}; message[1] = 2;
     put16(message + 2, 34); message[27] = 1; put16(message + 30, 7);
-    argos_ptp_result_t golden;
-    CHECK(argos_ptp_parse(message, sizeof(message), &golden), "PTP common-header baseline");
-    /* Explicit test adapter only; no runtime enable or reachability claim. */
+    argos_network_ptp_result_t golden;
+    CHECK(argos_network_ptp_parse(message, sizeof(message), &golden), "PTP common-header baseline");
     for (int link = 0; link < 6; ++link) for (int ip6 = 0; ip6 < 2; ++ip6)
     for (unsigned port = 319; port <= 320; ++port) {
         unsigned char p[1200]; argos_packet_view_t v; argos_transport_view_t t;
@@ -164,13 +164,13 @@ static void ptp_views(void) {
         memcpy(p + off + 8, message, 34);
         CHECK(argos_packet_decode(link_type(link), p, off + 50, 1, &v) &&
               argos_packet_transport(&v, &t), "bounded UDP PTP fixture");
-        argos_ptp_result_t r;
-        CHECK(argos_ptp_parse(p + t.payload_offset, (size_t)t.payload_len, &r) &&
-              !strcmp(r.detail, golden.detail), "same isolated PTP parser/result on UDP4/UDP6");
+        argos_network_ptp_result_t r;
+        CHECK(argos_network_ptp_parse(p + t.payload_offset, (size_t)t.payload_len, &r) &&
+              !strcmp(r.detail, golden.detail), "same canonical PTP parser/result on UDP4/UDP6");
         put16(p + off + 4, 41);
         CHECK(argos_packet_decode(link_type(link), p, off + 50, 1, &v) &&
               argos_packet_transport(&v, &t) &&
-              !argos_ptp_parse(p + t.payload_offset, (size_t)t.payload_len, &r),
+              !argos_network_ptp_parse(p + t.payload_offset, (size_t)t.payload_len, &r),
               "IP/capture tail cannot complete short UDP PTP");
     }
     for (int tags = 0; tags <= 2; ++tags) {
@@ -179,12 +179,12 @@ static void ptp_views(void) {
         if (tags) { put16(p + 14, 7); put16(p + 16, tags == 1 ? 0x88f7 : 0x8100); }
         if (tags == 2) { put16(p + 18, 8); put16(p + 20, 0x88f7); }
         memcpy(p + off, message, 34);
-        argos_packet_view_t v; argos_ptp_result_t r;
+        argos_packet_view_t v; argos_network_ptp_result_t r;
         CHECK(argos_packet_decode(LINK_ETHERNET, p, off + 42, 1, &v) && !v.is_ip,
               "native PTP normalizes without inventing IP");
-        CHECK(argos_ptp_parse(p + v.l3_offset, (size_t)(v.packet_end - v.l3_offset), &r) &&
-              !strcmp(r.detail, golden.detail), "native and UDP share the same isolated PTP result");
-        CHECK(!argos_ptp_parse(p + v.l3_offset, 33, &r), "short native common header rejected");
+        CHECK(argos_network_ptp_parse(p + v.l3_offset, (size_t)(v.packet_end - v.l3_offset), &r) &&
+              !strcmp(r.detail, golden.detail), "native and UDP share the same canonical PTP result");
+        CHECK(!argos_network_ptp_parse(p + v.l3_offset, 33, &r), "short native common header rejected");
     }
 }
 
@@ -221,6 +221,6 @@ static void ah_chain_limits(void) {
 #endif
 int ARGOS_NONPORT_FIXTURE_MAIN(void) {
     bpf_matrix(); ipsec_views(); ptp_views(); ah_chain_limits();
-    printf("Current non-port/AH/PTP contract: %lu checks PASS (no runtime integration)\n", cases);
+    printf("Current non-port/AH/PTP contract: %lu checks PASS\n", cases);
     return 0;
 }
