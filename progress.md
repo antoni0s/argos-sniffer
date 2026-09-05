@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `cc526e5e8fae89b61d0d052758101122024073a6` (PR #53).
-**Now:** RTP/RTCP trigger, owner and privacy audit on `v6-rtp-canonical-integration`; dynamic-port admission must be frozen before parser wiring.
+**Now:** RTSP negotiation/port-owner audit on `v6-rtsp-canonical-integration`; validated Transport ports must precede RTP/RTCP dynamic admission.
 The application-control milestone (LPD, HTTP proxy, Telnet, VNC and WinRM) is merged.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
