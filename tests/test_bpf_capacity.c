@@ -71,14 +71,16 @@ static void kernel_matrix(void) {
         n = eth(frame, 0x8100); kernel_check(sockets, &p, frame, n);
         for (size_t cut = 0; cut < 14U; ++cut) kernel_check(sockets, &p, frame, cut);
     }
-    for (unsigned selection = 0; selection < 4; ++selection) {
+    for (unsigned selection = 0; selection < 6; ++selection) {
         argos_cli_selection_t cli; argos_dispatch_plan_t plan;
         argos_bpf_config_t cfg; argos_bpf_program_t p;
         argos_cli_selection_init(&cli);
         expect(argos_cli_selection_apply_named(&cli, selection == 1 ? ARGOS_CLI_SELECTOR_PROFILE : ARGOS_CLI_SELECTOR_PROTOCOL,
-            selection == 1 ? "full" : selection == 2 ? "telnet" : "http-proxy"), "canonical selected SYN engines");
-        if (selection == 3)
+            selection == 1 ? "full" : selection == 2 ? "telnet" : selection == 4 ? "vnc" : "http-proxy"), "canonical selected SYN engines");
+        if (selection == 3 || selection == 5)
             expect(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "telnet"), "combined proxy/Telnet");
+        if (selection == 5)
+            expect(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "vnc"), "combined VNC");
         argos_dispatch_plan_compile(&plan, &cli);
         argos_bpf_config_compile(&cfg, &plan, 0);
         expect(argos_bpf_build(&cfg, &p), "proxy/full fits instruction budget");
@@ -92,6 +94,9 @@ static void kernel_matrix(void) {
         }
         size_t n = tcp4(frame, 50000, 23, 0x02, 0); kernel_check(sockets, &p, frame, n);
         n = tcp4(frame, 23, 50000, 0x18, 3); kernel_check(sockets, &p, frame, n);
+        n = tcp4(frame, 50000, 5900, 0x02, 0); kernel_check(sockets, &p, frame, n);
+        n = tcp4(frame, 5999, 50000, 0x18, 12); kernel_check(sockets, &p, frame, n);
+        n = tcp4(frame, 50000, 6000, 0x18, 12); kernel_check(sockets, &p, frame, n);
         n = tcp4(frame, 50000, 65000, 0x02, 0); kernel_check(sockets, &p, frame, n);
     }
     /* Prove this exercises the verifier, not merely a successful syscall mock. */
@@ -101,7 +106,7 @@ static void kernel_matrix(void) {
     expect(setsockopt(sockets[1], SOL_SOCKET, SO_ATTACH_FILTER, &invalid_prog, sizeof(invalid_prog)) == -1 &&
            errno == EINVAL, "kernel rejects an out-of-range jump");
     close(sockets[0]); close(sockets[1]);
-    puts("Kernel verifier/attach/filter matrix: 1024 legacy + 4 proxy/Telnet/full configurations PASS (local datagrams, not AF_PACKET throughput)");
+    puts("Kernel verifier/attach/filter matrix: 1024 legacy + 6 proxy/Telnet/VNC/full configurations PASS (local datagrams, not AF_PACKET throughput)");
 }
 
 int main(void) {
@@ -118,7 +123,8 @@ int main(void) {
     const uint16_t ports[] = {0, 22, 53, 67, 80, 88, 111, 123, 137, 161, 179,
         319, 320, 443, 445, 853, 1900, 2049, 3478, 3702, 5353, 5678, 5683,
         8883, 44818, 47808, 51820, 65535,
-        514, 515, 2055, 4739, 6343, 9995, 9996, 3128, 8080, 8118, 8888, 23};
+        514, 515, 2055, 4739, 6343, 9995, 9996, 3128, 8080, 8118, 8888, 23,
+        5899, 5900, 5999, 6000};
     unsigned max_len = 0, max_reference = 0;
     unsigned char frame[2048];
     for (unsigned mask = 0; mask < 1024U; ++mask) for (size_t wi = 0; wi < sizeof(wg)/sizeof(wg[0]); ++wi) {

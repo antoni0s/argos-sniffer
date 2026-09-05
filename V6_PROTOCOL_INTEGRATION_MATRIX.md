@@ -80,7 +80,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | remote-access | rdp | production | application/enterprise owner | TCP 3389 + TPKT/X.224 | RDP: negotiation/security/capabilities/NTLM linkage; fingerprint = negotiation/capability profile | stop after negotiation/auth metadata | no credential blobs |
 | remote-access | ssh | production | application owner | TCP 22/banner + KEX | SSH: client/server banners, KEX/cipher/MAC lists if bounded; fingerprint = software banner + algorithm-set fingerprint | after banner/KEXINIT | no session payload |
 | remote-access | telnet | production | `argos_enterprise.h:ae_telnet` | independently selected TCP 23, both directions, initial IAC prefix | `TELNET`: command, option, negotiation, username; fingerprint = option negotiation set | one attempt, at most 1,024 bytes / 16 commands | username unknown; no interactive or subnegotiation values |
-| remote-access | vnc | staging | application facade/section | TCP 5900-range + RFB magic | `VNC`: protocol, version, security_types, selected_security, server_name, width, height; fingerprint = RFB version + security set + server geometry/name hints | after ServerInit/security negotiation | no auth response material |
+| remote-access | vnc | production | existing enterprise handshake/control owner + optional context in application slots | TCP 5900..5999, both directions, staged RFB handshake | `VNC`: protocol, version, security_types, selected_security, server_name, width, height; progressive handshake observation, not a new stable implementation hash | exact sequence; 8 payloads/direction, 1,024 bytes/message; complete/fail on ServerInit/invalid | challenge/response/failure reason/pixel data never inspected; server name only after confirmed handshake |
 | remote-access | winrm | staging | application facade/section | TCP 5985/5986 + WSMan/SOAP | `WINRM`: transport, wsman, soap, method, auth, username, encrypted; fingerprint = transport/auth/WSMan profile | after bounded headers/auth scheme | no Authorization credential blobs |
 | realtime | stun-turn | production | application owner | UDP/TCP 3478/5349 + STUN magic cookie | STUN/TURN: message class/method, attributes classes; fingerprint = capability/attribute pattern | one/few control messages | never retain integrity keys |
 | printing | ipp | production | application/printing owner | TCP 631 + IPP/HTTP | IPP: operation, printer/device attributes where passive; fingerprint = make/model/IPP capability set | headers/attribute block | no print-job body |
@@ -223,7 +223,7 @@ until the prerequisite is implemented but does not remove it from the release.
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
 3. **Management exporters** — Syslog, NetFlow, IPFIX and sFlow. **Complete.**
-4. **Application control** — LPD, HTTP proxy and Telnet runtime slices implemented; VNC and WinRM remain open.
+4. **Application control** — LPD, HTTP proxy, Telnet and VNC runtime slices implemented; WinRM remains open.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 6. **Enterprise storage/database/directory** — FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
 7. **Industrial** — KNXnet/IP, S7comm, OPC UA, DNP3.
@@ -231,6 +231,34 @@ until the prerequisite is implemented but does not remove it from the release.
 9. **VPN** — OpenVPN, IKE; ESP/AH only after non-port IP dispatch/BPF support is proven.
 
 ## Final audit columns to fill at integration time
+
+### VNC runtime slice
+
+- cli_bit: `ARGOS_PROTOCOL_VNC`; group `remote-access`; super-group `application`.
+- owner: existing enterprise handshake/control parser; one 16-byte protocol
+  context attached by slot index to the existing directional application table.
+  The 8-byte pointer exists inline; 16 KiB context is startup-allocated only when
+  VNC is selected and freed by the repeat-safe runtime owner. No second key table.
+- trigger/BPF: TCP 5900..5999 either direction, exact bit. Userspace requires
+  exactly one service-range endpoint. BPF ranges admit selected payloads/SYN and
+  conservatively admit dual-range tuples; userspace rejects those before state.
+- vector: native `VNC|src_mac|src_ip|dst_ip|<ordered fields>[|routed]`, no ENT.
+  Progressive records and exact unknown/cap/sanitization rules are frozen in
+  V6_BACKLOG. They represent observed RFB handshake facts, not capability proof.
+- state/completion: RFB 3.3/3.7/3.8 server banner → client banner → security
+  negotiation → ClientInit → ServerInit, with None/VNC Auth only. TCP sequence
+  must be exact; retransmits do not emit. Eight payloads per direction and 1,024
+  bytes/message maximum. Invalid/gap/overlap/wrong-direction/unsupported/failed
+  input marks only that retained generation complete. No reassembly.
+- privacy: challenges/responses and failure reasons are never inspected/copied;
+  framebuffer traffic is not parsed. Server name appears only after confirmed
+  handshake, capped at 127 and delimiter/control-normalized. No username/password.
+- fixtures: test_vnc covers six valid version/security paths, every truncation,
+  direction, sequencing, replay, caps, false-positive shapes, pixel framing,
+  startup allocation/failure/reuse/destroy, expiry/eviction clearing and native
+  wire. Dynamic BPF/kernel, config/help/source, strict/sanitizer/LSan/ARM64 gates.
+- collector_mapping: repository native golden only. Deployed collector,
+  executing ARM64 and hardware throughput remain C7/C10 acceptance work.
 
 ### Telnet runtime slice
 

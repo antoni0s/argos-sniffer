@@ -97,7 +97,8 @@ static int fake_resolve(const char *host, const char *port,
 static void fake_freeaddr(struct addrinfo *p) { (void)p; }
 static void *fake_calloc(size_t n, size_t s) {
     ++allocations;
-    if (dedup_fail || allocations == allocation_fail_at) return NULL;
+    if ((dedup_fail && n == 2048U && s == 24U) || /* frozen dedup owner */
+        allocations == allocation_fail_at) return NULL;
     if ((fault == SYN_FAIL && allocations == 1) ||
         (fault == DNS_FAIL && allocations == 2)) return NULL;
     void *p = calloc(n, s); assert(p);
@@ -171,7 +172,8 @@ static void dedup_policy(void) {
         {1, 0, {"--protocol", "ptp"}},
         {1, 0, {"--profile", "core"}},
         {1, 0, {"--group", "identity"}},
-        {1, 0, {"--super-group", "application"}},
+        {1, 1, {"--super-group", "application"}},
+        {1, 1, {"--protocol", "vnc"}},
         {0, 0, {"--protocol", "dns", "--no-rate-limit", "all"}},
         {1, 0, {"--no-rate-limit", "all", "--protocol", "dns"}}
     };
@@ -192,6 +194,20 @@ static void dedup_policy(void) {
         int status; assert(waitpid(child, &status, 0) == child);
         assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
     }
+}
+
+static void vnc_context_failure(void) {
+    fflush(NULL); pid_t child = fork(); assert(child >= 0);
+    if (!child) {
+        allocation_fail_at = 1;
+        char *argv[] = {"argos", "--protocol", "vnc", NULL};
+        assert(argos_program_main(3, argv) == 1);
+        assert(allocations == 1 && !live_heap && !capture_attempts && !waits);
+        assert(!runtime_state.application.context);
+        exit(0);
+    }
+    int status; assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
 
 static void network_policy(void) {
@@ -279,6 +295,7 @@ static void informational_paths(void) {
 int main(void) {
     informational_paths();
     dedup_policy();
+    vnc_context_failure();
     network_policy();
     const char *invalid[][2] = {
         {"--sensor-name", "bad|name"}, {"--inside", "invalid"},

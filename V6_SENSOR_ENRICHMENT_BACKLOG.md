@@ -115,6 +115,11 @@ For each production or staged protocol document:
   and 16-command caps. No terminal/login/password or SB values; username unknown.
   Split negotiation is not reassembled; success/failure stops inspection. Existing
   generation reset and fixed state apply. Collector/hardware acceptance remains open;
+- VNC — production progressive RFB 3.3/3.7/3.8 handshake metadata on confirmed
+  directions/sequence, 1,024 bytes/message and eight payloads/direction. Optional
+  16 KiB slot context only when selected; no second table or packet allocation.
+  Challenge/response/failure/framebuffer data excluded; ServerInit name is bounded
+  and sanitized. Collector/hardware/executing-ARM64 acceptance remains open;
 - database handshakes;
 - LDAP / LDAPS;
 - RTSP / RTP / RTCP;

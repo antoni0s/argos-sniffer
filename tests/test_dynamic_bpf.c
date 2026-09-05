@@ -257,6 +257,18 @@ int main(void) {
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 8080, 0x18, 20)), "Telnet excludes proxy");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 23, 20)), "Telnet excludes UDP request");
     expect(!pass(&p, pkt, udp4(pkt, 23, 50000, 20)), "Telnet excludes UDP response");
+    canonical_bpf("vnc", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build VNC");
+    for (uint16_t port = ARGOS_VNC_PORT_FIRST; port <= ARGOS_VNC_PORT_LAST; port += 99) {
+        expect(pass(&p, pkt, tcp4(pkt, 50000, port, 0x18, 12)), "VNC client payload passes");
+        expect(pass(&p, pkt, tcp4(pkt, port, 50000, 0x18, 12)), "VNC server payload passes");
+        expect(pass(&p, pkt, tcp4(pkt, 50000, port, 0x02, 0)), "VNC SYN passes");
+        expect(pass(&p, pkt, tcp4(pkt, port, 50000, 0x12, 0)), "VNC SYN-ACK passes");
+        expect(!pass(&p, pkt, tcp4(pkt, 50000, port, 0x10, 0)), "VNC empty ACK drops");
+        expect(!pass(&p, pkt, udp4(pkt, 50000, port, 12)), "VNC excludes UDP");
+    }
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 5899, 0x18, 12)), "VNC excludes low neighbor");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 6000, 0x18, 12)), "VNC excludes high neighbor");
+    expect(pass(&p, pkt, tcp4(pkt, 5900, 5901, 0x18, 12)), "BPF conservatively admits dual-range tuple");
 
     legacy_bpf_config(1U << 0, 0, &c); expect(argos_bpf_build(&c, &p), "build SYN");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");

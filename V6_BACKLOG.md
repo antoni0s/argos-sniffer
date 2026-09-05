@@ -284,7 +284,10 @@ the protocol from the release.
      with exact TCP/UDP dispatch, native signatures, bounded header-only parsing
      and obsolete staging-header removal.
 3. **Application control protocols**
-   - [ ] HTTP proxy, Telnet, VNC, WinRM.
+   - [x] HTTP proxy (PR #50) and Telnet (PR #51) runtime/code slices, native
+     signatures, canonical help and staging cleanup. Deployed collector mapping
+     remains open under C7/C10.
+   - [ ] VNC, WinRM.
    - [ ] LPD runtime slice: PR #49 (checks/merge tracked there); full protocol
      acceptance retains deployed collector mapping under C7/C10. Folded into the existing printing section.
 4. **Realtime and media negotiation**
@@ -401,7 +404,7 @@ Candidate vectors and their required metadata are:
 | PTP | version, message, domain, sequence, transport_specific, two_step, clock_identity |
 | HTTP-PROXY | frozen order: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
 | TELNET | frozen order: command, option, negotiation, username |
-| VNC | protocol, version, security_types, selected_security, server_name, width, height |
+| VNC | frozen order: protocol, version, security_types, selected_security, server_name, width, height |
 | WINRM | transport, wsman, soap, method, auth, username, encrypted |
 | LPD | frozen: `command=<restart\|receive-job\|short-queue\|long-queue\|remove-jobs> queue=<token> username=<agent\|->`, in this order |
 | RTP | version, payload_type, marker, sequence, timestamp, ssrc, csrc_count, extension |
@@ -449,6 +452,25 @@ subnegotiation values, credentials, terminal strings, or bodies are retained.
 No reassembly; the 16-command prefix may omit subsequent negotiation. Framing
 follows [RFC 854](https://www.rfc-editor.org/rfc/rfc854.html). Unrated output does
 not lift the one-attempt ceiling; SYN/idle expiry/eviction permit a new generation.
+
+VNC uses `VNC|src_mac|src_ip|dst_ip|protocol=rfb version=3.<3|7|8> security_types=<list|-> selected_security=<1|2|-> server_name=<name|-> width=<n|-> height=<n|->[|routed]`.
+Records are progressive handshake observations: server/client banner, offered
+security list or RFB 3.3 selection, client selection, and ServerInit. Unknown
+fields are `-`; only published RFB 3.3/3.7/3.8 and security types None (1) and
+VNC Authentication (2) advance the bounded state. Security list preserves the
+wire order, including duplicates, with 1..16 byte-valued entries. Server name is
+at most 127 printable bytes; record delimiters/space/control bytes normalize to
+underscore. Width/height are nonzero 16-bit values. Pixel format is validated
+for framing but not emitted. TCP 5900..5999 is admitted in both directions when
+exactly one endpoint uses that range. BPF conservatively admits a dual-range
+tuple, which the userspace gate rejects. Per retained connection generation:
+at most eight payloads/direction and 1,024 bytes/message, exact contiguous TCP
+sequence progression, no reassembly. Retransmits never re-emit; gaps, overlap,
+wrong direction, unsupported security, invalid/truncated framing and failed
+SecurityResult stop the generation. Challenge, authentication response, failure
+reason and pixel data are never inspected or emitted. Framing follows
+[RFC 6143](https://www.rfc-editor.org/rfc/rfc6143.html). Unrated mode changes only
+dedup; 60-second expiry/four-probe eviction/SYN reset bound each generation.
 
 LPD uses `LPD|src_mac|src_ip|dst_ip|command=... queue=... username=...[|routed]`.
 Queue and agent are bounded ASCII tokens (95 and 63 bytes); record delimiters

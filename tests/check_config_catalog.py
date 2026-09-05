@@ -177,7 +177,7 @@ assert 'argos_network_ripng_parse(' in main_source
 assert 'dedup_should_suppress(mac_str, "RIP", rip.detail' in main_source
 assert 'emit_telemetry("RIP|%s|%s|%s|%s%s\\n"' in main_source
 assert 'emit_telemetry("ENT|%s|%s|%s|RIP|' not in main_source
-for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW", "LPD", "HTTP-PROXY", "TELNET"):
+for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW", "LPD", "HTTP-PROXY", "TELNET", "VNC"):
     assert f'return "{vector}"' in main_source
     assert f'emit_telemetry("ENT|%s|%s|%s|{vector}|' not in main_source
 assert 'dedup_should_suppress(text_mac, vector ? vector : "ENT"' in main_source
@@ -189,6 +189,10 @@ assert not (ROOT / "src" / ("argos_" + "lpd.h")).exists()
 assert not (ROOT / "src" / ("argos_" + "http_proxy.h")).exists()
 assert not (ROOT / "src" / ("argos_" + "telnet.h")).exists()
 assert "if (telnet_tcp) fingerprint_complete = 1;" in main_source
+assert not (ROOT / "src" / ("argos_" + "vnc.h")).exists()
+assert "if (vnc_tcp)" in packet_loop
+assert packet_loop.index("parse_vnc_flow(") < packet_loop.index("if (app_track && argos_flow_should_skip")
+assert "argos_flow_prepare_context(&runtime_state.application)" not in packet_loop
 for obsolete in ("argos_syslog.h", "argos_netflow.h", "argos_ipfix.h", "argos_sflow.h"):
     assert not (ROOT / "src" / obsolete).exists(), f"obsolete staging header remains: {obsolete}"
 for vector in ("LLDP-MED", "STP", "LACP"):

@@ -399,7 +399,28 @@ BSS 80360/78760 and main stack 84992 unchanged. Sharing serialization removes
 two duplicated TCP/UDP formatting blocks while preserving existing output.
 The bounded parser adds no allocation or retained RAM; full text guard 182320
 keeps the existing 52-byte compiler margin. No throughput gain is claimed.
-VNC/WinRM remain open within the application-control group.
+WinRM remains open within the application-control group.
+
+### Application-control slice: VNC
+
+VNC uses the existing enterprise handshake/control owner with a 16-byte phase/
+sequence context indexed by existing application slots, not a second flow table.
+The application owner grows by one pointer; 16 KiB is allocated at startup only
+when VNC is selected and freed repeat-safely. Entry create/expiry/eviction/SYN
+reset clears its matching context. No packet-time allocation or retained payload.
+The parser requires the RFC 6143 server/client direction and progression through
+RFB 3.3/3.7/3.8 banners, security negotiation, optional VNC Auth framing,
+ClientInit and ServerInit. Only security types 1/2 advance. Exact TCP sequence,
+eight payloads/direction and 1,024 bytes/message bound the generation; there is
+no reassembly. Replay does not emit; invalid framing, gaps/overlaps, unsupported
+security or failed SecurityResult stop the context. Challenge/response/failure
+reason/framebuffer bytes are excluded. Server name is accepted only after proven
+handshake and bounded/sanitized. Native ordered output is frozen in V6_BACKLOG.
+TCP 5900..5999 runtime and BPF gates are independent; userspace rejects ambiguous
+dual-range endpoints. Config drives remote-access/application help and profiles.
+Unique staging fixtures move to permanent production/state/native tests before
+the old header/includes/workflow entries are deleted. Collector deployment,
+executing ARM64 and hardware throughput remain open; WinRM is still staged.
 
 ### Application-control slice: Telnet
 

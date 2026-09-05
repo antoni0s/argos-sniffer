@@ -267,7 +267,7 @@ int main(void) {
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
 
     static const size_t expected_profile_counts[ARGOS_PROFILE_COUNT] = {
-        7U, 16U, 75U, 38U, 50U, 75U
+        7U, 16U, 76U, 38U, 50U, 76U
     };
     for (unsigned profile_id = 0; profile_id < ARGOS_PROFILE_COUNT; ++profile_id) {
         assert(argos_profile_selection((argos_profile_id_t)profile_id,

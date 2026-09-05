@@ -164,7 +164,7 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 
     const int stun_turn = HAS(STUN_TURN);
     const int need_tcp = (cfg->l4_routes & ARGOS_DISPATCH_L4_TCP) != 0U &&
-                         (cfg->syn || td_n || ts_n);
+                         (cfg->syn || td_n || ts_n || HAS(VNC));
     const int need_udp = (cfg->l4_routes & ARGOS_DISPATCH_L4_UDP) != 0U &&
                          (ud_n || us_n || stun_turn);
     const int need_ipv4 = (cfg->l3_routes & ARGOS_DISPATCH_L3_IPV4) != 0U;
@@ -244,10 +244,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, ARGOS_TCP_CONTROL_MASK, 0, 1));
             EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
         }
-        if (!cfg->syn && (HAS(HTTP_PROXY) || HAS(TELNET))) {
+        if (!cfg->syn && (HAS(HTTP_PROXY) || HAS(TELNET) || HAS(VNC))) {
             /* Admit generation boundaries only for these selected engines. */
             const unsigned proxy_count = HAS(HTTP_PROXY) ? sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]) : 0;
-            const unsigned count = proxy_count + (HAS(TELNET) ? 1U : 0U);
+            const unsigned count = proxy_count + (HAS(TELNET) ? 1U : 0U) + (HAS(VNC) ? 3U : 0U);
             EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_IND, 27));
             EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, 0x02, 0, (uint8_t)(2U + 2U * count)));
             for (unsigned direction = 0; direction < 2; ++direction) {
@@ -256,9 +256,14 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_HTTP_PROXY_TCP_PORTS[i], UINT8_MAX, 0));
                 if (HAS(TELNET))
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 23, UINT8_MAX, 0));
+                if (HAS(VNC)) {
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_LAST, 2, 0));
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_FIRST - 1U, 0, 1));
+                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                }
             }
         }
-        if (td_n || ts_n) {
+        if (td_n || ts_n || HAS(VNC)) {
             /* Reject zero-payload ACK/window-update traffic before port tests. */
             EMIT(abpf_stmt(p, BPF_STX, 0));
             EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_ABS, 16));
@@ -274,16 +279,26 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_X, 0, 1, 0));
             EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));
             EMIT(abpf_stmt(p, BPF_LDX | BPF_W | BPF_MEM, 0));
-            if (td_n) {
+            if (td_n || HAS(VNC)) {
                 EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
                 for (size_t i = 0; i < td_n; ++i) {
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, td[i], UINT8_MAX, 0));
                 }
+                if (HAS(VNC)) {
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_LAST, 2, 0));
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_FIRST - 1U, 0, 1));
+                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+                }
             }
-            if (ts_n) {
+            if (ts_n || HAS(VNC)) {
                 EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
                 for (size_t i = 0; i < ts_n; ++i) {
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ts[i], UINT8_MAX, 0));
+                }
+                if (HAS(VNC)) {
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_LAST, 2, 0));
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_FIRST - 1U, 0, 1));
+                    EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
                 }
             }
         }
