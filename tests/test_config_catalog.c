@@ -148,6 +148,35 @@ int main(void) {
     argos_protocol_selection_unrate_enabled(&selection, &enterprise);
     assert(bit_count(&selection.enabled) == 0U && bit_count(&selection.unrated) == 0U);
 
+    argos_protocol_set_t rate_target;
+    argos_rate_target_kind_t target_kind;
+    assert(argos_rate_target_mask("all", &rate_target, &target_kind));
+    assert(target_kind == ARGOS_RATE_TARGET_ALL);
+    assert(memcmp(&rate_target, &all_production, sizeof(rate_target)) == 0);
+    assert(argos_rate_target_mask("enterprise", &rate_target, &target_kind));
+    assert(target_kind == ARGOS_RATE_TARGET_SUPER_GROUP);
+    assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_SMB));
+    assert(!argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_SYSLOG));
+    assert(argos_rate_target_mask("identity", &rate_target, &target_kind));
+    assert(target_kind == ARGOS_RATE_TARGET_GROUP);
+    assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_KERBEROS));
+    assert(!argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_TACACS));
+    memset(&rate_target, 0xff, sizeof(rate_target));
+    assert(!argos_rate_target_mask("IDENTITY", &rate_target, &target_kind));
+    assert(bit_count(&rate_target) == 0U);
+
+    argos_protocol_selection_clear(&selection);
+    argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_DNS, 0);
+    argos_protocol_selection_apply_protocol(&selection, ARGOS_PROTOCOL_NTLM, 0);
+    assert(argos_protocol_selection_apply_no_rate_limit(&selection, "identity"));
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_NTLM));
+    assert(!argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+    argos_protocol_selection_t before_invalid = selection;
+    assert(!argos_protocol_selection_apply_no_rate_limit(&selection, "dns"));
+    assert(memcmp(&selection, &before_invalid, sizeof(selection)) == 0);
+    assert(argos_protocol_selection_apply_no_rate_limit(&selection, "all"));
+    assert(argos_protocol_set_has(&selection.unrated, ARGOS_PROTOCOL_DNS));
+
     argos_feature_selection_t feature_selection;
     argos_feature_selection_clear(&feature_selection);
     argos_feature_selection_apply(&feature_selection, ARGOS_FEATURE_TCP_SYN, 1);
