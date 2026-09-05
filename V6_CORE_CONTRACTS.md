@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), and exact production-only profiles (PR #32). Main still owns legacy booleans and does not consume the new selection. | Complete startup-only CLI/help compilation before runtime adoption. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), and argv-order selector compilation semantics (PR #33). Main still owns legacy booleans and does not consume the new selection. | Complete help paths and controlled runtime CLI adoption. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -147,6 +147,24 @@ production filtering and invalid-name rejection. Main, BPF and packet processing
 unchanged; full/stub text and BSS remain 157560/144886 and 80360/78760. Core
 33961234603, L2 33961234596 and staging 33961234609 PASS. Startup CLI/help compilation
 and runtime dispatcher adoption remain open; no staged parser became reachable.
+
+### Startup selector compiler — PR #33, `2d0e41d1ad089d3cd94b6bd913b26b1d379babd4`
+
+`argos_cli_selection_t` compiles profile, super-group, group, protocol, legacy and
+no-rate selectors in argument order into fixed protocol/feature masks. A later profile
+replaces the protocol/profile-feature base; explicit feature controls remain orthogonal
+and survive that replacement. Later additive selectors extend the base, protocol case
+retains last-overlap rate precedence, and no-rate targets affect only bits already active
+at that point. Feature-only options do not suppress the historical default. Invalid and
+staging/HOLD protocol names leave state unchanged; `group=identity` is distinct from the
+observed-identity privacy mode.
+
+This remains a startup contract API: main, getopt, BPF and packet processing do not consume
+it yet. Tests pin size, profile replacement, explicit-feature preservation, defaults,
+identity disambiguation, case/rate order and invalid no-op behavior. All 73 local strict
+standalone tests passed; full/stub text and BSS remain 157560/144886 and 80360/78760.
+Core 33961749975, L2 33961749932 and staging 33961750077 PASS, including sanitizers
+and ARM64 compilation. Thematic help and controlled runtime CLI adoption remain open.
 
 ## Concrete blockers, not hypothetical architecture work
 

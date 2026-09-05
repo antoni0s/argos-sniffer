@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `4d9585fb…` (PR #32).
-**Now:** startup-only canonical CLI compiler, identity selector and thematic help (C3).
+Branch: `version-6`. Verified checkpoint: `2d0e41d1…` (PR #33).
+**Now:** one-screen base help, generated thematic help and cheap version paths (C3).
 **Not yet:** full core freeze or staging runtime integration.
 
 ## Done — high-level history
@@ -39,6 +39,7 @@ Branch: `version-6`. Verified checkpoint: `4d9585fb…` (PR #32).
 - [x] Exact legacy short/default/all/enterprise bundles and separate non-protocol feature controls — PR #30.
 - [x] Production-only compile-once no-rate-limit targets for all/super-group/group — PR #31.
 - [x] Exact production-only profile masks and CLI namespace/compatibility policy — PR #32.
+- [x] Startup selector compiler contract with explicit-feature/profile precedence — PR #33.
 
 ## How to update — mandatory
 
@@ -99,9 +100,9 @@ Branch: `version-6`. Verified checkpoint: `4d9585fb…` (PR #32).
 - [x] Exact production-only profile contents and naming/conflict policy: broad compatibility
   `--enterprise`, canonical `--super-group enterprise`, and `--profile enterprise`. Sensor evidence
   profile stays separate from deployment mode; no implicit identity/heavy/staged activation.
-- [ ] **NOW:** Compile profile/super-group/group/protocol selections once at startup; resolve
-  `--group identity` while preserving `--identity[=hash|raw]`/legacy alias. No packet-time strings.
-- [ ] One-screen base help with measured line/byte budget; no `--help-protocols`.
+- [x] Startup compiler API covers profile/super-group/group/protocol/legacy/no-rate order,
+  `--group identity` namespace and default/explicit-feature precedence. Runtime CLI adoption is C4.
+- [ ] **NOW:** One-screen base help with measured line/byte budget; no `--help-protocols`.
   Generate `--help-profiles`, `--help-network`, `--help-application`, `--help-enterprise`,
   `--help-industrial`, `--help-iot`, `--help-vpn` from the same runtime tables.
 - [ ] Operational help: `--help-capture` (interfaces, -r/-R, promisc/count, sensor/filter/encapsulation);
@@ -241,7 +242,7 @@ C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
 **Pending:** no open candidate; staging runtime integration remains blocked on the core review.
-PR #32: core 33961234603, L2 33961234596, staging 33961234609 PASS.
+PR #33: core 33961749975, L2 33961749932, staging 33961750077 PASS.
 Native full/stub text 157560/144886; BSS 80360/78760, unchanged. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. The profile masks add zero production binary bytes until runtime

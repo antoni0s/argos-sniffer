@@ -260,7 +260,9 @@ PR #32 freezes production-only profile masks (core 7, standard 16, full 67, home
 enterprise 50, sensor 67) and the qualified `--profile`/`--super-group`/`--group`
 namespace while preserving broad `--enterprise`, privacy-mode `--identity` and deployment
 `--sensor` compatibility semantics. None of these APIs are wired into packet processing.
-Startup CLI/help compilation, BPF/dispatcher consumption and per-row collector mappings
+PR #33 adds the exact argv-order startup selector compiler, including profile replacement,
+additive qualified selectors, explicit-feature preservation and identity-group disambiguation.
+It is not yet consumed by main/getopt. Help, BPF/dispatcher consumption and per-row collector mappings
 remain C3/C4/C10 work. No staging parser became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
