@@ -38,7 +38,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
 | 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs/groups (PR #28), production-only enabled/unrated masks (PR #29), exact legacy bundles/features (PR #30), production-filtered no-rate targets (PR #31), exact production-only profiles (PR #32), argv-order selector compilation (PR #33), generated help (PR #34), and compile-once runtime adoption for existing legacy options (PR #35). | Expose qualified selectors only with fine-grained C4 dispatch; preserve legacy equivalence. |
-| 4 | Cheap dispatch / gating | A fixed 48-byte plan owns canonical protocol/features plus bounded L2/L3/L4 route demand. Native-L2 and non-port network callers consume individual bits before parser work; ARP/NDP owner allocation follows enabled-family demand. | Adopt remaining TCP/UDP callers, canonical BPF/userspace equivalence and full no-port IPv4/IPv6 reachability. |
+| 4 | Cheap dispatch / gating | A fixed 48-byte plan owns canonical protocol/features plus bounded L2/L3/L4 route demand. Native-L2 and non-port network callers consume individual bits before parser work; ARP/NDP owner allocation follows enabled-family demand. A 16-byte startup projection gives classic BPF the same route demand while preserving conservative encapsulation fallbacks. | Adopt remaining TCP/UDP callers and full no-port IPv4/IPv6 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
 | 7 | Observation / output / JSONL | Engines return protocol-specific results; main assembles legacy strings. `argos_telemetry.h` formats a 1024-byte event and optional 1280-byte OBS wrapper. JSONL is not implemented. | Separate borrowed packet lifetime from owned bounded evidence, field/privacy/escaping limits, newline/truncation semantics, stream backpressure policy, collector compatibility. |
@@ -234,6 +234,24 @@ and AH-disabled decode is 1.018 of frozen. Full/stub text is 166273/154211 (+708
 PR #36), data 3832 and BSS 80360/78760 unchanged. Core 33970823850, L2 33970823827 and
 staging 33970823831 PASS, including LeakSanitizer and ARM64 compilation. BPF and remaining
 TCP/UDP callers stay open; no isolated staging parser became reachable.
+
+### Canonical classic-BPF projection — C4 candidate
+
+`argos_bpf_config_compile` is the single startup projection from the fixed dispatch plan.
+Classic BPF now consumes canonical L2/L3/L4 route flags: ARP, LLDP/LLDP-MED, LLC/SNAP,
+LACP, EAPOL, PROFINET, IGMP, OSPF and VRRP admission no longer derives from the broad
+legacy L2/enterprise switches. VLAN, QinQ and PPPoE remain unconditional conservative
+pass-through; IPv6 remains a conservative whole-EtherType pass only when the canonical
+IPv6 route is demanded. The temporary coarse flags are now limited to TCP/UDP port-list
+construction and will be removed by the next per-engine C4 slice.
+
+The frozen 1,024-configuration legacy matrix compares 7,239,680 packets against the
+pre-C4 generator with identical accept/drop decisions. Maximum generated length falls
+from 287 to 183 instructions and interpreted work across that corpus falls from
+189,935,226 to 188,153,978 instructions. Dedicated fixtures pin independent canonical
+ARP/LLDP/OSPF routes, configured WireGuard gating and all conservative fallbacks.
+The BPF config grows from 12 to 16 startup-only bytes; program capacity, data and BSS do
+not grow. Full LeakSanitizer and ARM64 execution/compile evidence remains the PR CI gate.
 
 ## Concrete blockers, not hypothetical architecture work
 

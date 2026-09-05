@@ -12,6 +12,7 @@
 #define SO_ATTACH_FILTER 26
 #endif
 #include "argos_enterprise_ports.h"
+#include "argos_dispatch.h"
 #include "argos_tls_ports.h"
 
 #define ARGOS_BPF_MAX_INSNS 256U
@@ -20,8 +21,11 @@
 #define ARGOS_TCP_CONTROL_MASK 0x07U /* FIN|SYN|RST */
 
 typedef struct {
-    uint8_t syn, multi, dhcp, netbios, dns, http, tls, l2, ipv6, enterprise;
+    uint8_t syn, multi, dhcp, netbios, dns, http, tls, enterprise;
     uint16_t wireguard_port;
+    uint16_t l2_routes;
+    uint16_t l3_routes;
+    uint16_t l4_routes;
 } argos_bpf_config_t;
 
 typedef struct {
@@ -53,6 +57,38 @@ static inline int abpf_add_port(uint16_t *ports, size_t *count, size_t cap, uint
     if (*count >= cap) return 0;
     ports[(*count)++] = port;
     return 1;
+}
+
+/* Project the canonical startup plan once. Port-family booleans remain a
+ * temporary compatibility layer until the following C4 per-engine port slice;
+ * link/network and transport-family admission already consume plan routes. */
+static inline void argos_bpf_config_compile(argos_bpf_config_t *cfg,
+                                            const argos_dispatch_plan_t *plan,
+                                            uint16_t wireguard_port) {
+    if (!cfg) return;
+    memset(cfg, 0, sizeof(*cfg));
+    if (!plan) return;
+    cfg->syn = (uint8_t)argos_feature_selection_has(
+        &plan->features, ARGOS_FEATURE_TCP_SYN);
+    cfg->multi = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_MULTI);
+    cfg->dhcp = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_DHCP);
+    cfg->netbios = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_NETBIOS);
+    cfg->dns = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_DNS);
+    cfg->http = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_HTTP);
+    cfg->tls = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_TLS);
+    cfg->enterprise = (uint8_t)argos_dispatch_legacy_enabled(
+        plan, ARGOS_LEGACY_CATEGORY_ENTERPRISE);
+    cfg->wireguard_port = argos_dispatch_protocol_enabled(
+        plan, ARGOS_PROTOCOL_WIREGUARD) ? wireguard_port : 0U;
+    cfg->l2_routes = plan->l2_routes;
+    cfg->l3_routes = plan->l3_routes;
+    cfg->l4_routes = plan->l4_routes;
 }
 
 static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_program_t *p) {
@@ -96,28 +132,31 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         }
     }
 
-    const int need_tcp = cfg->syn || td_n || ts_n;
-    const int need_udp = ud_n || us_n;
-    const int need_ipv4 = need_tcp || need_udp || cfg->enterprise;
+    const int need_tcp = (cfg->l4_routes & ARGOS_DISPATCH_L4_TCP) != 0U &&
+                         (cfg->syn || td_n || ts_n);
+    const int need_udp = (cfg->l4_routes & ARGOS_DISPATCH_L4_UDP) != 0U &&
+                         (ud_n || us_n);
+    const int need_ipv4 = (cfg->l3_routes & ARGOS_DISPATCH_L3_IPV4) != 0U;
 
     /* Tagged/PPPoE frames remain conservative pass-through because classic
      * BPF cannot cheaply follow arbitrary stacked encapsulation offsets. */
     EMIT(abpf_stmt(p, BPF_LD | BPF_H | BPF_ABS, 12));
-    if (cfg->l2) {
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_ARP)
         EMIT(abpf_pass_ethertype(p, 0x0806)); /* ARP */
-        EMIT(abpf_pass_ethertype(p, 0x88cc)); /* LLDP */
-    }
-    if (cfg->enterprise) {
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_LLDP)
         EMIT(abpf_pass_ethertype(p, 0x88cc)); /* LLDP / LLDP-MED */
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_SLOW)
         EMIT(abpf_pass_ethertype(p, 0x8809)); /* Slow Protocols / LACP */
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_EAPOL)
         EMIT(abpf_pass_ethertype(p, 0x888e)); /* EAPoL */
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_PROFINET)
         EMIT(abpf_pass_ethertype(p, 0x8892)); /* PROFINET */
-    }
     EMIT(abpf_pass_ethertype(p, 0x8100)); /* VLAN */
     EMIT(abpf_pass_ethertype(p, 0x88a8)); /* QinQ */
     EMIT(abpf_pass_ethertype(p, 0x8864)); /* PPPoE session */
-    if (cfg->ipv6) EMIT(abpf_pass_ethertype(p, 0x86dd));
-    if (cfg->enterprise) {
+    if (cfg->l3_routes & ARGOS_DISPATCH_L3_IPV6)
+        EMIT(abpf_pass_ethertype(p, 0x86dd));
+    if (cfg->l2_routes & ARGOS_DISPATCH_L2_LLC) {
         /* IEEE 802.3 length field <=1500: CDP/EDP/FDP/IS-IS LLC/SNAP. */
         EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, 1500, 1, 0));
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
@@ -141,12 +180,16 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
         EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 17, 0, 1));
         udp_ja = p->len; EMIT(abpf_stmt(p, BPF_JMP | BPF_JA, 0));
     }
-    if (cfg->enterprise) {
-        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 2, 0, 1)); /* IGMP */
+    if (cfg->l3_routes & ARGOS_DISPATCH_L3_IGMP) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 2, 0, 1));
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
+    }
+    if (cfg->l3_routes & ARGOS_DISPATCH_L3_OSPF) {
         EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 89, 0, 1));
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
-        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 112, 0, 1)); /* VRRP */
+    }
+    if (cfg->l3_routes & ARGOS_DISPATCH_L3_VRRP) {
+        EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 112, 0, 1));
         EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
     }
     EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_DROP));

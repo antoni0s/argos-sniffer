@@ -866,7 +866,7 @@ int main(int argc, char *argv[]) {
     argos_filter_program_t filter_exclude = {0};
 
     int max_packets = 0, packet_count = 0;
-    int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_l2 = 0, opt_v6 = 0, opt_promisc = 0;
+    int opt_syn = 0, opt_multi = 0, opt_dhcp = 0, opt_netbios = 0, opt_dns = 0, opt_http = 0, opt_tls = 0, opt_v6 = 0, opt_promisc = 0;
     int opt_syn_rl = 0, opt_multi_rl = 0, opt_dhcp_rl = 0, opt_netbios_rl = 0, opt_dns_rl = 0, opt_http_rl = 0, opt_tls_rl = 0, opt_l2_rl = 0;
     argos_cli_selection_t cli_selection;
     argos_cli_selection_init(&cli_selection);
@@ -1074,8 +1074,9 @@ int main(int argc, char *argv[]) {
     ARGOS_PROJECT_LEGACY(dns, ARGOS_LEGACY_CATEGORY_DNS);
     ARGOS_PROJECT_LEGACY(http, ARGOS_LEGACY_CATEGORY_HTTP);
     ARGOS_PROJECT_LEGACY(tls, ARGOS_LEGACY_CATEGORY_TLS);
-    ARGOS_PROJECT_LEGACY(l2, ARGOS_LEGACY_CATEGORY_L2);
 #undef ARGOS_PROJECT_LEGACY
+    opt_l2_rl = argos_dispatch_legacy_rate_limited(
+        &dispatch_plan, ARGOS_LEGACY_CATEGORY_L2);
     opt_v6 = argos_feature_selection_has(&dispatch_plan.features, ARGOS_FEATURE_IPV6);
     opt_ext_metrics = argos_feature_selection_has(&dispatch_plan.features,
                                                   ARGOS_FEATURE_EXTENDED_METRICS);
@@ -1119,14 +1120,9 @@ int main(int argc, char *argv[]) {
         !argos_quic_prepare(&quic_state, opt_quic_heavy))
         fprintf(stderr, "warning: QUIC workspace unavailable; encrypted fallback remains active.\n");
 
-    argos_bpf_config_t bpf_cfg = {
-        .syn = (uint8_t)(opt_syn != 0), .multi = (uint8_t)(opt_multi != 0),
-        .dhcp = (uint8_t)(opt_dhcp != 0), .netbios = (uint8_t)(opt_netbios != 0),
-        .dns = (uint8_t)(opt_dns != 0), .http = (uint8_t)(opt_http != 0),
-        .tls = (uint8_t)(opt_tls != 0), .l2 = (uint8_t)(opt_l2 != 0),
-        .ipv6 = (uint8_t)(opt_v6 != 0), .enterprise = (uint8_t)(runtime_cfg.enterprise_enabled != 0),
-        .wireguard_port = (uint16_t)(runtime_cfg.enterprise_enabled ? runtime_cfg.wireguard_port : 0U)
-    };
+    argos_bpf_config_t bpf_cfg;
+    argos_bpf_config_compile(&bpf_cfg, &dispatch_plan,
+                             (uint16_t)runtime_cfg.wireguard_port);
 
     install_signal_handlers();
 

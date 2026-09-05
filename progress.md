@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `8d774aad…` (PR #37).
-**Now:** canonical BPF projection, then remaining TCP/UDP per-engine runtime gates (C4).
+Branch: `version-6`. Verified checkpoint: `b788ba51…` (PR #38).
+**Now:** finish the canonical BPF candidate, then remaining TCP/UDP per-engine runtime gates (C4).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -128,8 +128,9 @@ protocol listed for v6 must be integrated before the v6 release after its readin
 - [x] Derive a fixed startup L2/L3/L4 route plan without packet-time catalog/string scans;
   exhaustive production-bit fixtures prove the protocol gate itself skips simulated parser and
   state calls. This is the control contract, not proof that every main-loop caller uses it yet.
-- [ ] **NOW:** project canonical demand into BPF while preserving safe VLAN/QinQ/PPPoE/IPv6
-  fallbacks, then adopt the plan before each remaining TCP/UDP parser/state call.
+- [x] Project canonical demand into BPF while preserving safe VLAN/QinQ/PPPoE/IPv6
+  fallbacks and frozen legacy accept/drop behavior.
+- [ ] **NOW:** adopt the plan before each remaining TCP/UDP parser/state call.
 - [ ] Wire existing production engines to bitmap: network/addressing/discovery; TLS/DoT/QUIC/HTTP;
   L2/routing/redundancy; enterprise/storage/database/identity/management; industrial/IoT/VPN.
   Golden output unchanged; kernel early-drop preserved.
@@ -252,22 +253,23 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** project canonical route demand into BPF, then replace remaining coarse TCP/UDP
-parser/state gates; retain exact legacy output/equivalence (C4).
+**Next:** merge the canonical BPF candidate, then replace remaining coarse TCP/UDP
+parser/state gates while retaining exact legacy output/equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** canonical BPF projection is next; no BPF implementation candidate or PR exists yet.
+**Pending:** `v6-c4-canonical-bpf` is the local implementation candidate; no PR exists yet.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
-PR #37: core 33970823850, L2 33970823827, staging 33970823831 PASS.
-Native full/stub text 166273/154211; data 3832; BSS 80360/78760. Current listed
+PR #38 is the verified production checkpoint; its required core, L2 and staging checks passed.
+Candidate native full/stub text 166289/154243; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first
-runtime slice covers native-L2 plus NDP/RA/IGMP/MLD/OSPF/VRRP. BPF and TCP/UDP wiring remain open.
+runtime slice covers native-L2 plus NDP/RA/IGMP/MLD/OSPF/VRRP. Canonical BPF route projection
+passes 7,239,680-packet legacy equivalence locally; TCP/UDP caller wiring remains open.
 Protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
-**Model:** stay on Sol for C3; use Astra for the final cross-contract C10 audit.
+**Model:** stay on Sol for C4; use Astra for the final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

@@ -17,8 +17,8 @@ static void bpf_matrix(void) {
         c.syn = mask & 1U; c.multi = (mask >> 1) & 1U;
         c.dhcp = (mask >> 2) & 1U; c.netbios = (mask >> 3) & 1U;
         c.dns = (mask >> 4) & 1U; c.http = (mask >> 5) & 1U;
-        c.tls = (mask >> 6) & 1U; c.l2 = (mask >> 7) & 1U;
-        c.ipv6 = (mask >> 8) & 1U; c.enterprise = (mask >> 9) & 1U;
+        c.tls = (mask >> 6) & 1U; c.enterprise = (mask >> 9) & 1U;
+        legacy_route_demand(&c, (mask >> 7) & 1U, (mask >> 8) & 1U);
         CHECK(argos_bpf_build(&c, &b), "all legacy flag combinations fit BPF capacity");
         for (unsigned proto = 0; proto < 256U; ++proto) {
             if (proto == 6U || proto == 17U) continue;
@@ -33,7 +33,7 @@ static void bpf_matrix(void) {
             CHECK(!pass(&b, p, n), "PTP-only UDP tuple has no legacy BPF gate");
         }
         n = eth(p, 0x86dd);
-        CHECK(pass(&b, p, n) == c.ipv6, "IPv6 conservative gate follows ipv6 flag");
+        CHECK(pass(&b, p, n) == (int)((mask >> 8) & 1U), "IPv6 conservative gate follows ipv6 flag");
         const uint16_t types[] = {0x8100, 0x88a8, 0x8864};
         for (unsigned i = 0; i < 3U; ++i) {
             n = eth(p, types[i]);
@@ -42,12 +42,13 @@ static void bpf_matrix(void) {
     }
     /* Coincident configuration is admission, NOT a PTP parser/CLI bit. */
     argos_bpf_config_t c = {0}; argos_bpf_program_t b;
-    c.enterprise = 1; c.wireguard_port = 319;
+    c.enterprise = 1; c.wireguard_port = 319; legacy_route_demand(&c, 0, 0);
     CHECK(argos_bpf_build(&c, &b), "custom WireGuard BPF");
     size_t n = udp4(p, 50000, 319, 34);
     CHECK(pass(&b, p, n), "custom WireGuard port can coincide with PTP");
-    c.syn = c.multi = c.dhcp = c.netbios = c.dns = c.http = c.tls = c.l2 = c.ipv6 = 1;
+    c.syn = c.multi = c.dhcp = c.netbios = c.dns = c.http = c.tls = 1;
     c.wireguard_port = 51820;
+    legacy_route_demand(&c, 1, 1);
     CHECK(argos_bpf_build(&c, &b), "all-enabled plus default WireGuard fits capacity");
 }
 

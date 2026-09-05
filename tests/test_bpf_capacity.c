@@ -20,8 +20,11 @@ static void flags(unsigned mask, argos_bpf_config_t *c, legacy_bpf_config_t *r) 
     memset(c, 0, sizeof(*c)); memset(r, 0, sizeof(*r));
 #define FLAG(name,bit) c->name = r->name = (uint8_t)((mask >> bit) & 1U)
     FLAG(syn,0); FLAG(multi,1); FLAG(dhcp,2); FLAG(netbios,3); FLAG(dns,4);
-    FLAG(http,5); FLAG(tls,6); FLAG(l2,7); FLAG(ipv6,8); FLAG(enterprise,9);
+    FLAG(http,5); FLAG(tls,6); FLAG(enterprise,9);
 #undef FLAG
+    r->l2 = (uint8_t)((mask >> 7) & 1U);
+    r->ipv6 = (uint8_t)((mask >> 8) & 1U);
+    legacy_route_demand(c, r->l2, r->ipv6);
 }
 
 static void kernel_check(int sockets[2], const argos_bpf_program_t *p,
