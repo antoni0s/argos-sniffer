@@ -257,8 +257,7 @@ parser/state gates; retain exact legacy output/equivalence (C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c4-bpf-projection` is the active branch; its current commit is documentation-only,
-not yet a BPF implementation candidate or PR.
+**Pending:** canonical BPF projection is next; no BPF implementation candidate or PR exists yet.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
 PR #37: core 33970823850, L2 33970823827, staging 33970823831 PASS.
