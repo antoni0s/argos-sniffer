@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_config.h` now defines 101 stable protocol IDs in a 16-byte fixed bitmap, six super-groups, 28 groups, 103 memberships and six reserved profile names (PR #28). Main still owns legacy booleans and does not consume the new bitmap. | Freeze profile contents, legacy-category mapping and precedence, separate enable/unrated masks and startup-only CLI compilation before runtime adoption. |
+| 3 | Config / enable bitmap | `argos_config.h` defines 101 stable protocol IDs in a 16-byte fixed bitmap, six super-groups, 28 groups and 103 memberships (PR #28), plus fixed production-only enabled/unrated selection masks and startup precedence primitives (PR #29). Main still owns legacy booleans and does not consume the new selection. | Freeze profile contents, legacy-category mapping, non-protocol feature controls and startup-only CLI compilation before runtime adoption. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -78,6 +78,23 @@ duplicate membership, edge bits, exact case parsing, reserved profiles and statu
 holds. Core 33947311065, L2 33947311048 and staging 33947311059 PASS, including
 strict full/stub, ASan/UBSan/LSan and ARM64 compilation. Profile contents,
 legacy-category mapping, precedence and runtime consumption remain open C3/C4 work.
+
+### Config selection state — PR #29, `6bc9b4dd1a63f67b3737a42b47da69756d90d8f8`
+
+`argos_protocol_selection_t` owns fixed enabled and unrated protocol masks (32 bytes
+total). Every requested mask is intersected with current production status, so staging-only
+and HOLD entries cannot become active. Overlapping lowercase/uppercase selections use
+startup argument order: the most recent selection changes only those protocols' rate mode.
+The no-rate-limit primitive can unrate already-enabled protocols but cannot enable a parser.
+Inspection/state safety budgets are independent of output rate mode.
+
+The catalog test pins selection size, production filtering, last-overlap precedence,
+group overlap and empty-selection behavior. Main, BPF, legacy CLI booleans, packet loop,
+wire output and allocations remain unchanged; native full/stub text stays
+157560/144886 and BSS 80360/78760. Core 33947638500, L2 33947638504 and staging
+33947638519 PASS, including strict full/stub, sanitizer and ARM64 compile coverage.
+Profile contents, legacy-category mapping, non-protocol controls and runtime adoption
+remain open; no staging parser became reachable.
 
 ## Concrete blockers, not hypothetical architecture work
 

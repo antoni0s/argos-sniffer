@@ -249,10 +249,11 @@ groups but retain one bit each. `tests/check_config_catalog.py` proves exact agr
 with the taxonomy table and `tests/test_config_catalog.c` pins IDs, membership,
 case semantics and masks on native/ARM64 builds.
 
-These bits are not runtime-wired yet. Existing category flags remain the current
-behavior and must not be treated as the final legacy mapping. Profile contents,
-enable/unrated precedence, BPF/dispatcher consumption and help generation remain
-C3/C4 work. No collector mapping was verified by this checkpoint and no staging
+These bits are not runtime-wired yet. PR #29 adds fixed production-only enabled/unrated
+selection primitives and startup-order rate precedence, but existing category flags remain
+the current runtime behavior and must not be treated as the final legacy mapping. Profile
+contents, non-protocol feature controls, BPF/dispatcher consumption and help generation
+remain C3/C4 work. No collector mapping was verified by this checkpoint and no staging
 parser became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
