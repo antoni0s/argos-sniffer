@@ -287,7 +287,9 @@ the protocol from the release.
    - [x] HTTP proxy (PR #50) and Telnet (PR #51) runtime/code slices, native
      signatures, canonical help and staging cleanup. Deployed collector mapping
      remains open under C7/C10.
-   - [ ] VNC, WinRM.
+   - [x] VNC runtime slice merged in PR #52 with native signatures, bounded
+     cross-direction state, generated help and staging cleanup.
+   - [ ] WinRM.
    - [ ] LPD runtime slice: PR #49 (checks/merge tracked there); full protocol
      acceptance retains deployed collector mapping under C7/C10. Folded into the existing printing section.
 4. **Realtime and media negotiation**

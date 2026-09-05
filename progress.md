@@ -1,12 +1,16 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `747a1c53eaaf7b6789022c5a38dfb31c2ea748fa` (PR #51).
-**Now:** VNC implementation and local validation on `v6-vnc-canonical-integration`; push/CI/merge pending.
-LPD, HTTP proxy and Telnet runtime slices are merged; WinRM remains open.
+Branch: `version-6`. Verified checkpoint: `8fe74987317f2d704450894be89548456febe59a` (PR #52).
+**Now:** WinRM source/fixture/privacy audit on `v6-winrm-canonical-integration`; native field freeze precedes runtime wiring.
+LPD, HTTP proxy, Telnet and VNC runtime slices are merged; WinRM remains open.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
+
+- [x] VNC/RFB 3.3/3.7/3.8 cross-direction handshake, native privacy-safe
+  signatures, optional bounded context, generated help and staging cleanup — PR #52.
+  Core 33991432852, network 33991432814, L2 33991432837 and staging 33991432821 PASS.
 
 - [x] Telnet native negotiation, independent TCP/SYN gates, generated help and
   staging cleanup; agreed product name restored — PR #51.
@@ -241,7 +245,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   mapping remains open under C7/C10.
 - [x] Telnet runtime/code slice delivered as PR #51; deployed collector mapping
   remains open under C7/C10.
-- [ ] VNC runtime slice: implementation and local validation; CI/merge pending.
+- [x] VNC runtime slice merged in PR #52; deployed collector mapping remains
+  open under C7/C10.
 - [ ] WinRM.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
@@ -293,8 +298,9 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish VNC strict/sanitizer verification, push/CI/merge/cleanup,
-then freeze WinRM native fields before wiring. Preserve progress/help/naming/cleanup.
+**Next:** audit the current WinRM staging parser and fixtures, freeze privacy-safe
+native fields and exact HTTP/WS-Man completion before runtime wiring. Preserve
+progress/help/naming/cleanup and remove the staging source only after promotion.
 **Blocked:** full freeze, deployed collector compatibility and hardware acceptance;
 Thread, ESP/AH and TLS enrichment retain their recorded gates.
 **Delivery:** VNC is integrated in the existing handshake/control owner with
@@ -320,13 +326,16 @@ Focused ASan/UBSan on six VNC/state/BPF/startup paths passes (local LSan disable
 under ptrace). BPF equivalence passes 9,992,192 frozen legacy comparisons with
 max instructions still 287→183 and lower aggregate interpreted work. Kernel gates
 pass 1,024 legacy plus six proxy/Telnet/VNC/full combinations. The full 82-test
-strict matrix and five adoption checks pass; CI LSan/ARM64 remains pending.
+strict matrix and five adoption checks pass; CI LSan/ARM64 and all four PR #52
+workflows pass.
 **Cleanup:** unique staging VNC fixtures moved to permanent test_vnc.c; obsolete
 source/includes/workflow entries are deleted. The remote HTTP proxy/Telnet branches
 still need user deletion because Git authentication and connector delete-ref remain
 unavailable:
 `git push origin --delete v6-http-proxy-canonical-integration v6-telnet-canonical-integration`.
-**Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
-and final cross-contract C10 audit.
+**Handoff:** VNC is merged at `8fe74987317f2d704450894be89548456febe59a`;
+the active application-control milestone is WinRM field/privacy freeze and owner audit.
+**Model:** Sol for the WinRM source/fixture audit; use Astra if the verified wire
+contract requires cross-direction or multi-message authentication state.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.
