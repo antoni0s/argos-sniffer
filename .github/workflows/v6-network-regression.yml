@@ -48,6 +48,11 @@ jobs:
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_rip.c -o /tmp/test-rip
           /tmp/test-rip
 
+      - name: Management exporter fixtures
+        run: |
+          cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_exporters.c -o /tmp/test-exporters
+          /tmp/test-exporters
+
       - name: WireGuard structural fixtures
         run: |
           cc -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror tests/test_wireguard.c -o /tmp/test-wireguard
@@ -80,6 +85,8 @@ jobs:
           /tmp/test-ntp-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_rip.c -o /tmp/test-rip-san
           /tmp/test-rip-san
+          cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_exporters.c -o /tmp/test-exporters-san
+          /tmp/test-exporters-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_wireguard.c -o /tmp/test-wireguard-san
           /tmp/test-wireguard-san
           cc -std=c11 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer tests/test_dns_track.c -o /tmp/test-dns-track-san

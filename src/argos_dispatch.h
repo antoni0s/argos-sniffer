@@ -168,9 +168,9 @@ static inline argos_protocol_id_t argos_dispatch_tcp_port_engine(
         return ARGOS_PROTOCOL_COUNT;
     uint16_t port = dport;
     switch (port) {
-        case 22: case 88: case 111: case 179: case 445: case 502: case 631:
+        case 22: case 88: case 111: case 179: case 445: case 502: case 514: case 631:
         case 1433: case 1521: case 1883: case 2000: case 2049: case 3260:
-        case 3306: case 3389: case 5060: case 5432: case 9100: case 44818:
+        case 3306: case 3389: case 4739: case 5060: case 5432: case 9100: case 44818:
             break;
         default: port = sport; break;
     }
@@ -181,6 +181,7 @@ static inline argos_protocol_id_t argos_dispatch_tcp_port_engine(
         case 179: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_BGP) ? ARGOS_PROTOCOL_BGP : ARGOS_PROTOCOL_COUNT;
         case 445: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SMB) ? ARGOS_PROTOCOL_SMB : ARGOS_PROTOCOL_COUNT;
         case 502: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MODBUS) ? ARGOS_PROTOCOL_MODBUS : ARGOS_PROTOCOL_COUNT;
+        case 514: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SYSLOG) ? ARGOS_PROTOCOL_SYSLOG : ARGOS_PROTOCOL_COUNT;
         case 631: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_IPP) ? ARGOS_PROTOCOL_IPP : ARGOS_PROTOCOL_COUNT;
         case 1433: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MSSQL) ? ARGOS_PROTOCOL_MSSQL : ARGOS_PROTOCOL_COUNT;
         case 1521: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_ORACLE) ? ARGOS_PROTOCOL_ORACLE : ARGOS_PROTOCOL_COUNT;
@@ -190,6 +191,7 @@ static inline argos_protocol_id_t argos_dispatch_tcp_port_engine(
         case 3260: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_ISCSI) ? ARGOS_PROTOCOL_ISCSI : ARGOS_PROTOCOL_COUNT;
         case 3306: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MYSQL) ? ARGOS_PROTOCOL_MYSQL : ARGOS_PROTOCOL_COUNT;
         case 3389: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RDP) ? ARGOS_PROTOCOL_RDP : ARGOS_PROTOCOL_COUNT;
+        case 4739: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_IPFIX) ? ARGOS_PROTOCOL_IPFIX : ARGOS_PROTOCOL_COUNT;
         case 5060: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SIP) ? ARGOS_PROTOCOL_SIP : ARGOS_PROTOCOL_COUNT;
         case 5432: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_POSTGRESQL) ? ARGOS_PROTOCOL_POSTGRESQL : ARGOS_PROTOCOL_COUNT;
         case 9100: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_PJL, ARGOS_PROTOCOL_JETDIRECT, ARGOS_PROTOCOL_COUNT);
@@ -205,10 +207,11 @@ static inline argos_protocol_id_t argos_dispatch_udp_port_engine(
         return ARGOS_PROTOCOL_COUNT;
     uint16_t port = dport;
     switch (port) {
-        case 88: case 111: case 123: case 161: case 162: case 389: case 427:
+        case 88: case 111: case 123: case 161: case 162: case 389: case 427: case 514:
         case 520: case 521:
-        case 623: case 1812: case 1813: case 1985: case 2049: case 3478:
-        case 5060: case 5678: case 5683: case 44818: case 47808:
+        case 623: case 1812: case 1813: case 1985: case 2049: case 2055: case 3478:
+        case 4739: case 5060: case 5678: case 5683: case 6343: case 9995: case 9996:
+        case 44818: case 47808:
             break;
         default: port = sport; break;
     }
@@ -219,15 +222,19 @@ static inline argos_protocol_id_t argos_dispatch_udp_port_engine(
         case 161: case 162: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SNMP) ? ARGOS_PROTOCOL_SNMP : ARGOS_PROTOCOL_COUNT;
         case 389: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_CLDAP, ARGOS_PROTOCOL_NETLOGON, ARGOS_PROTOCOL_COUNT);
         case 427: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_VMWARE_SLP) ? ARGOS_PROTOCOL_VMWARE_SLP : ARGOS_PROTOCOL_COUNT;
+        case 514: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SYSLOG) ? ARGOS_PROTOCOL_SYSLOG : ARGOS_PROTOCOL_COUNT;
         case 520: case 521: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RIP) ? ARGOS_PROTOCOL_RIP : ARGOS_PROTOCOL_COUNT;
         case 623: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_IPMI, ARGOS_PROTOCOL_RMCP, ARGOS_PROTOCOL_ASF);
         case 1812: case 1813: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_RADIUS) ? ARGOS_PROTOCOL_RADIUS : ARGOS_PROTOCOL_COUNT;
         case 1985: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_HSRP) ? ARGOS_PROTOCOL_HSRP : ARGOS_PROTOCOL_COUNT;
         case 2049: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_NFS) ? ARGOS_PROTOCOL_NFS : ARGOS_PROTOCOL_COUNT;
+        case 2055: case 9995: case 9996: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_NETFLOW) ? ARGOS_PROTOCOL_NETFLOW : ARGOS_PROTOCOL_COUNT;
         case 3478: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_STUN_TURN) ? ARGOS_PROTOCOL_STUN_TURN : ARGOS_PROTOCOL_COUNT;
+        case 4739: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_IPFIX) ? ARGOS_PROTOCOL_IPFIX : ARGOS_PROTOCOL_COUNT;
         case 5060: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SIP) ? ARGOS_PROTOCOL_SIP : ARGOS_PROTOCOL_COUNT;
         case 5678: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MNDP) ? ARGOS_PROTOCOL_MNDP : ARGOS_PROTOCOL_COUNT;
         case 5683: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_COAP) ? ARGOS_PROTOCOL_COAP : ARGOS_PROTOCOL_COUNT;
+        case 6343: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SFLOW) ? ARGOS_PROTOCOL_SFLOW : ARGOS_PROTOCOL_COUNT;
         case 44818: return argos_dispatch_first_enabled(plan, ARGOS_PROTOCOL_ETHERNET_IP, ARGOS_PROTOCOL_CIP, ARGOS_PROTOCOL_COUNT);
         case 47808: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_BACNET) ? ARGOS_PROTOCOL_BACNET : ARGOS_PROTOCOL_COUNT;
         default: return ARGOS_PROTOCOL_COUNT;
@@ -297,7 +304,8 @@ static inline void argos_dispatch_plan_compile(
         ARGOS_DISPATCH_HAS(RDP) || ARGOS_DISPATCH_HAS(SIP) ||
         ARGOS_DISPATCH_HAS(POSTGRESQL) || ARGOS_DISPATCH_HAS(PJL) ||
         ARGOS_DISPATCH_HAS(JETDIRECT) || ARGOS_DISPATCH_HAS(ETHERNET_IP) ||
-        ARGOS_DISPATCH_HAS(CIP))
+        ARGOS_DISPATCH_HAS(CIP) || ARGOS_DISPATCH_HAS(SYSLOG) ||
+        ARGOS_DISPATCH_HAS(IPFIX))
         plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_TCP_OWNER;
     if (ARGOS_DISPATCH_HAS(KERBEROS) || ARGOS_DISPATCH_HAS(SUNRPC) ||
         ARGOS_DISPATCH_HAS(NTP) || ARGOS_DISPATCH_HAS(SNMP) ||
@@ -309,7 +317,9 @@ static inline void argos_dispatch_plan_compile(
         ARGOS_DISPATCH_HAS(SIP) || ARGOS_DISPATCH_HAS(MNDP) ||
         ARGOS_DISPATCH_HAS(COAP) || ARGOS_DISPATCH_HAS(ETHERNET_IP) ||
         ARGOS_DISPATCH_HAS(CIP) || ARGOS_DISPATCH_HAS(BACNET) ||
-        ARGOS_DISPATCH_HAS(RIP))
+        ARGOS_DISPATCH_HAS(RIP) || ARGOS_DISPATCH_HAS(SYSLOG) ||
+        ARGOS_DISPATCH_HAS(NETFLOW) || ARGOS_DISPATCH_HAS(IPFIX) ||
+        ARGOS_DISPATCH_HAS(SFLOW))
         plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_UDP_OWNER;
 
     if (argos_feature_selection_has(&plan->features, ARGOS_FEATURE_TCP_SYN) ||

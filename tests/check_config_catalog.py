@@ -175,6 +175,13 @@ assert 'argos_network_ripng_parse(' in main_source
 assert 'dedup_should_suppress(mac_str, "RIP", rip.detail' in main_source
 assert 'emit_telemetry("RIP|%s|%s|%s|%s%s\\n"' in main_source
 assert 'emit_telemetry("ENT|%s|%s|%s|RIP|' not in main_source
+for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW"):
+    assert f'return "{vector}"' in main_source
+    assert f'emit_telemetry("ENT|%s|%s|%s|{vector}|' not in main_source
+assert 'dedup_should_suppress(ent_mac, exporter ? exporter : "ENT"' in main_source
+assert 'emit_telemetry("%s|%s|%s|%s|%s%s\\n", exporter' in main_source
+for obsolete in ("argos_syslog.h", "argos_netflow.h", "argos_ipfix.h", "argos_sflow.h"):
+    assert not (ROOT / "src" / obsolete).exists(), f"obsolete staging header remains: {obsolete}"
 for vector in ("LLDP-MED", "STP", "LACP"):
     assert f'dedup_should_suppress(mac_str, "{vector}"' in main_source
     assert f'emit_telemetry("{vector}|%s|-|-|%s%s\\n"' in main_source

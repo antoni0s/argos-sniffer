@@ -138,6 +138,16 @@
 int opt_quic_heavy = 0;          /* Flag to enable heavy stateful QUIC reassembly */
 int opt_ext_metrics = 0;         /* Default: Heavy metrics (entropy, RTT, latency) disabled */
 
+static const char *argos_exporter_vector(argos_protocol_id_t protocol) {
+    switch (protocol) {
+        case ARGOS_PROTOCOL_SYSLOG: return "SYSLOG";
+        case ARGOS_PROTOCOL_NETFLOW: return "NETFLOW";
+        case ARGOS_PROTOCOL_IPFIX: return "IPFIX";
+        case ARGOS_PROTOCOL_SFLOW: return "SFLOW";
+        default: return NULL;
+    }
+}
+
 
 #ifdef ARGOS_QUIC_STUB
 /* Built-in no-ops so a gateway image can ship without the QUIC decrypt object.
@@ -1735,12 +1745,19 @@ int main(int argc, char *argv[]) {
                     ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
                     if (ent_tcp_seen && ent_tcp.emit) {
                         char ent_mac[18], ent_sig[768];
+                        const char *exporter = argos_exporter_vector(tcp_engine);
                         format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_tcp.proto, ent_tcp.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig,
+                        if (!dedup_should_suppress(ent_mac, exporter ? exporter : "ENT", ent_sig,
                                 argos_dispatch_protocol_rate_limited(
-                                    &dispatch_plan, tcp_engine)))
-                            emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
+                                    &dispatch_plan, tcp_engine))) {
+                            if (exporter)
+                                emit_telemetry("%s|%s|%s|%s|%s%s\n", exporter, ent_mac,
+                                               src_ip_str, dst_ip_str, ent_tcp.detail, routed_str);
+                            else
+                                emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str,
+                                               dst_ip_str, ent_tcp.proto, ent_tcp.detail, routed_str);
+                        }
                     }
                 }
 
@@ -2055,12 +2072,19 @@ int main(int argc, char *argv[]) {
                     argos_enterprise_result_t ent_udp;
                     if (argos_enterprise_parse_udp(sport, dport, payload, payload_len, &ent_udp) && ent_udp.emit) {
                         char ent_mac[18], ent_sig[768];
+                        const char *exporter = argos_exporter_vector(udp_engine);
                         format_mac(src_mac, ent_mac);
                         snprintf(ent_sig, sizeof(ent_sig), "%s|%s|%s", src_ip_str, ent_udp.proto, ent_udp.detail);
-                        if (!dedup_should_suppress(ent_mac, "ENT", ent_sig,
+                        if (!dedup_should_suppress(ent_mac, exporter ? exporter : "ENT", ent_sig,
                                 argos_dispatch_protocol_rate_limited(
-                                    &dispatch_plan, udp_engine)))
-                            emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str, dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
+                                    &dispatch_plan, udp_engine))) {
+                            if (exporter)
+                                emit_telemetry("%s|%s|%s|%s|%s%s\n", exporter, ent_mac,
+                                               src_ip_str, dst_ip_str, ent_udp.detail, routed_str);
+                            else
+                                emit_telemetry("ENT|%s|%s|%s|%s|%s%s\n", ent_mac, src_ip_str,
+                                               dst_ip_str, ent_udp.proto, ent_udp.detail, routed_str);
+                        }
                     }
                 }
                 /* RADIUS observed identity: client Access-Request User-Name only. */

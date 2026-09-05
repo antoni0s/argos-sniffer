@@ -111,6 +111,10 @@ int main(void) {
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_STP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_LACP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_RIP].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_SYSLOG].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_NETFLOW].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_IPFIX].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_SFLOW].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_THREAD].status &
             ARGOS_PROTOCOL_STATUS_HOLD) != 0U);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_ESP].status &
@@ -170,7 +174,10 @@ int main(void) {
     assert(argos_rate_target_mask("enterprise", &rate_target, &target_kind));
     assert(target_kind == ARGOS_RATE_TARGET_SUPER_GROUP);
     assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_SMB));
-    assert(!argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_SYSLOG));
+    assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_SYSLOG));
+    assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_NETFLOW));
+    assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_IPFIX));
+    assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_SFLOW));
     assert(argos_rate_target_mask("identity", &rate_target, &target_kind));
     assert(target_kind == ARGOS_RATE_TARGET_GROUP);
     assert(argos_protocol_set_has(&rate_target, ARGOS_PROTOCOL_KERBEROS));
@@ -260,7 +267,7 @@ int main(void) {
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
 
     static const size_t expected_profile_counts[ARGOS_PROFILE_COUNT] = {
-        7U, 16U, 68U, 36U, 50U, 68U
+        7U, 16U, 72U, 36U, 50U, 72U
     };
     for (unsigned profile_id = 0; profile_id < ARGOS_PROFILE_COUNT; ++profile_id) {
         assert(argos_profile_selection((argos_profile_id_t)profile_id,

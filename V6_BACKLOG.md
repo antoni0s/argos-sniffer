@@ -60,7 +60,7 @@ fold into cohesive owners rather than remain one public header per protocol.
 | `argos_l2.h` | LLDP-MED, LACP, STP |
 | `argos_network.h` | RIP and PTP (integrated; staging headers removed) |
 | application facade/section | HTTP proxy, Telnet, VNC, WinRM, LPD, RTP, RTCP, RTSP, Cast, AirPlay, DLNA |
-| `argos_enterprise.h` | FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS, Syslog, NetFlow, IPFIX, sFlow |
+| `argos_enterprise.h` | FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS; Syslog, NetFlow, IPFIX and sFlow are integrated here |
 | industrial facade/section | KNXnet/IP, S7comm, OPC UA, DNP3 |
 | IoT facade/section | Matter, Thread/6LoWPAN |
 | VPN facade/section | OpenVPN, IKE, ESP, AH |
@@ -275,7 +275,9 @@ the protocol from the release.
      protocol-native privacy-safe output and obsolete staging-header removal.
    - [x] PTP integrated into the canonical network owner; staging header removed after fixture migration.
 2. **Management exporters**
-   - [ ] Syslog, NetFlow, IPFIX, sFlow.
+   - [x] Syslog, NetFlow, IPFIX and sFlow integrated through `argos_enterprise.h`
+     with exact TCP/UDP dispatch, native signatures, bounded header-only parsing
+     and obsolete staging-header removal.
 3. **Application control protocols**
    - [ ] HTTP proxy, Telnet, VNC, WinRM, LPD.
 4. **Realtime and media negotiation**

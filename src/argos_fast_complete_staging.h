@@ -22,9 +22,6 @@ typedef enum {
     ARGOS_FC_SSH,
     ARGOS_FC_LDAP,
     ARGOS_FC_RTSP,
-    ARGOS_FC_NETFLOW,
-    ARGOS_FC_IPFIX,
-    ARGOS_FC_SFLOW,
     ARGOS_FC_IKE,
     ARGOS_FC_COUNT
 } argos_fast_complete_protocol_t;
@@ -56,9 +53,6 @@ static const argos_fast_complete_policy_t argos_fast_complete_staging_policies[A
     { ARGOS_FC_SSH,     "ssh",     6,   8192, 3000, 256, 3, "banner and key-exchange fingerprint complete", "encrypted transport phase or budget exhausted" },
     { ARGOS_FC_LDAP,    "ldap",    6,   8192, 3000, 256, 3, "bind/search identity metadata complete", "opaque/bulk result data or budget exhausted" },
     { ARGOS_FC_RTSP,    "rtsp",    6,   8192, 3000, 256, 3, "method/server/user-agent/transport evidence complete", "media payload phase or budget exhausted" },
-    { ARGOS_FC_NETFLOW, "netflow", 2,   4096, 1000, 128, 1, "export header/version/source metadata complete", "record payload budget exhausted" },
-    { ARGOS_FC_IPFIX,   "ipfix",   2,   4096, 1000, 128, 1, "message header/domain metadata complete", "set payload budget exhausted" },
-    { ARGOS_FC_SFLOW,   "sflow",   2,   4096, 1000, 128, 1, "datagram agent/sample metadata complete", "sample payload budget exhausted" },
     { ARGOS_FC_IKE,     "ike",     6,   8192, 3000, 256, 3, "version/exchange/SPI/NAT-T evidence complete", "encrypted payload-only phase or budget exhausted" }
 };
 

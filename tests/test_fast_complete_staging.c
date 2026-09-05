@@ -38,20 +38,6 @@ static void test_elephant_protocols_have_early_ceiling(void)
     assert(strstr(rtsp->drop_when, "media") != NULL);
 }
 
-static void test_exporters_are_one_way_and_cheap(void)
-{
-    const argos_fast_complete_protocol_t exporters[] = {
-        ARGOS_FC_NETFLOW, ARGOS_FC_IPFIX, ARGOS_FC_SFLOW
-    };
-
-    for (unsigned i = 0; i < sizeof(exporters)/sizeof(exporters[0]); ++i) {
-        const argos_fast_complete_policy_t *p = argos_fast_complete_staging_get(exporters[i]);
-        assert(p->direction_mask == 1U);
-        assert(p->max_packets <= 2U);
-        assert(p->max_state_bytes <= 128U);
-    }
-}
-
 static void test_invalid_lookup(void)
 {
     assert(argos_fast_complete_staging_get((argos_fast_complete_protocol_t)ARGOS_FC_COUNT) == NULL);
@@ -61,7 +47,6 @@ int main(void)
 {
     test_every_policy_is_bounded();
     test_elephant_protocols_have_early_ceiling();
-    test_exporters_are_one_way_and_cheap();
     test_invalid_lookup();
     puts("test_fast_complete_staging: ok");
     return 0;

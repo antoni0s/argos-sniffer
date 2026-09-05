@@ -130,10 +130,10 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | management | rmcp | production | enterprise owner | UDP 623 | `RMCP`: version, sequence, class | one header/control message | no payload retention |
 | management | asf | production | enterprise owner | RMCP ASF class | `ASF`: enterprise, type, tag | one message | bounded |
 | management | vmware-slp | production | enterprise owner | UDP/TCP 427 + SLP | `VMWARE-SLP`: version, function, service; fingerprint = service/function profile | one SLP control message | no arbitrary service body |
-| management | syslog | staging | fold into `argos_enterprise.h` | UDP/TCP 514, TLS 6514 if later supported | `SYSLOG`: format, facility, severity, version, hostname, appname, structured_data; fingerprint = exporter/app/format profile | header/structured metadata only | avoid logging message body by default |
-| management | netflow | staging | fold into `argos_enterprise.h` | UDP 2055/9995/9996 etc. + version | `NETFLOW`: version, count, sequence, engine_type, engine_id, source_id, uptime; fingerprint = exporter version/engine/source profile | one exporter datagram/header | no flow record body needed for device fingerprinting |
-| management | ipfix | staging | fold into `argos_enterprise.h` | UDP/TCP 4739 + version 10 | `IPFIX`: version, length, sequence, observation_domain, export_time, sets; fingerprint = observation-domain/exporter profile | header/set summary | no template/data-set deep decode unless separately justified |
-| management | sflow | staging | fold into `argos_enterprise.h` | UDP 6343 | `SFLOW`: version, agent_type, agent, sub_agent, sequence, samples; fingerprint = agent/sub-agent/version profile | datagram header/sample count | no sampled payload extraction |
+| management | syslog | production | `argos_enterprise.h` | UDP/TCP 514; encrypted TLS 6514 remains unsupported | `SYSLOG|src_mac|src_ip|dst_ip|format=<rfc3164\|rfc5424> facility=<name\|n> severity=<name\|n> version=<n\|-> hostname=<host\|-> appname=<app\|-> structured_data=<0\|1>[\|routed]` | one datagram or first complete TCP header; bounded structured-data walk | message body is never retained or emitted |
+| management | netflow | production | `argos_enterprise.h` | UDP 2055/9995/9996 + version | `NETFLOW|src_mac|src_ip|dst_ip|version=<5\|7\|9> count=<n> sequence=<n> engine_type=<n\|-> engine_id=<n\|-> source_id=<n\|-> uptime=<n>[\|routed]` | one datagram, max 4,096 bytes; fixed header only | no record/template decode or retained state |
+| management | ipfix | production | `argos_enterprise.h` | UDP/TCP 4739 + version 10 | `IPFIX|src_mac|src_ip|dst_ip|version=10 length=<n> sequence=<n> observation_domain=<n> export_time=<n> sets=<n\|->[\|routed]` | one datagram or first complete TCP message, max 4,096 bytes; bounded set-length walk | no template/data-set body decode or retained state |
+| management | sflow | production | `argos_enterprise.h` | UDP 6343 | `SFLOW|src_mac|src_ip|dst_ip|version=5 agent_type=<ipv4\|ipv6> agent=<ip\|-> sub_agent=<n> sequence=<n> samples=<n>[\|routed]` | one datagram, max 4,096 bytes; fixed header only | no sampled payload extraction or retained state |
 
 ---
 
@@ -222,7 +222,7 @@ until the prerequisite is implemented but does not remove it from the release.
 
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
-3. **Management exporters** — Syslog, NetFlow, IPFIX, sFlow.
+3. **Management exporters** — Syslog, NetFlow, IPFIX and sFlow. **Complete.**
 4. **Application control** — HTTP proxy, Telnet, VNC, WinRM, LPD.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 6. **Enterprise storage/database/directory** — FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.

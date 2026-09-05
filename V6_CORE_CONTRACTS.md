@@ -358,6 +358,23 @@ there is no new retained state or packet-time allocation. Full/stub text is 1756
 3992 and BSS 80360/78760; the reviewed full-text ceiling is 175700. The staging header is deleted
 after permanent strict, malformed, sanitizer, BPF and ARM64 fixtures replace its unique tests.
 
+### Canonical management exporter runtime integration — candidate
+
+Syslog, NetFlow, IPFIX and sFlow are folded into `argos_enterprise.h` but emit only
+their frozen protocol-native vectors; `ENT` exporter output is forbidden. Exact
+dispatch/BPF ownership is TCP/UDP 514 for Syslog, UDP 2055/9995/9996 for NetFlow,
+TCP/UDP 4739 for IPFIX and UDP 6343 for sFlow. TLS 6514 is intentionally excluded
+because encrypted payload cannot satisfy the header contract.
+
+Parsing is allocation-free and capped at one payload / 4,096 bytes. Syslog never
+copies its message body or structured data; NetFlow and sFlow stop at fixed headers;
+IPFIX only validates/counts bounded set lengths. The shared automatic result is
+538 bytes, no retained exporter state or BSS is added, and optimized `main` stack
+remains 84,992 bytes. Candidate full/stub text is 180908/168986 (+5210/+5282 from
+PR #47); data remains 3992 and BSS 80360/78760. This measured text growth buys four
+native parsers and exact dispatch without introducing packet-time allocation or
+duplicate staging implementations.
+
 ## Concrete blockers, not hypothetical architecture work
 
 For every remaining staging integration, freeze the canonical vector name and ordered fields in
