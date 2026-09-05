@@ -290,7 +290,8 @@ jobs:
           assert 'p[0] != 0x42U || p[1] != 0x42U || p[2] != 0x03U' in l2
           assert 'r->version != 0U' in l2
           assert 'ENT|%s|-|-|STP|%s' in src
-          assert src.count('l3_proto <= 1500U') >= 3
+          assert 'argos_dispatch_l2_protocol(l3_proto) == ARGOS_PROTOCOL_STP' in src
+          assert 'argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_STP)' in src
           assert 'BPF_JGT | BPF_K, 1500' in bpf
           print('classic STP integration regression: PASS')
           PY

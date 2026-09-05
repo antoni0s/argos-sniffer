@@ -48,7 +48,8 @@ jobs:
           bpf = Path('src/argos_bpf.h').read_text()
           for proto in ('STP', 'RSTP', 'MSTP', 'LACP', 'LLDP-MED'):
               assert f'|-|-|{proto}|' in src
-          assert src.count('l3_proto <= 1500U') >= 3
+          assert 'argos_dispatch_l2_protocol(l3_proto) == ARGOS_PROTOCOL_STP' in src
+          assert 'argos_dispatch_protocol_enabled(&dispatch_plan, ARGOS_PROTOCOL_STP)' in src
           assert 'BPF_JGT | BPF_K, 1500' in bpf
           assert 'argos_rstp_parse' in l2 and 'argos_mstp_parse' in l2
           for parser, result in (('stp', 'stp'), ('rstp', 'stp'), ('mstp', 'mstp')):
