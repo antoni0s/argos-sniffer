@@ -252,8 +252,9 @@ L2/non-port and BPF projection, then TCP/UDP families; retain exact legacy outpu
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c4-dispatch-plan` candidate; remote CI/PR not yet recorded. Staging runtime
-integration remains blocked on the core review.
+**Pending:** local `v6-c4-dispatch-plan` implementation `48049cc5…`; push/remote CI requires
+explicit user approval and no remote branch/PR exists yet. Staging runtime integration remains
+blocked on the core review.
 PR #35: core 33966752299, L2 33966752376, staging 33966752328 PASS.
 Native full/stub text 164710/152668; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding

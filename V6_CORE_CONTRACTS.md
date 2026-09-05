@@ -199,7 +199,7 @@ Full/stub text is 164710/152668, data 3832 and BSS 80360/78760; main stack remai
 bytes. Core 33966752299, L2 33966752376 and staging 33966752328 PASS, including
 LeakSanitizer and ARM64 compilation. No staged parser became reachable.
 
-### Fixed startup dispatch plan — pending candidate
+### Fixed startup dispatch plan — local candidate `48049cc5…`
 
 `argos_dispatch.h` owns a 48-byte startup plan containing fixed enabled/unrated masks,
 feature bits and bounded L2/L3/L4 route flags. Main compiles it once after final selector
@@ -212,11 +212,12 @@ pins legacy normal/unrated projection and representative L2/L3/L4 route demand. 
 not claim that all existing parser/state calls are already behind their individual bits;
 that runtime adoption and canonical BPF projection remain the next C4 gate.
 
-Local strict standalone tests pass. Full/stub text is 165565/153555 (+855/+887 from PR #35),
+All 75 local strict standalone tests pass. Full/stub text is 165565/153555 (+855/+887 from PR #35),
 data 3832 and BSS 80360/78760 unchanged. The increase is startup-only fixed-plan compilation;
 no packet-loop source branch or retained packet state was added. Local ASan/UBSan focused
 tests pass with leak detection disabled because the workspace blocks LeakSanitizer `/proc`
-inspection. ARM64 compiler and full LSan execution remain CI gates; no PR/CI result is yet recorded.
+inspection. ARM64 compiler and full LSan execution remain CI gates; the candidate is not pushed
+and no PR/CI result is yet recorded.
 
 ## Concrete blockers, not hypothetical architecture work
 
