@@ -26,7 +26,6 @@
 #include "../src/argos_s7.h"
 #include "../src/argos_tacacs.h"
 #include "../src/argos_thread.h"
-#include "../src/argos_winrm.h"
 
 static void test_knx_bounds(void) {
     unsigned char p[6] = {0x06, 0x10, 0x02, 0x01, 0x00, 0x06};

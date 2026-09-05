@@ -1,12 +1,16 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `747a1c53eaaf7b6789022c5a38dfb31c2ea748fa` (PR #51).
-**Now:** VNC implementation and local validation on `v6-vnc-canonical-integration`; push/CI/merge pending.
-LPD, HTTP proxy and Telnet runtime slices are merged; WinRM remains open.
+Branch: `version-6`. Verified checkpoint: `8fe74987317f2d704450894be89548456febe59a` (PR #52).
+**Now:** WinRM production integration and local validation on `v6-winrm-canonical-integration`; push/CI/merge pending.
+LPD, HTTP proxy, Telnet and VNC runtime slices are merged; WinRM is locally integrated.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
+
+- [x] VNC/RFB 3.3/3.7/3.8 cross-direction handshake, native privacy-safe
+  signatures, optional bounded context, generated help and staging cleanup — PR #52.
+  Core 33991432852, network 33991432814, L2 33991432837 and staging 33991432821 PASS.
 
 - [x] Telnet native negotiation, independent TCP/SYN gates, generated help and
   staging cleanup; agreed product name restored — PR #51.
@@ -241,7 +245,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   mapping remains open under C7/C10.
 - [x] Telnet runtime/code slice delivered as PR #51; deployed collector mapping
   remains open under C7/C10.
-- [ ] VNC runtime slice: implementation and local validation; CI/merge pending.
+- [x] VNC runtime slice merged in PR #52; deployed collector mapping remains
+  open under C7/C10.
 - [ ] WinRM.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
@@ -293,8 +298,9 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** finish VNC strict/sanitizer verification, push/CI/merge/cleanup,
-then freeze WinRM native fields before wiring. Preserve progress/help/naming/cleanup.
+**Next:** finish WinRM strict/sanitizer verification, push/CI/merge/cleanup, then
+handoff the completed application-control milestone to realtime/media starting
+with RTP. Preserve progress/help/naming/cleanup at the milestone boundary.
 **Blocked:** full freeze, deployed collector compatibility and hardware acceptance;
 Thread, ESP/AH and TLS enrichment retain their recorded gates.
 **Delivery:** VNC is integrated in the existing handshake/control owner with
@@ -320,13 +326,33 @@ Focused ASan/UBSan on six VNC/state/BPF/startup paths passes (local LSan disable
 under ptrace). BPF equivalence passes 9,992,192 frozen legacy comparisons with
 max instructions still 287→183 and lower aggregate interpreted work. Kernel gates
 pass 1,024 legacy plus six proxy/Telnet/VNC/full combinations. The full 82-test
-strict matrix and five adoption checks pass; CI LSan/ARM64 remains pending.
+strict matrix and five adoption checks pass; CI LSan/ARM64 and all four PR #52
+workflows pass.
 **Cleanup:** unique staging VNC fixtures moved to permanent test_vnc.c; obsolete
 source/includes/workflow entries are deleted. The remote HTTP proxy/Telnet branches
 still need user deletion because Git authentication and connector delete-ref remain
 unavailable:
 `git push origin --delete v6-http-proxy-canonical-integration v6-telnet-canonical-integration`.
-**Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
-and final cross-contract C10 audit.
+**WinRM delivery:** the existing handshake/control owner now emits only native
+`WINRM` records in the frozen field order. Plain TCP 5985 requires a complete
+HTTP/1.0/1.1 request to exact `/wsman`; TCP 5986 requires a structurally valid
+TLS ClientHello/ServerHello prefix and leaves encrypted inner fields unknown.
+Only Content-Type and the Authorization scheme token are classified. Credential
+values, username, SOAP/XML body and encrypted session data are never decoded,
+copied or emitted. Exact userspace/BPF gates cover both directions and reject
+dual-service endpoints in userspace. The existing directional application owner
+provides eight attempts, expiry/eviction and SYN reset with zero new retained bytes,
+allocation or reassembly. Permanent `test_winrm.c` replaces the deleted staging
+header. The 83-test strict matrix, adoption checks and focused ASan/UBSan pass.
+BPF equivalence covers 10,680,320 packets; maximum instructions remain 287→183;
+kernel gates cover 1,024 legacy plus eight combined configurations. Full/stub text
+is 196690/184674 (+3356/+3288 from PR #52), data 3992 and BSS 80360/78760 unchanged.
+Main stack is 85,040 (+16); WinRM parser frame is 176. Reviewed full-text ceiling
+is 196750. No throughput improvement is claimed; the growth buys bounded framing,
+privacy classification and independent capture gating.
+**Handoff:** VNC is merged at `8fe74987317f2d704450894be89548456febe59a`;
+the active application-control milestone is WinRM final verification and delivery.
+**Model:** Astra through WinRM CI/merge; switch to Sol for the initial RTP source/
+fixture audit after the application-control milestone handoff.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

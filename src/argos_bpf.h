@@ -98,6 +98,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
 #define HAS(protocol) argos_bpf_protocol_enabled(cfg, ARGOS_PROTOCOL_##protocol)
     if (HAS(HTTP)) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
     if (HAS(TELNET)) { ADD(td, td_n, 23); ADD(ts, ts_n, 23); }
+    if (HAS(WINRM)) {
+        ADD(td, td_n, ARGOS_WINRM_HTTP_PORT); ADD(ts, ts_n, ARGOS_WINRM_HTTP_PORT);
+        ADD(td, td_n, ARGOS_WINRM_HTTPS_PORT); ADD(ts, ts_n, ARGOS_WINRM_HTTPS_PORT);
+    }
     if (HAS(HTTP_PROXY)) {
         for (unsigned i = 0; i < sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]); ++i) {
             ADD(td, td_n, ARGOS_HTTP_PROXY_TCP_PORTS[i]);
@@ -244,10 +248,11 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
             EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, ARGOS_TCP_CONTROL_MASK, 0, 1));
             EMIT(abpf_stmt(p, BPF_RET | BPF_K, ARGOS_BPF_PASS));
         }
-        if (!cfg->syn && (HAS(HTTP_PROXY) || HAS(TELNET) || HAS(VNC))) {
+        if (!cfg->syn && (HAS(HTTP_PROXY) || HAS(TELNET) || HAS(VNC) || HAS(WINRM))) {
             /* Admit generation boundaries only for these selected engines. */
             const unsigned proxy_count = HAS(HTTP_PROXY) ? sizeof(ARGOS_HTTP_PROXY_TCP_PORTS) / sizeof(ARGOS_HTTP_PROXY_TCP_PORTS[0]) : 0;
-            const unsigned count = proxy_count + (HAS(TELNET) ? 1U : 0U) + (HAS(VNC) ? 3U : 0U);
+            const unsigned count = proxy_count + (HAS(TELNET) ? 1U : 0U) +
+                (HAS(VNC) ? 3U : 0U) + (HAS(WINRM) ? 2U : 0U);
             EMIT(abpf_stmt(p, BPF_LD | BPF_B | BPF_IND, 27));
             EMIT(abpf_jump(p, BPF_JMP | BPF_JSET | BPF_K, 0x02, 0, (uint8_t)(2U + 2U * count)));
             for (unsigned direction = 0; direction < 2; ++direction) {
@@ -256,6 +261,10 @@ static inline int argos_bpf_build(const argos_bpf_config_t *cfg, argos_bpf_progr
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_HTTP_PROXY_TCP_PORTS[i], UINT8_MAX, 0));
                 if (HAS(TELNET))
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, 23, UINT8_MAX, 0));
+                if (HAS(WINRM)) {
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_WINRM_HTTP_PORT, UINT8_MAX, 0));
+                    EMIT(abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_WINRM_HTTPS_PORT, UINT8_MAX, 0));
+                }
                 if (HAS(VNC)) {
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_LAST, 2, 0));
                     EMIT(abpf_jump(p, BPF_JMP | BPF_JGT | BPF_K, ARGOS_VNC_PORT_FIRST - 1U, 0, 1));

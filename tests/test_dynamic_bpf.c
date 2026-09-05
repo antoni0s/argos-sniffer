@@ -269,6 +269,18 @@ int main(void) {
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 5899, 0x18, 12)), "VNC excludes low neighbor");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 6000, 0x18, 12)), "VNC excludes high neighbor");
     expect(pass(&p, pkt, tcp4(pkt, 5900, 5901, 0x18, 12)), "BPF conservatively admits dual-range tuple");
+    canonical_bpf("winrm", 0, 0, &c); expect(argos_bpf_build(&c, &p), "build WinRM");
+    for (uint16_t port = ARGOS_WINRM_HTTP_PORT; port <= ARGOS_WINRM_HTTPS_PORT; ++port) {
+        expect(pass(&p, pkt, tcp4(pkt, 50000, port, 0x18, 20)), "WinRM client payload passes");
+        expect(pass(&p, pkt, tcp4(pkt, port, 50000, 0x18, 20)), "WinRM server payload passes");
+        expect(pass(&p, pkt, tcp4(pkt, 50000, port, 0x02, 0)), "WinRM SYN passes");
+        expect(pass(&p, pkt, tcp4(pkt, port, 50000, 0x12, 0)), "WinRM SYN-ACK passes");
+        expect(!pass(&p, pkt, tcp4(pkt, 50000, port, 0x10, 0)), "WinRM empty ACK drops");
+        expect(!pass(&p, pkt, udp4(pkt, 50000, port, 20)), "WinRM excludes UDP");
+    }
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 5984, 0x18, 20)), "WinRM excludes low neighbor");
+    expect(!pass(&p, pkt, tcp4(pkt, 50000, 5987, 0x18, 20)), "WinRM excludes high neighbor");
+    expect(pass(&p, pkt, tcp4(pkt, 5985, 5986, 0x18, 20)), "BPF conservatively admits dual-service tuple");
 
     legacy_bpf_config(1U << 0, 0, &c); expect(argos_bpf_build(&c, &p), "build SYN");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");

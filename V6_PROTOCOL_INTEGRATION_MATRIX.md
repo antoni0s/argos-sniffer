@@ -81,7 +81,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | remote-access | ssh | production | application owner | TCP 22/banner + KEX | SSH: client/server banners, KEX/cipher/MAC lists if bounded; fingerprint = software banner + algorithm-set fingerprint | after banner/KEXINIT | no session payload |
 | remote-access | telnet | production | `argos_enterprise.h:ae_telnet` | independently selected TCP 23, both directions, initial IAC prefix | `TELNET`: command, option, negotiation, username; fingerprint = option negotiation set | one attempt, at most 1,024 bytes / 16 commands | username unknown; no interactive or subnegotiation values |
 | remote-access | vnc | production | existing enterprise handshake/control owner + optional context in application slots | TCP 5900..5999, both directions, staged RFB handshake | `VNC`: protocol, version, security_types, selected_security, server_name, width, height; progressive handshake observation, not a new stable implementation hash | exact sequence; 8 payloads/direction, 1,024 bytes/message; complete/fail on ServerInit/invalid | challenge/response/failure reason/pixel data never inspected; server name only after confirmed handshake |
-| remote-access | winrm | staging | application facade/section | TCP 5985/5986 + WSMan/SOAP | `WINRM`: transport, wsman, soap, method, auth, username, encrypted; fingerprint = transport/auth/WSMan profile | after bounded headers/auth scheme | no Authorization credential blobs |
+| remote-access | winrm | production | `argos_enterprise.h:ae_winrm` | independently selected TCP 5985/5986, either direction; userspace rejects dual-service endpoints | `WINRM`: transport, wsman, soap, method, auth, username, encrypted; native observed transport/auth/WS-Man profile | complete HTTP headers on 5985 or valid TLS hello prefix on 5986; existing 8-payload directional owner | Authorization value/username/SOAP body/encrypted data never decoded or emitted |
 | realtime | stun-turn | production | application owner | UDP/TCP 3478/5349 + STUN magic cookie | STUN/TURN: message class/method, attributes classes; fingerprint = capability/attribute pattern | one/few control messages | never retain integrity keys |
 | printing | ipp | production | application/printing owner | TCP 631 + IPP/HTTP | IPP: operation, printer/device attributes where passive; fingerprint = make/model/IPP capability set | headers/attribute block | no print-job body |
 | printing | pjl | production | printing owner | TCP 9100/PJL magic | PJL: command, INFO/USTATUS/device identifiers; fingerprint = language/capability/banner | stop before print payload | no document content |
@@ -223,7 +223,7 @@ until the prerequisite is implemented but does not remove it from the release.
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
 3. **Management exporters** — Syslog, NetFlow, IPFIX and sFlow. **Complete.**
-4. **Application control** — LPD, HTTP proxy, Telnet and VNC runtime slices implemented; WinRM remains open.
+4. **Application control** — LPD, HTTP proxy, Telnet, VNC and WinRM runtime slices implemented. **Complete.**
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 6. **Enterprise storage/database/directory** — FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
 7. **Industrial** — KNXnet/IP, S7comm, OPC UA, DNP3.
@@ -259,6 +259,27 @@ until the prerequisite is implemented but does not remove it from the release.
   wire. Dynamic BPF/kernel, config/help/source, strict/sanitizer/LSan/ARM64 gates.
 - collector_mapping: repository native golden only. Deployed collector,
   executing ARM64 and hardware throughput remain C7/C10 acceptance work.
+
+### WinRM runtime slice
+
+- cli_bit: `ARGOS_PROTOCOL_WINRM`; group `remote-access`; super-group `application`.
+- owner: existing `argos_enterprise.h` handshake/control section, `ae_winrm`;
+  independent runtime gate and existing directional application-generation owner.
+- trigger/BPF: TCP 5985/5986 payload and selected SYN in either direction. Exactly
+  one endpoint must be a service port; BPF is conservative for dual-service tuples.
+- vector: native `WINRM|src_mac|src_ip|dst_ip|<ordered fields>[|routed]`, no ENT;
+  exact grammar/caps/unknowns are frozen in V6_BACKLOG.
+- completion: one complete bounded HTTP/1.0/1.1 header block for exact `/wsman`
+  on 5985, or a structurally valid TLS ClientHello/ServerHello record prefix on
+  5986. Existing eight-payload/direction, expiry, eviction and SYN reset apply.
+- privacy: only HTTP start-line, Content-Type and Authorization scheme are read;
+  header values other than bounded type/scheme classification, credentials,
+  username, SOAP/XML body and encrypted session data are never copied or emitted.
+- fixtures: test_winrm covers auth schemes, framing cuts, encrypted Content-Type,
+  TLS hello prefix, native output/no ENT/no secret, selector/dispatch and ambiguity.
+  Dynamic BPF/kernel, config/help/source, strict/sanitizer/LSan/ARM64 gates apply.
+- collector_mapping: repository native golden only. Deployed collector, executing
+  ARM64 and hardware throughput remain C7/C10 acceptance work.
 
 ### Telnet runtime slice
 

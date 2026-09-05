@@ -399,7 +399,8 @@ BSS 80360/78760 and main stack 84992 unchanged. Sharing serialization removes
 two duplicated TCP/UDP formatting blocks while preserving existing output.
 The bounded parser adds no allocation or retained RAM; full text guard 182320
 keeps the existing 52-byte compiler margin. No throughput gain is claimed.
-WinRM remains open within the application-control group.
+WinRM uses the same native handshake/control owner with exact TCP 5985/5986
+selection, bounded header/TLS-prefix classification and no credential/body decode.
 
 ### Application-control slice: VNC
 
@@ -420,7 +421,8 @@ TCP 5900..5999 runtime and BPF gates are independent; userspace rejects ambiguou
 dual-range endpoints. Config drives remote-access/application help and profiles.
 Unique staging fixtures move to permanent production/state/native tests before
 the old header/includes/workflow entries are deleted. Collector deployment,
-executing ARM64 and hardware throughput remain open; WinRM is still staged.
+executing ARM64 and hardware throughput remain open. WinRM is production and its
+staging source is removed after permanent fixture migration.
 
 ### Application-control slice: Telnet
 

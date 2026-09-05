@@ -287,7 +287,9 @@ the protocol from the release.
    - [x] HTTP proxy (PR #50) and Telnet (PR #51) runtime/code slices, native
      signatures, canonical help and staging cleanup. Deployed collector mapping
      remains open under C7/C10.
-   - [ ] VNC, WinRM.
+   - [x] VNC runtime slice merged in PR #52 with native signatures, bounded
+     cross-direction state, generated help and staging cleanup.
+   - [ ] WinRM.
    - [ ] LPD runtime slice: PR #49 (checks/merge tracked there); full protocol
      acceptance retains deployed collector mapping under C7/C10. Folded into the existing printing section.
 4. **Realtime and media negotiation**
@@ -405,7 +407,7 @@ Candidate vectors and their required metadata are:
 | HTTP-PROXY | frozen order: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff |
 | TELNET | frozen order: command, option, negotiation, username |
 | VNC | frozen order: protocol, version, security_types, selected_security, server_name, width, height |
-| WINRM | transport, wsman, soap, method, auth, username, encrypted |
+| WINRM | frozen order: transport, wsman, soap, method, auth, username, encrypted |
 | LPD | frozen: `command=<restart\|receive-job\|short-queue\|long-queue\|remove-jobs> queue=<token> username=<agent\|->`, in this order |
 | RTP | version, payload_type, marker, sequence, timestamp, ssrc, csrc_count, extension |
 | RTCP | version, packet_type, report_count, ssrc, compound |
@@ -471,6 +473,22 @@ SecurityResult stop the generation. Challenge, authentication response, failure
 reason and pixel data are never inspected or emitted. Framing follows
 [RFC 6143](https://www.rfc-editor.org/rfc/rfc6143.html). Unrated mode changes only
 dedup; 60-second expiry/four-probe eviction/SYN reset bound each generation.
+
+WINRM uses `WINRM|src_mac|src_ip|dst_ip|transport=<http|https> wsman=<1|-> soap=<0|1|-> method=<token|-> auth=<basic|digest|ntlm|negotiate|kerberos|credssp|other|-> username=- encrypted=<0|1>[|routed]`.
+Plain HTTP requires one complete HTTP/1.0 or HTTP/1.1 request header block to the
+exact default `/wsman` prefix on TCP 5985. Method is 1..15 uppercase ASCII bytes.
+SOAP is inferred only from the bounded `application/soap+xml` Content-Type;
+HTTP message encryption is inferred only from the published SPNEGO/CredSSP
+session-encrypted Content-Types. Authentication is the Authorization scheme token
+only. Its value, Basic/NTLM/Kerberos blobs, username, SOAP/XML body and subsequent
+session data are never decoded, copied or emitted. HTTPS on TCP 5986 emits only
+after a structurally valid TLS ClientHello/ServerHello record prefix; encrypted=1
+and unavailable inner fields are `-`. Exactly one endpoint must use 5985/5986;
+BPF conservatively admits a dual-service tuple and userspace rejects it. Each
+direction reuses the existing eight-payload/60-second/four-probe/SYN-reset owner;
+complete headers or the TLS prefix stop that direction. No TCP reassembly or new
+retained state. Default transport/ports and `/wsman` prefix follow
+[Microsoft WinRM configuration](https://learn.microsoft.com/en-us/windows/win32/winrm/installation-and-configuration-for-windows-remote-management).
 
 LPD uses `LPD|src_mac|src_ip|dst_ip|command=... queue=... username=...[|routed]`.
 Queue and agent are bounded ASCII tokens (95 and 63 bytes); record delimiters

@@ -84,6 +84,16 @@ copied. No retained-state growth, allocation or reassembly. Normal/quoted data
 ends inspection; malformed/truncated input emits nothing. Exact selected SYN
 admission enables generation reset; expiry/eviction and shared completion apply.
 
+WinRM reuses the existing directional application owner and shared 538-byte result.
+The parser walks at most one 4,096-byte HTTP header prefix on TCP 5985 or nine
+bytes of TLS hello framing on TCP 5986. Each direction retains no protocol-specific
+bytes and completes on a full header/TLS prefix; otherwise the existing eight
+payload attempts, 60-second expiry, four-probe eviction and SYN reset apply. There
+is no allocation, reassembly, SOAP/XML body scan or credential decoding.
+Measured native full/stub text is 196690/184674 (+3356/+3288 versus PR #52);
+data is 3992 and BSS 80360/78760 unchanged. Main stack is 85,040 (+16) and the
+WinRM parser frame is 176 bytes. The reviewed full-text ceiling is 196750.
+
 ## Verified semantics and remaining byte work
 
 VNC adds one 8-byte optional-context pointer to the existing application owner
