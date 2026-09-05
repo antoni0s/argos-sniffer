@@ -578,6 +578,73 @@ static inline void argos_legacy_selection_apply_default(
     argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
 }
 
+static inline void argos_profile_add_group(argos_protocol_selection_t *protocols,
+                                           argos_group_id_t group) {
+    argos_protocol_set_t mask;
+    argos_group_protocol_mask(group, &mask);
+    argos_protocol_selection_apply_mask(protocols, &mask, 0);
+}
+
+/* Frozen profile membership is production-only and startup-only. Profiles
+ * select protocol/capability demand, not capture deployment or privacy modes:
+ * SENSOR_DEPLOYMENT, QUIC_STATEFUL and identity raw/hash remain explicit CLI
+ * choices. The sensor profile opts into bounded extended metrics, not -W. */
+static inline int argos_profile_selection(argos_profile_id_t profile,
+                                          argos_protocol_selection_t *protocols,
+                                          argos_feature_selection_t *features) {
+    if (!protocols || !features || (unsigned)profile >= ARGOS_PROFILE_COUNT) return 0;
+    argos_protocol_selection_clear(protocols);
+    argos_feature_selection_clear(features);
+    switch (profile) {
+        case ARGOS_PROFILE_CORE:
+            argos_legacy_selection_apply_default(protocols, features);
+            break;
+        case ARGOS_PROFILE_STANDARD:
+            argos_legacy_selection_apply_all(protocols, features, 0);
+            break;
+        case ARGOS_PROFILE_FULL: {
+            argos_protocol_set_t production;
+            argos_production_protocol_mask(&production);
+            argos_protocol_selection_apply_mask(protocols, &production, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_TCP_SYN, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
+            break;
+        }
+        case ARGOS_PROFILE_HOME: {
+            static const argos_group_id_t groups[] = {
+                ARGOS_GROUP_ADDRESSING, ARGOS_GROUP_DISCOVERY,
+                ARGOS_GROUP_L2_DISCOVERY, ARGOS_GROUP_MULTICAST,
+                ARGOS_GROUP_TIME, ARGOS_GROUP_NAME_SERVICES,
+                ARGOS_GROUP_ENCRYPTED, ARGOS_GROUP_WEB,
+                ARGOS_GROUP_REALTIME, ARGOS_GROUP_PRINTING,
+                ARGOS_GROUP_VOICE, ARGOS_GROUP_MESSAGING,
+                ARGOS_GROUP_SMART_HOME, ARGOS_GROUP_MODERN_VPN
+            };
+            for (size_t i = 0; i < sizeof(groups) / sizeof(groups[0]); ++i)
+                argos_profile_add_group(protocols, groups[i]);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_TCP_SYN, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
+            break;
+        }
+        case ARGOS_PROFILE_ENTERPRISE:
+            argos_legacy_selection_apply(protocols, features,
+                                         ARGOS_LEGACY_CATEGORY_ENTERPRISE, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
+            break;
+        case ARGOS_PROFILE_SENSOR: {
+            argos_protocol_set_t production;
+            argos_production_protocol_mask(&production);
+            argos_protocol_selection_apply_mask(protocols, &production, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_TCP_SYN, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_IPV6, 0);
+            argos_feature_selection_apply(features, ARGOS_FEATURE_EXTENDED_METRICS, 0);
+            break;
+        }
+        default: return 0;
+    }
+    return 1;
+}
+
 static inline int argos_protocol_name_lookup(const char *name,
                                              argos_protocol_id_t *protocol,
                                              int *unrated) {
