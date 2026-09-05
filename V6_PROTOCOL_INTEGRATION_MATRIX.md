@@ -242,10 +242,18 @@ This verifies individual fields only, **not whole-row integration readiness**.
 | ESP / AH | Isolated `src/argos_esp.h` / `src/argos_ah.h`, no runtime calls | IPv6 normalization skips AH and retains only the following header offset | Hold: non-port dispatch/BPF plus AH header ownership |
 | Thread | Isolated `src/argos_thread.h`, no runtime call | No raw IEEE802.15.4 link type in current capture contract | Hold: capture/link-type semantics |
 
-Canonical `cli_bit` is not implemented for these rows. Existing category flags
-must not be written into that column as though they were independent protocol bits.
-Membership remains specified by the canonical taxonomy, not runtime-verified masks.
-No collector mapping was verified by this checkpoint.
+Canonical `cli_bit` IDs and group/super-group memberships are now exact for all
+101 protocols in `src/argos_config.h` (PR #28, `b19811f0…`). The catalog uses two
+fixed 64-bit words and 103 memberships; NFS and NTLM intentionally appear in two
+groups but retain one bit each. `tests/check_config_catalog.py` proves exact agreement
+with the taxonomy table and `tests/test_config_catalog.c` pins IDs, membership,
+case semantics and masks on native/ARM64 builds.
+
+These bits are not runtime-wired yet. Existing category flags remain the current
+behavior and must not be treated as the final legacy mapping. Profile contents,
+enable/unrated precedence, BPF/dispatcher consumption and help generation remain
+C3/C4 work. No collector mapping was verified by this checkpoint and no staging
+parser became enabled.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 

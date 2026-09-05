@@ -37,7 +37,7 @@ unaligned frames, truncation and padding exclusion. ARM64 fixtures compile only.
 |---|---|---|---|
 | 1 | Capture / normalization | Capture owns AF_PACKET lifecycle/metadata. Packet owner supplies bounded frame/transport/inspector input including PPPoE/LLC (PR #16); network owner supplies source-side/routed classification and router admission (PR #12/#15). | Complete frame-to-observation coverage, no-port dispatch/AH semantics, lossless VLAN schema decision. |
 | 2 | Bounded state / lifecycle | `argos_flow_state.h` owns application DONE, UDP suppression and SYN/DNS/dedup lifecycle; network and QUIC retain separate explicit owners. Their enabled capacity is prepared before capture and packet calls do not allocate (PR #22–24). Current capacities, native/ARM64 byte sizes, clock/expiry, saturation/eviction and tuple reuse are pinned in `V6_STATE_BUDGETS.md` (PR #27). | Existing production retained-state ownership is frozen. Every future/staged engine still requires exact packet/byte/state ceilings and completion/drop semantics under C5/C10 before integration. |
-| 3 | Config / enable bitmap | `argos_runtime_config_t` contains enterprise mode, identity mode and WireGuard port; main still owns legacy booleans. | One protocol bit, shared membership tables, explicit profile contents and precedence, separate enable and unrated masks; startup-only compilation. |
+| 3 | Config / enable bitmap | `argos_config.h` now defines 101 stable protocol IDs in a 16-byte fixed bitmap, six super-groups, 28 groups, 103 memberships and six reserved profile names (PR #28). Main still owns legacy booleans and does not consume the new bitmap. | Freeze profile contents, legacy-category mapping and precedence, separate enable/unrated masks and startup-only CLI compilation before runtime adoption. |
 | 4 | Cheap dispatch / gating | Main gates TCP/UDP with legacy categories; BPF uses category booleans and port lists. | Per-protocol gates before parser/state access, BPF/userspace equivalence, disabled-protocol call counters, non-port IPv4/IPv6 and native-L2 reachability. |
 | 5 | Suppression / dedup | TCP DONE is directional, reset on initial SYN; UDP class suppression and emitted-record dedup have distinct keys/TTLs. | Do not conflate unrated output with unlimited inspection. Prove completion packet emits before DONE; test collision/expiry/bulk-tail and byte ceilings. |
 | 6 | JIT / scheduling / feed state | No JIT/feed-state API exists in the audited source. Main schedules QUIC GC and capture statistics by wall clock. | Define demand activation outside packet processing, bounded maintenance quotas and immutable per-packet configuration epoch. No runtime code generation or new tracker is implied. |
@@ -55,6 +55,29 @@ It does not certify all packet paths. Main shrank from 119724 to 110856 bytes;
 optimized native text grew by 104 bytes. The BSS decrease of 416 bytes is mainly
 capture state moving to stack, not an equivalent total-memory saving. These are
 size measurements, not proof of zero runtime performance overhead.
+
+### Canonical config catalog — PR #28, `b19811f08b8154579ff0185a395be8ee43c361d7`
+
+`argos_config.h` owns one stable ID for each of the 101 canonical protocols, a
+two-word/16-byte fixed bitmap, six super-groups, 28 groups and 103 memberships.
+NFS and NTLM intentionally belong to two groups but each has one ID/bit. The six
+profile names are reserved without inventing their contents. Startup-only exact
+lowercase/UPPERCASE lookup distinguishes normal/unrated protocol selections and
+rejects mixed case. Group, super-group and profile-name lookup is lowercase exact.
+
+Current implementation status is explicit metadata, not an activation: overlapping
+production/staging TLS enrichment and LLDP-MED/STP/LACP are marked as both; Thread,
+ESP and AH retain HOLD. No staged parser is reachable from the catalog. The main
+loop, legacy CLI booleans, BPF, help, wire output and allocation behavior are unchanged.
+Because the catalog is not yet consumed by production, optimized full/stub text,
+data and BSS remain 157560/144886, 1408 and 80360/78760 respectively.
+
+`tests/check_config_catalog.py` fails if the backlog taxonomy and source catalog
+drift. `tests/test_config_catalog.c` verifies all IDs, group/super-group counts,
+duplicate membership, edge bits, exact case parsing, reserved profiles and status
+holds. Core 33947311065, L2 33947311048 and staging 33947311059 PASS, including
+strict full/stub, ASan/UBSan/LSan and ARM64 compilation. Profile contents,
+legacy-category mapping, precedence and runtime consumption remain open C3/C4 work.
 
 ## Concrete blockers, not hypothetical architecture work
 
