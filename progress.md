@@ -1,12 +1,16 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `6c140253c5e51a7ec0850d0add05203eaebeebc1` (PR #49).
-**Now:** HTTP proxy implementation verified locally; push/CI/merge on `v6-http-proxy-canonical-integration`;
-LPD runtime slice is merged. Telnet/VNC/WinRM remain in the same open group.
+Branch: `version-6`. Verified checkpoint: `571c579adda2e6e457e4f05b557bff025ac8473f` (PR #50).
+**Now:** Telnet source/readiness review on `v6-telnet-canonical-integration`.
+LPD and HTTP proxy runtime slices are merged; Telnet/VNC/WinRM remain open.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
 ## Done — high-level history
+
+- [x] HTTP proxy integrated with native output, independent shared-port/SYN gates,
+  bounded privacy-safe headers, web/application help and staging cleanup — PR #50.
+  Core 33985969924, network 33985969976, L2 33985969932 and staging 33985969984 PASS.
 
 - [x] LPD runtime integration with native output, printing/application help,
   inspect-once bounds, staging cleanup and frozen BPF oracle — PR #49.
@@ -225,7 +229,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   native privacy-safe `RIP|...` output, permanent fixtures and staging-header removal.
 - [x] Syslog/NetFlow/IPFIX/sFlow: canonical enterprise owner, native non-`ENT`
   signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
-- [ ] HTTP proxy runtime slice: local code/fixtures pass; CI/merge pending.
+- [x] HTTP proxy runtime/code slice delivered as PR #50; deployed collector
+  mapping remains open under C7/C10.
 - [ ] Telnet/VNC/WinRM.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
@@ -277,9 +282,13 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** complete HTTP proxy CI/merge, then Telnet/VNC/WinRM and media.
+**Next:** freeze Telnet's native ordered fields before wiring; replace unbounded
+staging negotiation scanning and incomplete-IAC acceptance with explicit caps,
+privacy and completion rules. Then VNC/WinRM and media.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Delivery:** HTTP proxy native ordered signature is frozen before wiring.
+**Delivery:** HTTP proxy merged as PR #50 on tested head
+`ebcd04e874b5af4022295ec04296fc9057a7f83d`; native ordered signature was frozen
+before wiring.
 The existing enterprise handshake/control section now owns bounded proxy parsing;
 independent canonical bit and TCP 80/3128/8080/8118/8888 gates preserve HTTP and
 enterprise dispatch behavior. Proxy-only SYNs reach generation reset without SYN
@@ -292,17 +301,24 @@ Main stack is 85,008 (+16); parser stack is 448, no retained-state/allocation gr
 The reviewed full-text ceiling is 187248. The bounded grammar, IPv6 validation and
 independent gates justify this small code growth; no speedup is claimed.
 Legacy BPF equivalence covers 9,132,032 comparisons including all new proxy ports.
-Kernel checks cover 1,024 legacy plus proxy-only/full configurations. CI LSan and
-ARM64 compilation are pending on the pushed candidate. Collector deployment,
+Kernel checks cover 1,024 legacy plus proxy-only/full configurations. All four CI
+workflows passed, including LSan and ARM64 full/stub/fixture compilation. Collector deployment,
 hardware/capture throughput and executing-ARM64 acceptance remain open.
 The obsolete staging parser/includes/workflow entries are removed after unique
 fixtures migrated to tests/test_http_proxy.c. No credentials, URI paths or bodies
 are emitted; username is explicitly unknown. Eight attempts of 4,096 bytes maximum
 per retained direction, complete on valid headers; no reassembly.
-**Cleanup:** current branch remains active until verified merge. The previous
-remote branch still needs deletion because noninteractive Git has no credential
-and the connector exposes no delete-ref action:
-`git push origin --delete v6-app-control-canonical-integration`.
+**Cleanup:** obsolete HTTP proxy source and staging references are deleted.
+The local integrated branch was deleted after exact tree equality with the squash
+merge. Remote application-control branch is confirmed absent. HTTP proxy remote
+branch deletion failed because noninteractive Git has no username/credential;
+the connector has no delete-ref action. User cleanup is:
+`git push origin --delete v6-http-proxy-canonical-integration`.
+**Next-source findings:** the isolated Telnet parser currently walks the entire
+payload, counts incomplete commands as evidence and accepts unterminated
+subnegotiation. Fix those before runtime promotion; preserve command/option/
+negotiation/username field order and never parse password or interactive bodies.
+This next branch is a delivery/readiness checkpoint only; Telnet remains staged.
 **Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
 and final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
