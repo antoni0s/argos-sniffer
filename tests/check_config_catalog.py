@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 backlog = (ROOT / "V6_BACKLOG.md").read_text(encoding="utf-8")
 header = (ROOT / "src/argos_config.h").read_text(encoding="utf-8")
 dispatch = (ROOT / "src/argos_dispatch.h").read_text(encoding="utf-8")
+bpf_source = (ROOT / "src/argos_bpf.h").read_text(encoding="utf-8")
 main_source = (ROOT / "src/argos-sniffer.c").read_text(encoding="utf-8")
 
 taxonomy = backlog.split("## Canonical CLI taxonomy backlog", 1)[1]
@@ -74,6 +75,22 @@ assert "argos_cli_selection_" not in packet_loop, "selection API leaked into pac
 assert "dispatch_plan" in packet_loop, "fixed dispatch plan is not consumed by packet processing"
 assert "argos_protocol_catalog" not in packet_loop, "protocol catalog leaked into packet processing"
 assert "argos_dispatch_plan_compile" in dispatch
+
+# BPF must consume the same fixed plan at startup. Link/network admission may
+# not regress to the removed broad l2/ipv6 fields or main-local reconstruction.
+assert "argos_bpf_config_compile(&bpf_cfg, &dispatch_plan" in main_source
+assert ".l2 =" not in main_source and ".ipv6 =" not in main_source
+for route in (
+    "ARGOS_DISPATCH_L2_ARP", "ARGOS_DISPATCH_L2_LLDP",
+    "ARGOS_DISPATCH_L2_LLC", "ARGOS_DISPATCH_L2_SLOW",
+    "ARGOS_DISPATCH_L2_EAPOL", "ARGOS_DISPATCH_L2_PROFINET",
+    "ARGOS_DISPATCH_L3_IPV6", "ARGOS_DISPATCH_L3_IGMP",
+    "ARGOS_DISPATCH_L3_OSPF", "ARGOS_DISPATCH_L3_VRRP",
+    "ARGOS_DISPATCH_L4_TCP", "ARGOS_DISPATCH_L4_UDP",
+):
+    assert route in bpf_source, f"canonical BPF route missing: {route}"
+for fallback in ("0x8100", "0x88a8", "0x8864"):
+    assert f"abpf_pass_ethertype(p, {fallback})" in bpf_source
 
 # First fine-grained consumer slice: every native-L2/non-port parser must have
 # its canonical engine gate in the immediately enclosing source region.

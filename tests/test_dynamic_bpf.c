@@ -80,30 +80,89 @@ static size_t eth(unsigned char *p, uint16_t type) { memset(p, 0, 64); put16(p +
 static void expect(int ok, const char *what) { if (!ok) { fprintf(stderr, "FAIL: %s\n", what); exit(1); } }
 static int pass(const argos_bpf_program_t *p, const unsigned char *pkt, size_t n) { return run_bpf(p, pkt, n) != 0U; }
 
+/* Translate frozen CLI-era flags for equivalence fixtures only. Production
+ * startup uses argos_bpf_config_compile() from the canonical dispatch plan. */
+static void legacy_route_demand(argos_bpf_config_t *c, int l2, int ipv6) {
+    if (l2)
+        c->l2_routes |= ARGOS_DISPATCH_L2_ARP | ARGOS_DISPATCH_L2_LLDP;
+    if (c->enterprise) {
+        c->l2_routes |= ARGOS_DISPATCH_L2_LLDP | ARGOS_DISPATCH_L2_LLC |
+                        ARGOS_DISPATCH_L2_SLOW | ARGOS_DISPATCH_L2_EAPOL |
+                        ARGOS_DISPATCH_L2_PROFINET;
+        c->l3_routes |= ARGOS_DISPATCH_L3_IGMP | ARGOS_DISPATCH_L3_OSPF |
+                        ARGOS_DISPATCH_L3_VRRP;
+    }
+    if (c->syn || c->http || c->tls || c->enterprise)
+        c->l4_routes |= ARGOS_DISPATCH_L4_TCP;
+    if (c->multi || c->dhcp || c->netbios || c->dns || c->tls || c->enterprise)
+        c->l4_routes |= ARGOS_DISPATCH_L4_UDP;
+    if (c->l4_routes || c->enterprise)
+        c->l3_routes |= ARGOS_DISPATCH_L3_IPV4;
+    if (ipv6) c->l3_routes |= ARGOS_DISPATCH_L3_IPV6;
+}
+
+static void canonical_bpf(const char *protocol, int ipv6,
+                          uint16_t wireguard_port, argos_bpf_config_t *c) {
+    argos_cli_selection_t cli;
+    argos_dispatch_plan_t plan;
+    argos_cli_selection_init(&cli);
+    expect(argos_cli_selection_apply_named(
+        &cli, ARGOS_CLI_SELECTOR_PROTOCOL, protocol), "select canonical BPF protocol");
+    if (ipv6)
+        argos_feature_selection_apply(&cli.features, ARGOS_FEATURE_IPV6, 0);
+    argos_dispatch_plan_compile(&plan, &cli);
+    argos_bpf_config_compile(c, &plan, wireguard_port);
+}
+
 int main(void) {
     unsigned char pkt[2048]; argos_bpf_program_t p; argos_bpf_config_t c;
-    memset(&c, 0, sizeof(c)); c.dns = 1; expect(argos_bpf_build(&c, &p), "build DNS");
+    memset(&c, 0, sizeof(c)); c.dns = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build DNS");
     expect(pass(&p, pkt, udp4(pkt, 50000, 53, 20)), "DNS query passes");
     expect(pass(&p, pkt, udp4(pkt, 53, 50000, 20)), "DNS response passes");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 5353, 20)), "mDNS drops in DNS-only mode");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x10, 20)), "TLS drops in DNS-only mode");
 
-    memset(&c, 0, sizeof(c)); c.http = 1; expect(argos_bpf_build(&c, &p), "build HTTP");
+    memset(&c, 0, sizeof(c)); c.http = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build HTTP");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 80, 0x18, 20)), "HTTP payload passes");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 80, 0x10, 0)), "HTTP empty ACK drops");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS port drops in HTTP-only mode");
 
-    memset(&c, 0, sizeof(c)); c.syn = 1; expect(argos_bpf_build(&c, &p), "build SYN");
+    memset(&c, 0, sizeof(c)); c.syn = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build SYN");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x02, 0)), "arbitrary TCP SYN passes");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 65000, 0x10, 20)), "non-control TCP drops in SYN-only mode");
 
-    memset(&c, 0, sizeof(c)); c.l2 = 1; expect(argos_bpf_build(&c, &p), "build L2");
+    memset(&c, 0, sizeof(c)); legacy_route_demand(&c, 1, 0); expect(argos_bpf_build(&c, &p), "build L2");
     expect(pass(&p, pkt, eth(pkt, 0x0806)), "ARP passes in L2 mode");
     expect(pass(&p, pkt, eth(pkt, 0x88cc)), "LLDP passes in L2 mode");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 53, 20)), "IPv4 DNS drops in L2-only mode");
     expect(pass(&p, pkt, eth(pkt, 0x8100)), "VLAN remains conservative pass-through");
 
-    memset(&c, 0, sizeof(c)); c.tls = 1; expect(argos_bpf_build(&c, &p), "build TLS");
+    canonical_bpf("arp", 0, 51820, &c); expect(argos_bpf_build(&c, &p), "build canonical ARP");
+    expect(pass(&p, pkt, eth(pkt, 0x0806)), "canonical ARP route passes ARP");
+    expect(!pass(&p, pkt, eth(pkt, 0x88cc)), "canonical ARP route excludes LLDP");
+    expect(c.wireguard_port == 0U, "unselected WireGuard cannot project a port");
+
+    canonical_bpf("lldp", 0, 51820, &c); expect(argos_bpf_build(&c, &p), "build canonical LLDP");
+    expect(pass(&p, pkt, eth(pkt, 0x88cc)), "canonical LLDP route passes LLDP");
+    expect(!pass(&p, pkt, eth(pkt, 0x0806)), "canonical LLDP route excludes ARP");
+
+    canonical_bpf("ospf", 0, 51820, &c); expect(argos_bpf_build(&c, &p), "build canonical OSPF");
+    expect(pass(&p, pkt, proto4(pkt, 89)), "canonical OSPF route passes OSPF");
+    expect(!pass(&p, pkt, proto4(pkt, 2)), "canonical OSPF route excludes IGMP");
+    expect(!pass(&p, pkt, proto4(pkt, 112)), "canonical OSPF route excludes VRRP");
+
+    canonical_bpf("ndp", 1, 51820, &c); expect(argos_bpf_build(&c, &p), "build canonical IPv6");
+    expect(pass(&p, pkt, eth(pkt, 0x86dd)), "canonical IPv6 demand keeps conservative IPv6 fallback");
+    expect(pass(&p, pkt, eth(pkt, 0x8100)), "canonical plan keeps VLAN fallback unconditional");
+    expect(pass(&p, pkt, eth(pkt, 0x88a8)), "canonical plan keeps QinQ fallback unconditional");
+    expect(pass(&p, pkt, eth(pkt, 0x8864)), "canonical plan keeps PPPoE fallback unconditional");
+
+    canonical_bpf("wireguard", 0, 51821, &c);
+    expect(c.wireguard_port == 51821U, "selected WireGuard projects configured port");
+    expect(argos_bpf_build(&c, &p), "build canonical WireGuard");
+    expect(pass(&p, pkt, udp4(pkt, 50000, 51821, 148)), "canonical WireGuard port passes");
+
+    memset(&c, 0, sizeof(c)); c.tls = 1; legacy_route_demand(&c, 0, 0); expect(argos_bpf_build(&c, &p), "build TLS");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 443, 0x18, 20)), "TLS HTTPS port passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 465, 0x18, 20)), "TLS SMTPS port passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 853, 0x18, 20)), "DNS-over-TLS port passes");
@@ -119,7 +178,7 @@ int main(void) {
     expect(!pass(&p, pkt, udp4(pkt, 443, 50000, 1200)), "QUIC server direction drops in client-only TLS mode");
     expect(!pass(&p, pkt, udp4(pkt, 50000, 853, 1200)), "DoT is TCP; UDP/853 drops in TLS mode");
 
-    memset(&c, 0, sizeof(c)); c.enterprise = 1; c.ipv6 = 1; c.wireguard_port = 51821; expect(argos_bpf_build(&c, &p), "build enterprise");
+    memset(&c, 0, sizeof(c)); c.enterprise = 1; c.wireguard_port = 51821; legacy_route_demand(&c, 0, 1); expect(argos_bpf_build(&c, &p), "build enterprise");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 44818, 0x18, 24)), "EtherNet/IP TCP/44818 passes");
     expect(pass(&p, pkt, tcp4(pkt, 50000, 1883, 0x18, 24)), "MQTT TCP/1883 destination passes");
     expect(pass(&p, pkt, tcp4(pkt, 44818, 50000, 0x18, 24)), "EtherNet/IP TCP response passes");
@@ -148,7 +207,7 @@ int main(void) {
     expect(pass(&p, pkt, eth(pkt, 0x86dd)), "IPv6 passes when enabled");
     expect(!pass(&p, pkt, tcp4(pkt, 50000, 25, 0x18, 20)), "unparsed enterprise TCP port drops");
 
-    memset(&c, 0, sizeof(c)); c.enterprise = 1;
+    memset(&c, 0, sizeof(c)); c.enterprise = 1; legacy_route_demand(&c, 0, 0);
     expect(argos_bpf_build(&c, &p), "enterprise-only BPF builds");
     memset(pkt, 0, sizeof(pkt)); put16(pkt + 12, 0x88cc);
     expect(pass(&p, pkt, 64), "enterprise-only admits LLDP-MED EtherType");

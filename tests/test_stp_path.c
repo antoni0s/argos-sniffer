@@ -20,8 +20,9 @@ int main(void) {
     argos_bpf_config_t cfg = {0};
     argos_bpf_program_t enabled, disabled;
     cfg.enterprise = 1;
+    legacy_route_demand(&cfg, 0, 0);
     expect(argos_bpf_build(&cfg, &enabled), "enterprise BPF");
-    cfg.enterprise = 0;
+    memset(&cfg, 0, sizeof(cfg));
     expect(argos_bpf_build(&cfg, &disabled), "disabled BPF");
     const unsigned versions[] = {0, 2, 3};
     for (size_t vi = 0; vi < 3; ++vi) {

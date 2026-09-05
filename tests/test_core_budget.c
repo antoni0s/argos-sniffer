@@ -12,7 +12,7 @@ _Static_assert(sizeof(argos_capture_state_t) == 400U, "capture state budget chan
 _Static_assert(sizeof(argos_capture_packet_t) == 32U, "capture result budget changed");
 _Static_assert(sizeof(argos_runtime_config_t) == 20U, "runtime config budget changed");
 _Static_assert(sizeof(argos_dispatch_plan_t) == 48U, "dispatch plan budget changed");
-_Static_assert(sizeof(argos_bpf_config_t) == 12U, "BPF config budget changed");
+_Static_assert(sizeof(argos_bpf_config_t) == 16U, "BPF config budget changed");
 _Static_assert(sizeof(argos_bpf_program_t) == 2052U, "BPF program budget changed");
 _Static_assert(sizeof(argos_filter_program_t) == 2312U, "filter program budget changed");
 
