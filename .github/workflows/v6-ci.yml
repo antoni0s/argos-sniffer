@@ -430,7 +430,9 @@ jobs:
 
       - name: CLI contract
         run: |
-          /tmp/argos-sniffer-v6-stub --help | grep -F 'argos-sniffer v6.0.0-dev'
+          /tmp/argos-sniffer-v6-stub --help | grep -Fx 'argos-sniffer v6.0'
+          /tmp/argos-sniffer-v6-stub --help | grep -Fx 'Passive network fingerprinting & telemetry engine'
+          /tmp/argos-sniffer-v6-stub --version | grep -Fx 'argos-sniffer v6.0 (build 6.0.0-dev)'
           /tmp/argos-sniffer-v6-stub --help | grep -F -- '--enterprise'
           /tmp/argos-sniffer-v6-stub --help | grep -F 'ENT|mac|src_ip|dst_ip|protocol|fingerprint'
           /tmp/argos-sniffer-v6-stub --help | grep -F 'DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn'

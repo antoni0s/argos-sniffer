@@ -1,8 +1,14 @@
-# Argos Sniffer (`argos-sniffer`)
+# argos-sniffer v6.0
+
+Passive network fingerprinting & telemetry engine
 
 **`argos-sniffer`** is a high-performance, lightweight, passive packet capture and network telemetry engine written in C for **OpenWrt/Linux gateways** and dedicated **Linux SPAN/TAP sensors**. It serves as the data-emitter core for the **Argos Network Sentinel** ecosystem, observing traffic passively with no active probing or packet injection.
 
-**Current development release: 5.3.1**
+**v6 development branch — runtime build: `6.0.0-dev`.** The executable remains
+`argos-sniffer`; the product title and subtitle match `--help` and `--version`.
+Release acceptance and remaining protocol integration are tracked in `progress.md`.
+
+Previous v5 development history:
 
 > v5.3.1 keeps the established level-triggered epoll receive path after runtime testing showed that synchronous bounded RX draining increased AF_PACKET drops under burst traffic. It also adds conservative kernel cBPF prefiltering and suppresses zero-payload IPv4 TCP ACK/window-update traffic before it reaches the userspace parser.
 >

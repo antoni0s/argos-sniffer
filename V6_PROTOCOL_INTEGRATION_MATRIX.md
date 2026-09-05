@@ -79,7 +79,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | web | http-proxy | production | `argos_enterprise.h:ae_http_proxy` | independently gated TCP 80/3128/8080/8118/8888; CONNECT/absolute URI or proxy headers | `HTTP-PROXY`: method, mode, target_host, target_port, username, proxy_auth, auth_scheme, via, forwarded, xff; fingerprint = proxy header/capability pattern | after request/response headers | never emit Proxy-Authorization credentials |
 | remote-access | rdp | production | application/enterprise owner | TCP 3389 + TPKT/X.224 | RDP: negotiation/security/capabilities/NTLM linkage; fingerprint = negotiation/capability profile | stop after negotiation/auth metadata | no credential blobs |
 | remote-access | ssh | production | application owner | TCP 22/banner + KEX | SSH: client/server banners, KEX/cipher/MAC lists if bounded; fingerprint = software banner + algorithm-set fingerprint | after banner/KEXINIT | no session payload |
-| remote-access | telnet | staging | application facade/section | TCP 23 + IAC | `TELNET`: command, option, negotiation, username; fingerprint = option negotiation set | after initial negotiation/identity | never emit password content |
+| remote-access | telnet | production | `argos_enterprise.h:ae_telnet` | independently selected TCP 23, both directions, initial IAC prefix | `TELNET`: command, option, negotiation, username; fingerprint = option negotiation set | one attempt, at most 1,024 bytes / 16 commands | username unknown; no interactive or subnegotiation values |
 | remote-access | vnc | staging | application facade/section | TCP 5900-range + RFB magic | `VNC`: protocol, version, security_types, selected_security, server_name, width, height; fingerprint = RFB version + security set + server geometry/name hints | after ServerInit/security negotiation | no auth response material |
 | remote-access | winrm | staging | application facade/section | TCP 5985/5986 + WSMan/SOAP | `WINRM`: transport, wsman, soap, method, auth, username, encrypted; fingerprint = transport/auth/WSMan profile | after bounded headers/auth scheme | no Authorization credential blobs |
 | realtime | stun-turn | production | application owner | UDP/TCP 3478/5349 + STUN magic cookie | STUN/TURN: message class/method, attributes classes; fingerprint = capability/attribute pattern | one/few control messages | never retain integrity keys |
@@ -223,7 +223,7 @@ until the prerequisite is implemented but does not remove it from the release.
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP. **Complete.**
 2. **Low-rate network control** — RIP and PTP are integrated in the canonical network owner. **Complete.**
 3. **Management exporters** — Syslog, NetFlow, IPFIX and sFlow. **Complete.**
-4. **Application control** — LPD and HTTP proxy runtime slices implemented; Telnet, VNC and WinRM remain open.
+4. **Application control** — LPD, HTTP proxy and Telnet runtime slices implemented; VNC and WinRM remain open.
 5. **Realtime/media** — RTP, RTCP, RTSP, Cast, AirPlay, DLNA.
 6. **Enterprise storage/database/directory** — FTP, NVMe/TCP, MongoDB, Redis, TACACS+, LDAP, LDAPS.
 7. **Industrial** — KNXnet/IP, S7comm, OPC UA, DNP3.
@@ -231,6 +231,33 @@ until the prerequisite is implemented but does not remove it from the release.
 9. **VPN** — OpenVPN, IKE; ESP/AH only after non-port IP dispatch/BPF support is proven.
 
 ## Final audit columns to fill at integration time
+
+### Telnet runtime slice
+
+- cli_bit: `ARGOS_PROTOCOL_TELNET`; group `remote-access`; super-group `application`.
+- owner: existing `argos_enterprise.h` handshake/control section, `ae_telnet`;
+  main uses independent `argos_dispatch_telnet_enabled` before parsing/state.
+  TCP 23 in either direction; no UDP, TLS, SSH or enterprise-owner implication.
+- BPF: exact selected TCP/23 payload and SYN admission; SYN generation reset
+  works without SYN telemetry. Unselected legacy port resolution is unchanged.
+- vector: native `TELNET|src_mac|src_ip|dst_ip|<ordered fields>[|routed]`;
+  command/option are the first complete command, negotiation is up to 16 ordered
+  pairs. Frozen grammar and byte caps are in V6_BACKLOG. No ENT wrapper.
+- state: existing directional application owner; zero retained bytes added.
+  One nonempty payload attempt, success or failure, at most 1,024 inspected bytes.
+  No reassembly; split commands can lose evidence. SYN reset, 60-second idle
+  expiry and four-probe eviction apply. Co-selected engines share completion.
+- evidence/privacy: only the contiguous initial IAC prefix; ordinary/quoted data
+  ends inspection. Invalid/truncated commands or unterminated SB within that
+  prefix reject output. SB values are never copied; username remains `-`.
+  Negotiation is observed command sequence, not confirmed capability/agreement
+  or a new stable implementation hash. Later negotiation/identity is not claimed.
+- fixtures: test_telnet uses production parser/sink, exhaustive option bytes,
+  truncation, SB escaping, caps, privacy, dedup and directional state. Dynamic
+  BPF/kernel and config/help/source gates are permanent; strict/sanitizer/LSan
+  and ARM64 compilation cover the replacement. Unique staging fixtures migrated.
+- collector_mapping: native wire golden only. Deployed collector compatibility,
+  executing ARM64 and hardware throughput remain C7/C10 acceptance work.
 
 ### HTTP proxy runtime slice
 

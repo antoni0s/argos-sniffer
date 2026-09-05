@@ -28,7 +28,6 @@ on:
       - 'src/argos_rtsp.h'
       - 'src/argos_s7.h'
       - 'src/argos_tacacs.h'
-      - 'src/argos_telnet.h'
       - 'src/argos_thread.h'
       - 'src/argos_vnc.h'
       - 'src/argos_winrm.h'
@@ -106,7 +105,7 @@ jobs:
               'argos_matter.h','argos_mongodb.h','argos_nvmeof.h',
               'argos_opcua.h','argos_openvpn.h','argos_redis.h',
               'argos_rtcp.h','argos_rtp.h','argos_rtsp.h','argos_s7.h',
-              'argos_tacacs.h','argos_telnet.h','argos_thread.h',
+              'argos_tacacs.h','argos_thread.h',
               'argos_vnc.h','argos_winrm.h'
           }
           present = {p.name for p in headers}

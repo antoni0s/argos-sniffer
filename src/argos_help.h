@@ -6,6 +6,9 @@
 
 #include "argos_config.h"
 
+#define ARGOS_PRODUCT_NAME "argos-sniffer v6.0"
+#define ARGOS_PRODUCT_DESCRIPTION "Passive network fingerprinting & telemetry engine"
+
 typedef enum {
     ARGOS_HELP_BASE = 0,
     ARGOS_HELP_PROFILES,
@@ -46,7 +49,7 @@ static const argos_help_option_t argos_help_options[] = {
 static inline void argos_help_print_base(FILE *out, const char *program,
                                          const char *version) {
     fprintf(out,
-        "argos-sniffer v%s - passive fingerprinting and telemetry\n\n"
+        ARGOS_PRODUCT_NAME "\n" ARGOS_PRODUCT_DESCRIPTION "\nBuild: %s\n\n"
         "USAGE\n  %s [capture/output options] [selectors]\n\n"
         "QUICK START\n"
         "  -a / -A                 all legacy vectors, limited / unlimited\n"
@@ -215,7 +218,7 @@ static inline int argos_help_preflight(int argc, char *const argv[],
     }
     for (int a = 1; a < argc; ++a) {
         if (strcmp(argv[a], "--version") == 0) {
-            fprintf(out, "argos-sniffer %s\n", version);
+            fprintf(out, ARGOS_PRODUCT_NAME " (build %s)\n", version);
             return 1;
         }
         for (size_t h = 0; h < sizeof(argos_help_options) / sizeof(argos_help_options[0]); ++h)

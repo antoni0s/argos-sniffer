@@ -111,6 +111,10 @@ For each production or staged protocol document:
 - SMB / NTLM;
 - NFS / SunRPC;
 - RDP / SSH;
+- Telnet — production initial IAC metadata only, one payload/direction, 1,024-byte
+  and 16-command caps. No terminal/login/password or SB values; username unknown.
+  Split negotiation is not reassembled; success/failure stops inspection. Existing
+  generation reset and fixed state apply. Collector/hardware acceptance remains open;
 - database handshakes;
 - LDAP / LDAPS;
 - RTSP / RTP / RTCP;

@@ -44,6 +44,7 @@ static int protocol_in_super_group(argos_protocol_id_t protocol,
 int main(void) {
     char output[32768];
     size_t length = render_topic(ARGOS_HELP_BASE, output, sizeof(output));
+    assert(strstr(output, "argos-sniffer v6.0\nPassive network fingerprinting & telemetry engine\nBuild: test\n"));
     unsigned lines = 0;
     for (size_t i = 0; i < length; ++i) lines += output[i] == '\n';
     assert(lines <= 40U);
@@ -83,6 +84,8 @@ int main(void) {
     assert(!strstr(output, "lpd*"));
     assert(output_has_protocol(output, output + strlen(output), "http-proxy"));
     assert(!strstr(output, "http-proxy*"));
+    assert(output_has_protocol(output, output + strlen(output), "telnet"));
+    assert(!strstr(output, "telnet*"));
     assert(strstr(output, "vnc*")); /* Remaining group scope is still staged. */
     render_topic(ARGOS_HELP_ENTERPRISE, output, sizeof(output));
     for (const char *name = "syslog"; name; name = !strcmp(name, "syslog") ? "netflow" :
@@ -119,6 +122,14 @@ int main(void) {
     assert(strstr(output, default_rate));
 
     char *normal_argv[] = {"argos-sniffer", "-a"};
+    char *version_argv[] = {"argos-sniffer", "--version"};
+    FILE *version_stream = tmpfile();
+    assert(version_stream);
+    assert(argos_help_preflight(2, version_argv, "test", version_stream, stderr) == 1);
+    rewind(version_stream);
+    assert(fgets(output, sizeof(output), version_stream));
+    assert(!strcmp(output, "argos-sniffer v6.0 (build test)\n"));
+    assert(fclose(version_stream) == 0);
     assert(argos_help_preflight(2, normal_argv, "test", stdout, stderr) == 0);
     char unknown[160] = "--help-";
     memset(unknown + 7, 'x', 140U);

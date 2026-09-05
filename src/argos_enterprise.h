@@ -573,6 +573,68 @@ static inline int ae_sip(const unsigned char *p, int len, argos_enterprise_resul
 }
 
 /* Shared bounded HTTP header primitives: no whole-payload scratch or bodies. */
+/* Initial negotiation only; never search terminal data for command bytes. */
+static inline int ae_telnet(const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (!r) return 0;
+    memset(r, 0, sizeof(*r));
+    if (!p || len < 2) return 0;
+    int cap = len < 1024 ? len : 1024, pos = 0, used = 0;
+    unsigned count = 0;
+    char negotiation[160] = "", first_option[4] = "-";
+    const char *first_command = NULL;
+    while (pos < cap && count < 16) {
+        if (p[pos] != 255) break;
+        if (cap - pos < 2) return 0;
+        unsigned cmd = p[pos + 1];
+        if (cmd == 255) break; /* Quoted data, not a negotiation command. */
+        const char *name;
+        switch (cmd) {
+            case 241: name = "nop"; break;
+            case 242: name = "dm"; break;
+            case 243: name = "brk"; break;
+            case 244: name = "ip"; break;
+            case 245: name = "ao"; break;
+            case 246: name = "ayt"; break;
+            case 247: name = "ec"; break;
+            case 248: name = "el"; break;
+            case 249: name = "ga"; break;
+            case 250: name = "sb"; break;
+            case 251: name = "will"; break;
+            case 252: name = "wont"; break;
+            case 253: name = "do"; break;
+            case 254: name = "dont"; break;
+            default: return 0;
+        }
+        pos += 2;
+        char option[4] = "-";
+        if (cmd >= 250) {
+            if (pos == cap) return 0;
+            snprintf(option, sizeof(option), "%u", (unsigned)p[pos++]);
+        }
+        if (cmd == 250) {
+            int terminated = 0;
+            while (pos < cap) {
+                if (p[pos++] != 255) continue;
+                if (pos == cap) return 0;
+                unsigned escape = p[pos++];
+                if (escape == 240) { terminated = 1; break; }
+                if (escape != 255) return 0;
+            }
+            if (!terminated) return 0;
+        }
+        int n = snprintf(negotiation + used, sizeof(negotiation) - (size_t)used,
+                         "%s%s:%s", count ? "," : "", name, option);
+        if (n < 0 || (size_t)n >= sizeof(negotiation) - (size_t)used) return 0;
+        used += n;
+        if (!count) { first_command = name; memcpy(first_option, option, sizeof(option)); }
+        ++count;
+    }
+    if (!count) return 0;
+    ae_set(r, "telnet", 1, "command=%s option=%s negotiation=%s username=-",
+           first_command, first_option, negotiation);
+    return 1;
+}
+
 static inline int ae_http_equal(const unsigned char *p, int n, const char *s) {
     if (n != (int)strlen(s)) return 0;
     for (int i = 0; i < n; ++i)

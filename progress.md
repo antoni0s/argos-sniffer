@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `571c579adda2e6e457e4f05b557bff025ac8473f` (PR #50).
-**Now:** Telnet source/readiness review on `v6-telnet-canonical-integration`.
+**Now:** Telnet runtime validation and agreed product naming on `v6-telnet-canonical-integration`; push/CI/merge pending.
 LPD and HTTP proxy runtime slices are merged; Telnet/VNC/WinRM remain open.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
@@ -64,6 +64,10 @@ protocol listed for v6 must be integrated before the v6 release after its readin
 - [x] Fixed native/UDP PTP and ESP/AH no-port readiness routes with staging/HOLD isolation — PR #43.
 
 ## How to update — mandatory
+
+- Preserve the agreed product title `argos-sniffer v6.0`, subtitle
+  `Passive network fingerprinting & telemetry engine`, executable `argos-sniffer`;
+  keep the development build explicit. Review naming with progress/help/cleanup.
 
 - Exact-check remote HEAD; read affected source and all documents in `AGENTS.md`.
 - Work in dependency order below. Mark only the active item **NOW**.
@@ -231,7 +235,8 @@ dependency must be resolved before integration, not that the protocol is dropped
   signatures, exact TCP/UDP dispatch/BPF, bounded header-only fixtures and staging cleanup.
 - [x] HTTP proxy runtime/code slice delivered as PR #50; deployed collector
   mapping remains open under C7/C10.
-- [ ] Telnet/VNC/WinRM.
+- [ ] Telnet runtime slice: implementation and local validation; CI/merge pending.
+- [ ] VNC/WinRM.
 - [ ] LPD runtime/code acceptance is tracked by PR #49; deployed collector
   mapping remains open under C7/C10, so full protocol acceptance is not claimed.
 - [ ] RTP/RTCP/RTSP/Cast/AirPlay/DLNA.
@@ -282,43 +287,33 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** freeze Telnet's native ordered fields before wiring; replace unbounded
-staging negotiation scanning and incomplete-IAC acceptance with explicit caps,
-privacy and completion rules. Then VNC/WinRM and media.
-**Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Delivery:** HTTP proxy merged as PR #50 on tested head
-`ebcd04e874b5af4022295ec04296fc9057a7f83d`; native ordered signature was frozen
-before wiring.
-The existing enterprise handshake/control section now owns bounded proxy parsing;
-independent canonical bit and TCP 80/3128/8080/8118/8888 gates preserve HTTP and
-enterprise dispatch behavior. Proxy-only SYNs reach generation reset without SYN
-telemetry. Web/application groups, profiles, generated help and rate modes derive
-from the production catalog (74 full/sensor; 38 home).
-Local evidence: all 80 strict standalone tests, five adoption checks and six focused
-ASan/UBSan paths pass (local leak detection disabled under ptrace). Full/stub text
-187184/175110 (+4916/+4856 from PR #49), data 3992, BSS 80360/78760 unchanged.
-Main stack is 85,008 (+16); parser stack is 448, no retained-state/allocation growth.
-The reviewed full-text ceiling is 187248. The bounded grammar, IPv6 validation and
-independent gates justify this small code growth; no speedup is claimed.
-Legacy BPF equivalence covers 9,132,032 comparisons including all new proxy ports.
-Kernel checks cover 1,024 legacy plus proxy-only/full configurations. All four CI
-workflows passed, including LSan and ARM64 full/stub/fixture compilation. Collector deployment,
-hardware/capture throughput and executing-ARM64 acceptance remain open.
-The obsolete staging parser/includes/workflow entries are removed after unique
-fixtures migrated to tests/test_http_proxy.c. No credentials, URI paths or bodies
-are emitted; username is explicitly unknown. Eight attempts of 4,096 bytes maximum
-per retained direction, complete on valid headers; no reassembly.
-**Cleanup:** obsolete HTTP proxy source and staging references are deleted.
-The local integrated branch was deleted after exact tree equality with the squash
-merge. Remote application-control branch is confirmed absent. HTTP proxy remote
-branch deletion failed because noninteractive Git has no username/credential;
-the connector has no delete-ref action. User cleanup is:
+**Next:** finish Telnet CI/merge/cleanup, then the VNC cross-direction readiness
+review, followed by WinRM and media. Native signatures must be frozen before wiring.
+**Blocked:** full freeze, collector compatibility and hardware acceptance; Thread,
+ESP/AH and TLS enrichment retain their recorded gates.
+**Delivery:** Telnet implementation now uses the existing handshake/control owner,
+with independent TCP/23 selection and generation SYN admission. Native TELNET field
+order is command, option, negotiation, username. Only the initial contiguous IAC
+prefix is inspected: one nonempty payload/direction, at most 1,024 bytes and 16
+commands; malformed/truncated framing rejects output, normal/quoted data ends the
+prefix. SB values, terminal strings, login/password and interactive bodies are
+never retained. Username is explicitly unknown. No reassembly or new state.
+Catalog-derived remote-access/application help removes the Telnet staging marker;
+full/sensor count is 75, home remains 38. Product title/subtitle now agree across
+help, --version and README; the runtime build remains 6.0.0-dev.
+Local measured full/stub text is 189004/176978 (+1820/+1868 from PR #50), data 3992
+and BSS 80360/78760 unchanged. Main stack remains 85,008; Telnet parser frame is
+320. Reviewed full-text ceiling 189068 covers bounded framing, independent gates
+and naming; no throughput improvement is claimed.
+Six focused ASan/UBSan paths pass (local LSan disabled under ptrace). Frozen legacy
+BPF equivalence passes 9,304,064 comparisons including TCP/23; kernel attachment/
+filtering passes 1,024 legacy and four proxy/Telnet/full combinations. All 81 strict
+standalone tests and five adoption checks pass; CI LSan/ARM64 and merge remain pending.
+**Cleanup:** unique Telnet staging fixtures migrated into permanent test_telnet.c;
+obsolete source/includes/workflow entries are removed as part of this slice.
+The prior HTTP proxy remote branch may still require user deletion because Git
+has no noninteractive credential and the connector has no delete-ref action:
 `git push origin --delete v6-http-proxy-canonical-integration`.
-**Next-source findings:** the isolated Telnet parser currently walks the entire
-payload, counts incomplete commands as evidence and accepts unterminated
-subnegotiation. Fix those before runtime promotion; preserve command/option/
-negotiation/username field order and never parse password or interactive bodies.
-This next branch is a delivery/readiness checkpoint only; Telnet remains staged.
 **Model:** Sol for bounded integration/tests; Astra for VNC cross-direction state
 and final cross-contract C10 audit.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
