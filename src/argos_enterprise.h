@@ -583,6 +583,50 @@ static inline int ae_pjl(const unsigned char *p, int len, argos_enterprise_resul
     return 1;
 }
 
+/* RFC 1179 daemon command only. The caller stops this direction after its
+ * first payload, successful or not: receive-job subcommands and file bodies
+ * must never be revisited as independent commands. No stream reassembly. */
+static inline int ae_lpd_space(unsigned char c) {
+    return c == ' ' || c == '\t' || c == '\v' || c == '\f';
+}
+
+static inline int ae_lpd(const unsigned char *p, int len, argos_enterprise_result_t *r) {
+    if (!r) return 0;
+    memset(r, 0, sizeof(*r));
+    if (!p || len < 3 || p[0] < 1U || p[0] > 5U) return 0;
+    int end = 1, cap = len < 1024 ? len : 1024;
+    while (end < cap && p[end] != '\n') {
+        if ((p[end] < 33U || p[end] > 126U) && !ae_lpd_space(p[end])) return 0;
+        ++end;
+    }
+    if (end == cap) return 0;
+    int qend = 1;
+    while (qend < end && !ae_lpd_space(p[qend])) ++qend;
+    if (qend == 1 || qend - 1 > 95) return 0;
+    int pos = qend;
+    while (pos < end && ae_lpd_space(p[pos])) ++pos;
+    if (p[0] <= 2U && pos != end) return 0;
+    int user = pos, uend = pos;
+    if (p[0] == 5U) {
+        while (uend < end && !ae_lpd_space(p[uend])) ++uend;
+        if (uend == user || uend - user > 63 ||
+            (p[user] >= '0' && p[user] <= '9')) return 0;
+    }
+    char queue[96], username[64] = "-";
+    for (int i = 1; i < qend; ++i)
+        queue[i - 1] = strchr("|;=\\", p[i]) ? '_' : (char)p[i];
+    queue[qend - 1] = '\0';
+    if (p[0] == 5U) {
+        for (int i = user; i < uend; ++i)
+            username[i - user] = strchr("|;=\\", p[i]) ? '_' : (char)p[i];
+        username[uend - user] = '\0';
+    }
+    const char *command = p[0] == 1U ? "restart" : p[0] == 2U ? "receive-job" :
+        p[0] == 3U ? "short-queue" : p[0] == 4U ? "long-queue" : "remove-jobs";
+    ae_set(r, "lpd", 1, "command=%s queue=%s username=%s", command, queue, username);
+    return 1;
+}
+
 static inline int ae_ipp(const unsigned char *p, int len, argos_enterprise_result_t *r) {
     const unsigned char *name = ae_find(p, len, (const unsigned char *)"printer-make-and-model", 22);
     if (name) {
@@ -785,6 +829,7 @@ static inline int argos_enterprise_parse_tcp(uint16_t sport, uint16_t dport,
         case 445: return ae_smb2(p, len, r);
         case 502: return ae_modbus(p, len, r);
         case 514: return ae_syslog(p, len, r);
+        case 515: return dport == 515U ? ae_lpd(p, len, r) : 0;
         case 631: return ae_ipp(p, len, r);
         case 1433: return ae_tds(p, len, r);
         case 1521: return ae_tns(p, len, r);

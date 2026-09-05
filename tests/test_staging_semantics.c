@@ -15,7 +15,6 @@
 #include "../src/argos_knx.h"
 #include "../src/argos_ldap.h"
 #include "../src/argos_ldaps.h"
-#include "../src/argos_lpd.h"
 #include "../src/argos_matter.h"
 #include "../src/argos_mongodb.h"
 #include "../src/argos_nvmeof.h"
@@ -46,7 +45,6 @@ static void test_ike(void){unsigned char p[28]={0};argos_ike_result_t r;p[0]=1;p
 static void test_knx(void){unsigned char p[6]={0x06,0x10,0x02,0x01,0,0x06};argos_knx_result_t r;assert(argos_knx_parse(p,SZ(p),&r)==1);p[0]=5;assert(argos_knx_parse(p,SZ(p),&r)==0);p[0]=6;assert(argos_knx_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_ldap(void){unsigned char ok[7]={0x30,0x05,0x02,0x01,0x01,0x42,0},bad[7]={0x30,0x03,0x02,0x01,0x01,0x42,0};argos_ldap_result_t r;assert(argos_ldap_parse(ok,SZ(ok),&r)==1);assert(argos_ldap_parse(bad,SZ(bad),&r)==0);assert(argos_ldap_parse(ok,SZ(ok)-1U,&r)==0);} 
 static void test_ldaps(void){unsigned char p[5]={22,3,3,0,0};argos_ldaps_result_t r;assert(argos_ldaps_parse(p,SZ(p),&r)==1);p[0]=19;assert(argos_ldaps_parse(p,SZ(p),&r)==0);p[0]=22;assert(argos_ldaps_parse(p,SZ(p)-1U,&r)==0);} 
-static void test_lpd(void){unsigned char p[3]={2,'q','\n'};argos_lpd_result_t r;assert(argos_lpd_parse(p,SZ(p),&r)==1);p[0]=0;assert(argos_lpd_parse(p,SZ(p),&r)==0);p[0]=2;assert(argos_lpd_parse(p,1U,&r)==0);} 
 static void test_matter(void){unsigned char p[8]={0};argos_matter_result_t r;assert(argos_matter_parse(p,SZ(p),&r)==1);p[0]=0x20;assert(argos_matter_parse(p,SZ(p),&r)==0);p[0]=0;assert(argos_matter_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_mongodb(void){unsigned char p[16]={0};argos_mongodb_result_t r;p[0]=16;p[12]=0xdd;p[13]=7;assert(argos_mongodb_parse(p,SZ(p),&r)==1);p[12]=p[13]=0;assert(argos_mongodb_parse(p,SZ(p),&r)==0);p[12]=0xdd;p[13]=7;assert(argos_mongodb_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_nvmeof(void){unsigned char p[8]={0};argos_nvmeof_result_t r;p[0]=4;p[2]=8;p[4]=8;assert(argos_nvmeof_parse(p,SZ(p),&r)==1);p[0]=0xff;assert(argos_nvmeof_parse(p,SZ(p),&r)==0);p[0]=4;p[4]=9;assert(argos_nvmeof_parse(p,SZ(p),&r)==0);} 
@@ -63,4 +61,4 @@ static void test_thread(void){unsigned char ss[5]={0xb1,0x12,0x34,0x56,0x78};arg
 static void test_vnc(void){static const unsigned char ok[]="RFB 003.008\n",bad[]="RFB 00x.008\n";argos_vnc_result_t r;assert(argos_vnc_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_vnc_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_vnc_parse(ok,SZ(ok)-2U,&r)==0);} 
 static void test_winrm(void){static const unsigned char ok[]="POST /wsman HTTP/1.1\r\nContent-Type: application/soap+xml\r\n\r\n",bad[]="GET / HTTP/1.1\r\n\r\n";argos_winrm_result_t r;assert(argos_winrm_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_winrm_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_winrm_parse(ok,7U,&r)==0);} 
 
-int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_knx();test_ldap();test_ldaps();test_lpd();test_matter();test_mongodb();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}
+int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_http_proxy();test_ike();test_knx();test_ldap();test_ldaps();test_matter();test_mongodb();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_tacacs();test_telnet();test_thread();test_vnc();test_winrm();return 0;}

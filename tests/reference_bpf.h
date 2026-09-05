@@ -1,7 +1,7 @@
 /* Test-only generator snapshot from 12166a0bf0cc2180f0bcc0d92170081c0dcf7552.
  * Only names/include paths and instruction capacity changed. 512 allows the
  * previously overflowing configurations to define intended filter semantics.
- * Uses the same current port tables; never included by production. */
+ * Port tables are frozen from that same commit; never included by production. */
 #ifndef ARGOS_LEGACY_BPF_H
 #define ARGOS_LEGACY_BPF_H
 
@@ -14,8 +14,21 @@
 #ifndef SO_ATTACH_FILTER
 #define SO_ATTACH_FILTER 26
 #endif
-#include "../src/argos_enterprise_ports.h"
-#include "../src/argos_tls_ports.h"
+/* Keep this oracle independent of current production additions. */
+static const uint16_t LEGACY_ENTERPRISE_TCP_PORTS[] = {
+    22, 88, 111, 179, 445, 502, 631, 1433, 1521, 1883, 2000, 2049,
+    3260, 3306, 3389, 5060, 5432, 9100, 44818
+};
+static const uint16_t LEGACY_ENTERPRISE_UDP_PORTS[] = {
+    88, 111, 123, 161, 162, 389, 427, 623, 1812, 1813, 1985, 2049,
+    3478, 5060, 5678, 5683, 47808, 44818
+};
+static const uint16_t LEGACY_TLS_TCP_PORTS[] = {443, 465, 853, 993, 995, 8443, 8883};
+#define LEGACY_ENTERPRISE_TCP_PORT_COUNT (sizeof(LEGACY_ENTERPRISE_TCP_PORTS) / sizeof(LEGACY_ENTERPRISE_TCP_PORTS[0]))
+#define LEGACY_ENTERPRISE_UDP_PORT_COUNT (sizeof(LEGACY_ENTERPRISE_UDP_PORTS) / sizeof(LEGACY_ENTERPRISE_UDP_PORTS[0]))
+#define LEGACY_TLS_TCP_PORT_COUNT (sizeof(LEGACY_TLS_TCP_PORTS) / sizeof(LEGACY_TLS_TCP_PORTS[0]))
+#define LEGACY_STUN_TURN_UDP_PORT 3478U
+#define LEGACY_QUIC_UDP_PORT 443U
 
 #define ARGOS_LEGACY_BPF_MAX_INSNS 512U
 #define ARGOS_LEGACY_BPF_PASS 0x0000ffffU
@@ -69,11 +82,11 @@ static inline int legacy_bpf_build(const legacy_bpf_config_t *cfg, legacy_bpf_pr
 
     if (cfg->http) { ADD(td, td_n, 80); ADD(td, td_n, 8080); }
     if (cfg->tls) {
-        for (size_t i = 0; i < ARGOS_TLS_TCP_PORT_COUNT; ++i) {
-            ADD(td, td_n, ARGOS_TLS_TCP_PORTS[i]);
-            ADD(ts, ts_n, ARGOS_TLS_TCP_PORTS[i]);
+        for (size_t i = 0; i < LEGACY_TLS_TCP_PORT_COUNT; ++i) {
+            ADD(td, td_n, LEGACY_TLS_TCP_PORTS[i]);
+            ADD(ts, ts_n, LEGACY_TLS_TCP_PORTS[i]);
         }
-        ADD(ud, ud_n, ARGOS_QUIC_UDP_PORT);
+        ADD(ud, ud_n, LEGACY_QUIC_UDP_PORT);
     }
     if (cfg->dhcp) { ADD(ud, ud_n, 67); ADD(us, us_n, 67); }
     if (cfg->netbios) { ADD(ud, ud_n, 137); ADD(us, us_n, 137); }
@@ -84,14 +97,14 @@ static inline int legacy_bpf_build(const legacy_bpf_config_t *cfg, legacy_bpf_pr
         ADD(ud, ud_n, 5353); ADD(us, us_n, 5353);
     }
     if (cfg->enterprise) {
-        for (size_t i = 0; i < ARGOS_ENTERPRISE_TCP_PORT_COUNT; ++i) {
-            ADD(td, td_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
-            ADD(ts, ts_n, ARGOS_ENTERPRISE_TCP_PORTS[i]);
+        for (size_t i = 0; i < LEGACY_ENTERPRISE_TCP_PORT_COUNT; ++i) {
+            ADD(td, td_n, LEGACY_ENTERPRISE_TCP_PORTS[i]);
+            ADD(ts, ts_n, LEGACY_ENTERPRISE_TCP_PORTS[i]);
         }
-        for (size_t i = 0; i < ARGOS_ENTERPRISE_UDP_PORT_COUNT; ++i) {
-            if (ARGOS_ENTERPRISE_UDP_PORTS[i] == ARGOS_STUN_TURN_UDP_PORT) continue;
-            ADD(ud, ud_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
-            ADD(us, us_n, ARGOS_ENTERPRISE_UDP_PORTS[i]);
+        for (size_t i = 0; i < LEGACY_ENTERPRISE_UDP_PORT_COUNT; ++i) {
+            if (LEGACY_ENTERPRISE_UDP_PORTS[i] == LEGACY_STUN_TURN_UDP_PORT) continue;
+            ADD(ud, ud_n, LEGACY_ENTERPRISE_UDP_PORTS[i]);
+            ADD(us, us_n, LEGACY_ENTERPRISE_UDP_PORTS[i]);
         }
         if (cfg->wireguard_port != 0U) {
             ADD(ud, ud_n, cfg->wireguard_port);
@@ -207,10 +220,10 @@ static inline int legacy_bpf_build(const legacy_bpf_config_t *cfg, legacy_bpf_pr
              * Jump matched 3478 packets to a small STUN-only admission block
              * after the generic UDP port checks. */
             EMIT(legacy_abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 16));
-            EMIT(legacy_abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_STUN_TURN_UDP_PORT, 0, 1));
+            EMIT(legacy_abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, LEGACY_STUN_TURN_UDP_PORT, 0, 1));
             stun_dport_ja = p->len; EMIT(legacy_abpf_stmt(p, BPF_JMP | BPF_JA, 0));
             EMIT(legacy_abpf_stmt(p, BPF_LD | BPF_H | BPF_IND, 14));
-            EMIT(legacy_abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, ARGOS_STUN_TURN_UDP_PORT, 0, 1));
+            EMIT(legacy_abpf_jump(p, BPF_JMP | BPF_JEQ | BPF_K, LEGACY_STUN_TURN_UDP_PORT, 0, 1));
             stun_sport_ja = p->len; EMIT(legacy_abpf_stmt(p, BPF_JMP | BPF_JA, 0));
         }
         if (ud_n) {

@@ -112,6 +112,10 @@ For each production or staged protocol document:
 - LDAP / LDAPS;
 - RTSP / RTP / RTCP;
 - Syslog / NetFlow / IPFIX / sFlow — production header-only budgets verified;
+- LPD — first payload/direction only, at most 1,024 bytes through LF; malformed,
+  truncated or overlong input stops without emission, and print bodies/listings
+  are not revisited. SYN resets the existing generation; unrated mode preserves
+  the safety ceiling. No new retained state or reassembly.
 - industrial control protocols;
 - VPN control protocols.
 

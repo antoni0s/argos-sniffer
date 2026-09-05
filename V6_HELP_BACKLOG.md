@@ -217,6 +217,10 @@ the canonical enterprise super-group.
 
 ### `--help-application`
 
+LPD is now production in `printing`; its marker is removed by the catalog, not
+by a duplicate help list. Full/sensor contain 73 protocols and home contains 37.
+HTTP proxy, Telnet, VNC and WinRM remain staged until their own integration gates.
+
 Must expose only the application super-group and its groups:
 
 - name-services

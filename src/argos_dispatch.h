@@ -168,7 +168,7 @@ static inline argos_protocol_id_t argos_dispatch_tcp_port_engine(
         return ARGOS_PROTOCOL_COUNT;
     uint16_t port = dport;
     switch (port) {
-        case 22: case 88: case 111: case 179: case 445: case 502: case 514: case 631:
+        case 22: case 88: case 111: case 179: case 445: case 502: case 514: case 515: case 631:
         case 1433: case 1521: case 1883: case 2000: case 2049: case 3260:
         case 3306: case 3389: case 4739: case 5060: case 5432: case 9100: case 44818:
             break;
@@ -182,6 +182,7 @@ static inline argos_protocol_id_t argos_dispatch_tcp_port_engine(
         case 445: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SMB) ? ARGOS_PROTOCOL_SMB : ARGOS_PROTOCOL_COUNT;
         case 502: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MODBUS) ? ARGOS_PROTOCOL_MODBUS : ARGOS_PROTOCOL_COUNT;
         case 514: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_SYSLOG) ? ARGOS_PROTOCOL_SYSLOG : ARGOS_PROTOCOL_COUNT;
+        case 515: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_LPD) ? ARGOS_PROTOCOL_LPD : ARGOS_PROTOCOL_COUNT;
         case 631: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_IPP) ? ARGOS_PROTOCOL_IPP : ARGOS_PROTOCOL_COUNT;
         case 1433: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_MSSQL) ? ARGOS_PROTOCOL_MSSQL : ARGOS_PROTOCOL_COUNT;
         case 1521: return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_ORACLE) ? ARGOS_PROTOCOL_ORACLE : ARGOS_PROTOCOL_COUNT;
@@ -305,7 +306,7 @@ static inline void argos_dispatch_plan_compile(
         ARGOS_DISPATCH_HAS(POSTGRESQL) || ARGOS_DISPATCH_HAS(PJL) ||
         ARGOS_DISPATCH_HAS(JETDIRECT) || ARGOS_DISPATCH_HAS(ETHERNET_IP) ||
         ARGOS_DISPATCH_HAS(CIP) || ARGOS_DISPATCH_HAS(SYSLOG) ||
-        ARGOS_DISPATCH_HAS(IPFIX))
+        ARGOS_DISPATCH_HAS(IPFIX) || ARGOS_DISPATCH_HAS(LPD))
         plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_TCP_OWNER;
     if (ARGOS_DISPATCH_HAS(KERBEROS) || ARGOS_DISPATCH_HAS(SUNRPC) ||
         ARGOS_DISPATCH_HAS(NTP) || ARGOS_DISPATCH_HAS(SNMP) ||

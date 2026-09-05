@@ -358,7 +358,7 @@ there is no new retained state or packet-time allocation. Full/stub text is 1756
 3992 and BSS 80360/78760; the reviewed full-text ceiling is 175700. The staging header is deleted
 after permanent strict, malformed, sanitizer, BPF and ARM64 fixtures replace its unique tests.
 
-### Canonical management exporter runtime integration — candidate
+### Canonical management exporter runtime integration — PR #48
 
 Syslog, NetFlow, IPFIX and sFlow are folded into `argos_enterprise.h` but emit only
 their frozen protocol-native vectors; `ENT` exporter output is forbidden. Exact
@@ -376,6 +376,35 @@ native parsers and exact dispatch without introducing packet-time allocation or
 duplicate staging implementations.
 
 ## Concrete blockers, not hypothetical architecture work
+
+### Application-control slice: LPD
+
+LPD joins the existing printing/control section in `argos_enterprise.h`, reusing
+its bounded result, transport registry and native-output serialization. This
+does not justify a new taxonomy-shaped public header. TCP 515 is gated by the
+LPD bit in dispatch/BPF; only destination 515 enters `ae_lpd`. The existing
+application owner marks either direction DONE after its first nonempty payload,
+including invalid input. No print body, queue response or subcommand follow-up
+is parsed; SYN/expiry/eviction retain their established lifecycle behavior.
+
+The frozen LPD grammar is recorded in the backlog. `test_lpd.c` exercises the
+actual parser/completion/sink formatter, exact native and unchanged legacy wire,
+normal/unrated dedup, truncations, field caps and bulk-tail/SYN-reset behavior.
+Dispatch/BPF/catalog/help fixtures cover the new bit; core CI includes the new
+fixture in strict, sanitizer/LSan and ARM64 builds. The obsolete staging parser
+and its staging includes/workflow entries are removed. Collector deployment
+mapping and real hardware acceptance remain open, not inferred from wire tests.
+Native full/stub text is 182268/170254 (+1360/+1268 versus PR #48), data 3992,
+BSS 80360/78760 and main stack 84992 unchanged. Sharing serialization removes
+two duplicated TCP/UDP formatting blocks while preserving existing output.
+The bounded parser adds no allocation or retained RAM; full text guard 182320
+keeps the existing 52-byte compiler margin. No throughput gain is claimed.
+HTTP proxy/Telnet/VNC/WinRM remain open within the application-control group.
+The final BPF oracle audit also freezes its original port tables from commit
+`12166a0bf0cc2180f0bcc0d92170081c0dcf7552` instead of importing current production
+lists. The expanded 8,443,904-case matrix includes LPD/exporter ports and preserves
+exact legacy accept/drop decisions; maximum instructions remain 287 to 183.
+This is a test-reference repair, not a runtime BPF policy change.
 
 For every remaining staging integration, freeze the canonical vector name and ordered fields in
 `V6_BACKLOG.md` before runtime wiring. New protocol outputs use their protocol vector directly and
