@@ -1,7 +1,7 @@
 # Argos Sniffer v6 — progress
 
-Branch: `version-6`. Verified checkpoint: `1c726089…` (PR #39).
-**Now:** project exact per-engine TCP/UDP port demand into classic BPF (C4).
+Branch: `version-6`. Verified checkpoint: `72f03839…` (PR #40).
+**Now:** validate and merge exact per-engine TCP/UDP classic-BPF port demand (C4).
 **Not yet:** full core freeze or staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -258,22 +258,22 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** replace the temporary coarse TCP/UDP BPF port-family flags with exact enabled-engine
-port projection, preserve exhaustive legacy equivalence, then expose qualified selectors (C4/C3).
+**Next:** expose qualified profile/super-group/group/protocol/no-rate selectors through the
+already-fixed startup compiler, with CLI lifecycle and exact BPF/runtime reachability gates (C3/C4).
 C1 non-port/PTP depends on C3/C4;
 VLAN depends on schema approval.
 **Blocked:** full freeze; collector compatibility; Thread, ESP/AH and TLS enrichment as above.
-**Pending:** `v6-c4-transport-engine-gates` is active and locally gated; push/CI/merge is next.
+**Pending:** `v6-c4-exact-bpf-ports` is active; implementation and local exact/legacy gates pass.
 All staged v6 protocols remain queued for mandatory runtime integration after the core readiness
 review; their current isolation is temporary.
-PR #39: core 33972559406, L2 33972559421, staging 33972559401 PASS.
-Candidate native full/stub text 168810/156756; data 3832; BSS 80360/78760. Current listed
+PR #40: core 33974018459, L2 33974018398, staging 33974018417 PASS.
+Native full/stub text 168810/156756; data 3832; BSS 80360/78760. Current listed
 owners total at most 1,095,935 bytes in the all-enabled/heavy configuration, excluding
 capture/kernel/transient stack. Canonical legacy selection is projected once before capture;
 tests reject selection access in packet processing. The dispatch owner is 48 bytes and its first
 runtime slices now cover native-L2, NDP/RA/IGMP/MLD/OSPF/VRRP and every current TCP/UDP
 production caller. Canonical BPF route projection passes 7,239,680-packet legacy equivalence
-and kernel verifier coverage; exact per-engine TCP/UDP BPF port construction remains open.
+and kernel verifier coverage; the exact per-engine port projection is the active merge candidate.
 Protocol inspection byte ceilings remain C5/C10.
 ARM64 fixtures compile only; real hardware remains open. No staging runtime integration.
 **Model:** stay on Sol for C4; use Astra for the final cross-contract C10 audit.

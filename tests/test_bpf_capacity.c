@@ -6,25 +6,39 @@
 #include "reference_bpf.h"
 
 static unsigned long compared, executed_old, executed_new;
+static unsigned fixture_mask;
+static uint16_t fixture_wireguard;
 
 static void compare(const argos_bpf_program_t *now, const legacy_bpf_program_t *old,
                     const unsigned char *frame, size_t length) {
     unsigned a, b;
-    expect(run_bpf_code(now->code, now->len, frame, length, &a) ==
-           run_bpf_code(old->code, old->len, frame, length, &b), "legacy filter equivalence");
+    uint32_t new_result = run_bpf_code(now->code, now->len, frame, length, &a);
+    uint32_t old_result = run_bpf_code(old->code, old->len, frame, length, &b);
+    if (new_result != old_result)
+        fprintf(stderr, "BPF mismatch: mask=%u wireguard=%u old=%u new=%u length=%zu sport=%u dport=%u\n",
+                fixture_mask, fixture_wireguard, old_result, new_result, length,
+                length >= 38U ? (unsigned)be16(frame + 34) : 0U,
+                length >= 38U ? (unsigned)be16(frame + 36) : 0U);
+    expect(new_result == old_result, "legacy filter equivalence");
+    if (a > b) {
+        fprintf(stderr, "BPF work regression: mask=%u wireguard=%u old=%u new=%u length=%zu\n",
+                fixture_mask, fixture_wireguard, b, a, length);
+        fprintf(stderr, "old_len=%u new_len=%u sport=%u dport=%u\n", old->len,
+                now->len, (unsigned)be16(frame + 34), (unsigned)be16(frame + 36));
+    }
     expect(a <= b, "no additional interpreted instructions per packet");
     ++compared; executed_new += a; executed_old += b;
 }
 
 static void flags(unsigned mask, argos_bpf_config_t *c, legacy_bpf_config_t *r) {
-    memset(c, 0, sizeof(*c)); memset(r, 0, sizeof(*r));
-#define FLAG(name,bit) c->name = r->name = (uint8_t)((mask >> bit) & 1U)
+    memset(r, 0, sizeof(*r));
+#define FLAG(name,bit) r->name = (uint8_t)((mask >> bit) & 1U)
     FLAG(syn,0); FLAG(multi,1); FLAG(dhcp,2); FLAG(netbios,3); FLAG(dns,4);
     FLAG(http,5); FLAG(tls,6); FLAG(enterprise,9);
 #undef FLAG
     r->l2 = (uint8_t)((mask >> 7) & 1U);
     r->ipv6 = (uint8_t)((mask >> 8) & 1U);
-    legacy_route_demand(c, r->l2, r->ipv6);
+    legacy_bpf_config(mask, 0U, c);
 }
 
 static void kernel_check(int sockets[2], const argos_bpf_program_t *p,
@@ -84,6 +98,7 @@ int main(void) {
     unsigned max_len = 0, max_reference = 0;
     unsigned char frame[2048];
     for (unsigned mask = 0; mask < 1024U; ++mask) for (size_t wi = 0; wi < sizeof(wg)/sizeof(wg[0]); ++wi) {
+        fixture_mask = mask; fixture_wireguard = wg[wi];
         argos_bpf_config_t cfg; legacy_bpf_config_t refcfg;
         flags(mask, &cfg, &refcfg); cfg.wireguard_port = refcfg.wireguard_port = wg[wi];
         argos_bpf_program_t now; legacy_bpf_program_t old;

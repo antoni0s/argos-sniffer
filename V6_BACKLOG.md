@@ -211,7 +211,7 @@ v6 requires an explicit user decision.
   individual canonical bit before parsing; ARP/NDP owner tables follow enabled-family demand.
 - [x] Extend the same pre-parser/pre-state gate to every current TCP/UDP production caller;
   shared ports use bounded owner resolution and TLS/DoT retain independent output/rate bits.
-- [ ] Replace temporary coarse TCP/UDP BPF port-family flags with exact enabled-engine port
+- [x] Replace temporary coarse TCP/UDP BPF port-family flags with exact enabled-engine port
   projection while preserving safe VLAN, QinQ, PPPoE and IPv6 extension-header fallbacks.
 - [x] Keep heavy QUIC reassembly runtime opt-in with enabled-demand startup allocation;
   disabled/default paths remain allocation-free and packet handling never allocates.
