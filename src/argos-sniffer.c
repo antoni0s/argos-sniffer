@@ -878,7 +878,10 @@ int main(int argc, char *argv[]) {
     argos_runtime_config_t runtime_cfg;
     argos_runtime_config_init(&runtime_cfg);
     int opt;
-    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE, OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT, OPT_IDENTITY, OPT_IDENTITY_RAW };
+    enum { OPT_SENSOR = 1000, OPT_SENSOR_NAME, OPT_INSIDE, OPT_ENTERPRISE,
+           OPT_ENTERPRISE_VERBOSE, OPT_WIREGUARD_PORT, OPT_IDENTITY,
+           OPT_IDENTITY_RAW, OPT_PROFILE, OPT_SUPER_GROUP, OPT_GROUP,
+           OPT_PROTOCOL, OPT_NO_RATE_LIMIT };
     static const struct option long_options[] = {
         {"sensor", no_argument, NULL, OPT_SENSOR},
         {"sensor-name", required_argument, NULL, OPT_SENSOR_NAME},
@@ -888,6 +891,11 @@ int main(int argc, char *argv[]) {
         {"wireguard-port", required_argument, NULL, OPT_WIREGUARD_PORT},
         {"identity", optional_argument, NULL, OPT_IDENTITY},
         {"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW}, /* compatibility alias */
+        {"profile", required_argument, NULL, OPT_PROFILE},
+        {"super-group", required_argument, NULL, OPT_SUPER_GROUP},
+        {"group", required_argument, NULL, OPT_GROUP},
+        {"protocol", required_argument, NULL, OPT_PROTOCOL},
+        {"no-rate-limit", required_argument, NULL, OPT_NO_RATE_LIMIT},
         {NULL, 0, NULL, 0}
     };
 
@@ -933,6 +941,44 @@ int main(int argc, char *argv[]) {
             case OPT_IDENTITY_RAW:
                 /* v6 compatibility alias for the former second flag. */
                 runtime_cfg.identity_mode = ARGOS_IDENTITY_RAW;
+                break;
+            case OPT_PROFILE:
+                if (!argos_cli_selection_apply_named(
+                        &cli_selection, ARGOS_CLI_SELECTOR_PROFILE, optarg)) {
+                    fprintf(stderr, "Error: unknown --profile: %.80s\n", optarg);
+                    goto cleanup_state;
+                }
+                break;
+            case OPT_SUPER_GROUP:
+                if (!argos_cli_selection_apply_named(
+                        &cli_selection, ARGOS_CLI_SELECTOR_SUPER_GROUP, optarg)) {
+                    fprintf(stderr, "Error: unknown --super-group: %.80s\n", optarg);
+                    goto cleanup_state;
+                }
+                break;
+            case OPT_GROUP:
+                if (!argos_cli_selection_apply_named(
+                        &cli_selection, ARGOS_CLI_SELECTOR_GROUP, optarg)) {
+                    fprintf(stderr, "Error: unknown --group: %.80s\n", optarg);
+                    goto cleanup_state;
+                }
+                break;
+            case OPT_PROTOCOL:
+                if (!argos_cli_selection_apply_named(
+                        &cli_selection, ARGOS_CLI_SELECTOR_PROTOCOL, optarg)) {
+                    fprintf(stderr,
+                            "Error: unknown or unavailable --protocol: %.80s\n",
+                            optarg);
+                    goto cleanup_state;
+                }
+                break;
+            case OPT_NO_RATE_LIMIT:
+                if (!argos_cli_selection_apply_named(
+                        &cli_selection, ARGOS_CLI_SELECTOR_NO_RATE_LIMIT, optarg)) {
+                    fprintf(stderr, "Error: unknown --no-rate-limit target: %.80s\n",
+                            optarg);
+                    goto cleanup_state;
+                }
                 break;
             case OPT_WIREGUARD_PORT: {
                 char *end = NULL; long v = strtol(optarg, &end, 10);

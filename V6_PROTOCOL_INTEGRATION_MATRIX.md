@@ -43,7 +43,7 @@ optional. HOLD rows also remain v6 scope and require their named dependency to b
 | discovery | mdns | production | discovery owner | UDP 5353 multicast | MDNS: service names/types, hostname, TXT keys (bounded); fingerprint = service set + product hints | stop after bounded answers | redact/limit TXT values |
 | discovery | ssdp | production | discovery owner | UDP 1900 multicast | SSDP: method, ST/NT/USN, server, location host; fingerprint = server + service types | one message | no body fetch in sniffer |
 | discovery | upnp | production | discovery owner | SSDP/HTTP metadata path | UPNP: device/service identifiers observed passively | bounded headers only | no active fetch by default |
-| discovery | llmnr | production | discovery owner | UDP/TCP 5355 | LLMNR: query/response name/type | one bounded DNS-like record | malformed label bounds |
+| discovery | llmnr | staging | fold into discovery owner | UDP/TCP 5355 | LLMNR: query/response name/type | one bounded DNS-like record | DNS-like label bounds + TCP framing + exact BPF reachability |
 | discovery | wsd | production | discovery owner | UDP 3702 | WSD: action, endpoint/device types, scopes (bounded) | one SOAP control frame | never retain arbitrary XML body |
 | discovery | nbns | production | discovery owner | UDP 137 | NBNS: name/type/flags | one bounded message | name encoding bounds |
 | l2-discovery | lldp | production | l2 owner | EtherType 0x88cc | LLDP: chassis/port/system name/desc/capabilities; fingerprint = TLV capability/inventory pattern | single LLDPDU | bounded TLVs |
@@ -266,8 +266,8 @@ bundles and keeps SYN/IPv6/extended-metrics/stateful-QUIC/sensor controls outsid
 protocol bitmap; this remains startup-only and is not a runtime adoption. The current
 `--enterprise` bundle spans 50 production semantics and is not the canonical enterprise
 super-group. PR #31 also compiles production-only `all`/super-group/group rate targets.
-PR #32 freezes production-only profile masks (core 7, standard 16, full 67, home 36,
-enterprise 50, sensor 67) and the qualified `--profile`/`--super-group`/`--group`
+PR #32 froze the then-current production-only profile masks (core 7, standard 16, full 67,
+home 36, enterprise 50, sensor 67) and the qualified `--profile`/`--super-group`/`--group`
 namespace while preserving broad `--enterprise`, privacy-mode `--identity` and deployment
 `--sensor` compatibility semantics. None of these APIs are wired into packet processing.
 PR #33 adds the exact argv-order startup selector compiler, including profile replacement,
@@ -285,8 +285,11 @@ The current C4 slice consumes individual bits before every native-L2 parser and 
 IGMP/MLD, OSPF and VRRP. Existing overlapping LLDP-MED/STP/LACP implementations gain canonical
 gates; their isolated staging headers remain unreachable and are not integrated or duplicated.
 Current TCP/UDP production callers consume exact protocol bits through bounded port-owner
-resolution. The active BPF slice builds matching exact protocol port lists while preserving the
-frozen legacy matrix; qualified selectors remain unexposed until that candidate merges.
+resolution. PR #41 builds matching exact protocol port lists while preserving the frozen legacy
+matrix. The C3 qualified-selector audit found no LLMNR runtime/BPF owner for UDP/TCP 5355, so its
+catalog status is corrected to staging until the mandatory Phase 8 integration gate. Current
+production-only profile counts are therefore core 7, standard 16, full 66, home 35, enterprise 50
+and sensor 66; taxonomy/group/help membership remains intact and help renders `llmnr*`.
 
 ### Encapsulation field verification — PR #16 production `18b21557…`
 

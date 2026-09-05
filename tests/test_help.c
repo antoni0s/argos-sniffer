@@ -50,6 +50,7 @@ int main(void) {
     assert(length <= 2048U);
     assert(strstr(output, "--help-profiles"));
     assert(strstr(output, "--super-group enterprise"));
+    assert(strstr(output, "staged * entries stay unavailable"));
     assert(!strstr(output, "--help-protocols"));
 
     static const argos_help_topic_t topics[ARGOS_SUPER_GROUP_COUNT] = {
@@ -70,6 +71,8 @@ int main(void) {
                    protocol_in_super_group((argos_protocol_id_t)p,
                                            (argos_super_group_id_t)s));
     }
+    render_topic(ARGOS_HELP_NETWORK, output, sizeof(output));
+    assert(strstr(output, "llmnr*"));
 
     length = render_topic(ARGOS_HELP_PROFILES, output, sizeof(output));
     for (unsigned profile = 0; profile < ARGOS_PROFILE_COUNT; ++profile) {

@@ -86,10 +86,10 @@ jobs:
       - name: Text and BSS budget (reviewed tradeoffs required to revise)
         run: |
           set -eu
-          # C4 dispatch: canonical masks compile once and gate runtime plus classic BPF.
-          # CPU/latency and ownership take priority over tiny text differences.
-          # +487/+519 full/stub text over PR #40 replaces coarse BPF families with
-          # exact protocol ports; legacy packet work and data/BSS remain unchanged.
+          # C3/C4: qualified selectors compile once before capture into the same
+          # fixed masks already consumed by runtime and classic BPF. Pulling the
+          # selector/profile compiler into main costs +3544 full text and +160 data;
+          # there is no packet-time work or persistent-state/BSS growth.
           size /tmp/full /tmp/stub
-          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 169297
+          test "$(size /tmp/full | awk 'NR==2 {print $1}')" -le 172841
           test "$(size /tmp/full | awk 'NR==2 {print $3}')" -le 80360

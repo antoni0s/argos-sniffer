@@ -166,7 +166,13 @@ static void dedup_policy(void) {
         {0, 0, {"--enterprise", "--enterprise-verbose"}},
         {1, 0, {"--enterprise-verbose", "--enterprise"}},
         {0, 0, {"-z", "192.0.2.0/24", "-a", "--enterprise"}},
-        {1, 2, {"-Z", "192.0.2.0/24", "-a"}}, {1, 0, {"-W"}}, {1, 0, {"-v"}}
+        {1, 2, {"-Z", "192.0.2.0/24", "-a"}}, {1, 0, {"-W"}}, {1, 0, {"-v"}},
+        {1, 0, {"--protocol", "dns"}}, {0, 0, {"--protocol", "DNS"}},
+        {1, 0, {"--profile", "core"}},
+        {1, 0, {"--group", "identity"}},
+        {1, 0, {"--super-group", "application"}},
+        {0, 0, {"--protocol", "dns", "--no-rate-limit", "all"}},
+        {1, 0, {"--no-rate-limit", "all", "--protocol", "dns"}}
     };
     for (unsigned i = 0; i < sizeof(cases)/sizeof(cases[0]); ++i)
     for (int fail = 0; fail <= cases[i].need; ++fail) {
@@ -281,6 +287,10 @@ int main(void) {
         {"--unknown", NULL}, {"eth0", "extra"}, {"--sensor-name", "valid"},
         {"--sensor", NULL}, {"--sensor", "--sensor-name=valid"},
         {"--wireguard-port", "51820"},
+        {"--profile", "invalid"}, {"--super-group", "invalid"},
+        {"--group", "invalid"}, {"--protocol", "invalid"},
+        {"--protocol", "rip"}, {"--protocol", "llmnr"},
+        {"--no-rate-limit", "invalid"},
         {"-u", "invalid"}, {"-U", "invalid"}
     };
     for (unsigned i = 0; i < sizeof(invalid)/sizeof(invalid[0]); ++i)

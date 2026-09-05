@@ -64,6 +64,16 @@ required_main_markers = (
     "argos_cli_selection_finalize(&cli_selection)",
     "argos_dispatch_plan_compile(&dispatch_plan, &cli_selection)",
     "argos_dispatch_any_rate_limited(&dispatch_plan)",
+    '{"profile", required_argument, NULL, OPT_PROFILE}',
+    '{"super-group", required_argument, NULL, OPT_SUPER_GROUP}',
+    '{"group", required_argument, NULL, OPT_GROUP}',
+    '{"protocol", required_argument, NULL, OPT_PROTOCOL}',
+    '{"no-rate-limit", required_argument, NULL, OPT_NO_RATE_LIMIT}',
+    "ARGOS_CLI_SELECTOR_PROFILE, optarg",
+    "ARGOS_CLI_SELECTOR_SUPER_GROUP, optarg",
+    "ARGOS_CLI_SELECTOR_GROUP, optarg",
+    "ARGOS_CLI_SELECTOR_PROTOCOL, optarg",
+    "ARGOS_CLI_SELECTOR_NO_RATE_LIMIT, optarg",
 )
 for marker in required_main_markers:
     assert marker in main_source, f"missing runtime config adoption marker: {marker}"

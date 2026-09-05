@@ -55,7 +55,7 @@ static inline void argos_help_print_base(FILE *out, const char *program,
         "  --super-group enterprise   canonical enterprise groups\n"
         "  --group NAME            canonical group (use --group identity)\n"
         "  --protocol NAME         lowercase limited; UPPERCASE unlimited\n"
-        "  Canonical selectors are cataloged; runtime adoption follows the C4 gate.\n\n"
+        "  Canonical selectors activate production entries; staged * entries stay unavailable.\n\n"
         "CAPTURE\n"
         "  -i IFACE  -r MAC  -R MAC  -x EXPR  -z EXPR  -Z EXPR  -p  -c COUNT\n\n"
         "OUTPUT\n"
