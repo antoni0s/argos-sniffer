@@ -245,7 +245,32 @@ static void check_case(int f, const char *option, const char *value,
     int status; assert(waitpid(child, &status, 0) == child);
     assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
+
+static void informational_paths(void) {
+    const struct { int expected; const char *args[5]; } cases[] = {
+        {0, {"-o", "/unused", "--help"}},
+        {0, {"-u", "127.0.0.1:9", "--version"}},
+        {1, {"-o", "/unused", "--help-protocols"}}
+    };
+    for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        fflush(NULL);
+        pid_t child = fork(); assert(child >= 0);
+        if (!child) {
+            char *argv[8] = {"argos"}; int argc = 1;
+            for (unsigned j = 0; cases[i].args[j]; ++j)
+                argv[argc++] = (char *)cases[i].args[j];
+            assert(argos_program_main(argc, argv) == cases[i].expected);
+            assert(!capture_attempts && !unix_calls && !udp_calls && !resolve_calls);
+            assert(!allocations && !live_heap);
+            for (unsigned j = 0; j < 64; ++j) assert(!live_fd[j]);
+            exit(0);
+        }
+        int status; assert(waitpid(child, &status, 0) == child);
+        assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    }
+}
 int main(void) {
+    informational_paths();
     dedup_policy();
     network_policy();
     const char *invalid[][2] = {

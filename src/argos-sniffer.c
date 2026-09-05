@@ -117,6 +117,7 @@
 #include "argos_multicast_membership.h"
 #include "argos_wireguard.h"
 #include "argos_config.h"
+#include "argos_help.h"
 #include "argos_telemetry.h"
 #include "argos_packet.h"
 #include "argos_discovery.h"
@@ -245,7 +246,7 @@ static void install_signal_handlers(void) {
 #define ARP_DEDUP_TTL_SECS 900
 #define NDP_DEDUP_TTL_SECS 900
 #define RA_DEDUP_TTL_SECS 1800
-static int rate_limit_ttl = 35;
+static int rate_limit_ttl = ARGOS_DEFAULT_RATE_LIMIT_SECONDS;
 static int dedup_should_suppress_for(const char *mac, const char *evtype, const char *payload,
                                      int rl_enabled, int ttl, int sliding) {
     return argos_dedup_should_suppress(&runtime_state.dedup, mac, evtype, payload,
@@ -840,98 +841,6 @@ static int add_inside_prefix(const char *spec) {
     return 0;
 }
 
-/**
- * Prints comprehensive command line help and documentation.
- */
-static void print_help(const char *prog) {
-    printf(
-"argos-sniffer v" VERSION " - Passive LAN traffic fingerprinter & live inspector\n"
-"                  for OpenWrt/Linux gateways and SPAN/TAP sensors\n\n"
-"USAGE:\n  %s [-i iface] [-r router_mac] [-x filter_expr] [-z filter_expr | -Z filter_expr] [-o path] [-u ip:port] [-U ip:port] [-f sec] [FLAGS...] [-W]\n"
-"     [--sensor --sensor-name name [--inside CIDR ...]] [--enterprise|--enterprise-verbose] [--wireguard-port port]\n"
-"  OR:     %s [iface] (Automatically sets -i <iface> and enables all vectors with -a)\n\n"
-"OPTIONS:\n"
-"  -i <iface>      Interface to listen on (default: any). Comma-separated list or any.\n"
-"                  'any' uses SOCK_RAW + per-packet sll_hatype (Ethernet/PPP/TUN).\n"
-"                  LAN prefixes are learned from these interfaces (IPv6 GUA included).\n"
-"  -r <mac>        Soft Exclude MAC. Excludes traffic but permits DNS responses for telemetry.\n"
-"  -R <mac>        Hard Exclude MAC. Instantly and completely drops all outbound traffic from this MAC.\n"
-"  -x <expr>       Exclude Filter: Drops traffic matching this expression before parsing.\n"
-"  -z <expr>       Mode 1: Native Live Sniffer (replaces tcpdump). Matches MAC, IP, or logic.\n"
-"  -Z <expr>       Mode 2 target filter: restricts telemetry vectors below to matches.\n"
-"  -c <count>      Maximum packet count before exiting, Mode 1 only (default: 0 for unlimited)\n"
-"  -p              Enable promiscuous mode (auto-enabled by -z and --sensor)\n"
-"  --sensor        SPAN/TAP sensor mode. Requires an explicit -i interface.\n"
-"  --sensor-name   Stable sensor name used in the OBS telemetry envelope.\n"
-"  --inside CIDR   Explicit inside IPv4/IPv6 network; repeat for multiple prefixes.\n"
-"                  Recommended for unnumbered SPAN NICs and required for IPv6 GUA.\n"
-"  -f <seconds>    General deduplication window in seconds (default: 35).\n"
-"                  Quiet ARP/NDP use >=900s and RA >=1800s fixed refresh windows.\n"
-"  -o <path>       Stream telemetry output to a Unix domain socket.\n"
-"  -u <ip>:<port>  Stream telemetry to a remote UDP collector only.\n"
-"  -U <ip>:<port>  Stream telemetry to a remote UDP collector and stdout.\n"
-"                  (e.g. -U 10.0.0.5:5140 or -U [::1]:5140).\n"
-"                  NOTE: telemetry is sent unencrypted/unauthenticated -- only\n"
-"                  point this at a trusted host reachable over a trusted path\n"
-"                  (management VLAN, VPN, etc).\n"
-"  --enterprise    Enable v6 enterprise handshake/discovery fingerprints (rate-limited).\n"
-"  --enterprise-verbose  Enable enterprise fingerprints without telemetry deduplication.\n"
-"  --wireguard-port <port>  WireGuard UDP port for structural detection (default: 51820).\n"
-"                          Requires --enterprise; packet structure is validated before emission.\n"
-"  -W              Enable Stateful QUIC Inspection (reassembles fragmented Kyber ClientHellos)\n"
-"  -E              Enable Extended Metrics (TCPLVL RTT, DNSEXT Latency, DNS Entropy)\n\n"
-"TELEMETRY VECTORS (Lowercase = ENABLE WITH RATE LIMIT | Uppercase = ENABLE NO LIMIT):\n"
-"  -s / -S         TCP SYN (p0f OS fingerprinting), SYNACK & TCPLVL latency tracking\n"
-"  -m / -M         mDNS (5353) / SSDP (1900) / WSD (3702) payload logging\n"
-"  -d / -D         DHCPv4 + DHCPv6 client fingerprint logging\n"
-"  -n / -N         NetBIOS Name Service (UDP 137) logging\n"
-"  -q / -Q         DNS Queries & DNSEXT latency/entropy tracking (UDP port 53)\n"
-"  -h / -H         HTTP User-Agent extraction (port 80/8080)\n"
-"  -t / -T         TLS ClientHello (443/465/853/993/995/8443) + QUIC UDP/443\n"
-"                  TCP/853 also emits additive DNS-over-TLS (DOT) classification\n"
-"  -l / -L         LLDP + ARP + IPv6 NDP/Router Advertisement discovery\n"
-"  --enterprise    Enterprise/storage/identity/routing/OT control-plane fingerprints\n"
-"                  (development opt-in; intentionally not implied by -a/-A yet)\n"
-"  -a / -A         Enable ALL legacy vectors above (a = with limits, A = without limits)\n"
-"  -v / -V         Enable IPv6 handling (subject to is_private_ipv6() filtering, see source)\n\n", prog, prog);
-    fputs(
-"OUTPUT FORMAT:\n"
-"  Gateway mode keeps the legacy records below unchanged.\n"
-"  Sensor mode: OBS|sensor_name|interface|vlan|<legacy_record>\n"
-"               vlan=0 untagged, N single-tag, outer/inner for QinQ.\n"
-"  SYN|mac|src_ip|ttl|window|wscale|mss|options|dst_port[|routed]\n"
-"  SYNACK|mac|src_ip|ttl|window|wscale|mss|options|src_port[|routed]\n"
-"  DNS|mac|src_ip|query_domain[|routed]\n"
-"  TCPLVL|mac|src_ip|dst_ip|dst_port|rtt_us|retrans_count|state_event[|routed]\n"
-"  TLS|mac|src_ip|dst_ip|dst_port|sni|ja4_fingerprint|alpn[|routed]\n"
-"  DOT|mac|src_ip|dst_ip|sni|ja4_fingerprint|alpn[|routed]\n"
-"  TLSSRV|mac|server_ip|client_ip|server_port|ats1_fingerprint|alpn[|routed]\n"
-"  QUIC|mac|src_ip|dst_ip|dst_port|sni|version[|routed]\n"
-"  DNSEXT|mac|src_ip|dst_ip|query_domain|qtype|rcode|latency_ms|entropy[|routed]\n"
-"  ALERT|mac|src_ip|HIGH_DNS_ENTROPY|query_domain|entropy[|routed]\n"
-"  HTTP|mac|src_ip|user_agent[|routed]\n"
-"  LLDP|mac|sysname|sysdesc[|routed]\n"
-"  NBNS|mac|src_ip|netbios_name[|routed]\n"
-"  DHCP|mac|src_ip|hostname|vendor_class|prl[|routed]\n"
-"  DHCP6|mac|src_ip|msg_type|duid_type|vendor_class|oro|fqdn[|routed]\n"
-"  ARP|mac|sender_ip|target_ip|op[|routed]\n"
-"  NDP|mac|src_ip|type|target_ip|flags[|routed]\n"
-"  RA|mac|src_ip|hop_limit|flags|router_lifetime|prefix|prefix_len|mtu[|routed]\n"
-"  MDNS|mac|src_ip|port|qname[|routed]\n"
-"  L7|mac|src_ip|dst_port|payload[|routed]\n"
-"  ENT|mac|src_ip|dst_ip|protocol|fingerprint[|routed]\n"
-"  IDENT|mac|src_ip|protocol|type|identity[|routed]  (--identity only)\n\n"
-"IDENTITY OPTIONS (explicit opt-in; no generic payload scanning):\n"
-"  --identity[=MODE] Observed identity from already-inspected handshake/control fields.\n"
-"                    MODE is hash (default) or raw; raw is an explicit privacy opt-in.\n"
-"                    Requires --enterprise; never passwords, tickets, tokens or auth blobs.\n\n"
-"FEATURES EXPLAINED:\n"
-"  [|routed]       Source is off-link behind a next-hop MAC or conflicts with ARP/NDP ownership.\n"
-"  JA4-like FP     MD5-derived TLS cipher/extension fingerprint used for client correlation.\n"
-"  DNS Entropy     Measures query randomness. >4.2 triggers HIGH_DNS_ENTROPY Alert (DGA/Tunnels).\n"
-"  HTTP/3 (QUIC)   Decrypted Stateful QUIC handshakes output as TLS records with 'h3' ALPN.\n\n", stdout);
-}
-
 /* ============================================================================
  * SECTION: main()
  * Entry point: parses command-line arguments, sets up network interfaces, configures 
@@ -945,6 +854,9 @@ static void print_help(const char *prog) {
  * ============================================================================ */
 #ifndef ARGOS_PORTABLE_TEST
 int main(int argc, char *argv[]) {
+    int help_status = argos_help_preflight(argc, argv, VERSION, stdout, stderr);
+    if (help_status != 0) return help_status > 0 ? 0 : 1;
+
     const char *iface = "any";
     int exit_status = 1;
     
@@ -970,8 +882,6 @@ int main(int argc, char *argv[]) {
         {"identity-raw", no_argument, NULL, OPT_IDENTITY_RAW}, /* compatibility alias */
         {NULL, 0, NULL, 0}
     };
-
-    if (argc == 1) { print_help(argv[0]); return 0; }
 
     /* CLI flag convention: for each telemetry category there is a lowercase
      * flag (enable + rate-limited/deduplicated output, the quiet default)
@@ -1094,7 +1004,7 @@ int main(int argc, char *argv[]) {
                 opt_syn_rl = opt_multi_rl = opt_dhcp_rl = opt_netbios_rl = opt_dns_rl = opt_http_rl = opt_tls_rl = opt_l2_rl = 0;
                 opt_v6 = 1; break;
             case 'W': opt_quic_heavy = 1; break;    
-            default: print_help(argv[0]); goto cleanup_state;
+            default: argos_help_print_topic(stdout, ARGOS_HELP_BASE, argv[0], VERSION); goto cleanup_state;
         }
     }
 
