@@ -7,7 +7,7 @@ Before integrating any row, re-read the current `version-6` source and verify th
 ## Status legend
 
 - **production** — already represented by an active production owner/engine in v6; exact runtime behavior must still be re-verified before edits.
-- **staging** — isolated parser/header exists but is not authorized for runtime integration yet.
+- **staging** — isolated parser/header exists and must be promoted into v6 after its readiness gates.
 - **planned** — present in CLI taxonomy/backlog but no isolated staging parser is claimed here.
 - **hold** — staging/planning exists but runtime integration is blocked by a known architectural dependency.
 
@@ -25,6 +25,9 @@ A protocol is ready for promotion only when all of these are true:
 8. positive + malformed/truncated fixtures exist;
 9. collector compatibility is verified;
 10. native, sanitizer and ARM64 gates pass.
+
+These conditions determine when and how promotion is safe; they do not make the staged v6 protocol
+optional. HOLD rows also remain v6 scope and require their named dependency to be resolved first.
 
 ---
 
@@ -213,6 +216,9 @@ For every protocol with possible bulk traffic, the final runtime integration mus
 ---
 
 ## Integration-order checklist
+
+This checklist is mandatory v6 delivery scope. Complete every group in order; a HOLD delays its row
+until the prerequisite is implemented but does not remove it from the release.
 
 1. **Reconcile overlapping L2 staging** — LLDP-MED, LACP, STP.
 2. **Low-rate network control** — RIP, PTP.
