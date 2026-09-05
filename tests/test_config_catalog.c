@@ -23,6 +23,7 @@ int main(void) {
     assert(sizeof(argos_protocol_set_t) == 16U);
     assert(sizeof(argos_protocol_selection_t) == 32U);
     assert(sizeof(argos_feature_selection_t) == 8U);
+    assert(sizeof(argos_cli_selection_t) == 56U);
     assert(ARGOS_FEATURE_COUNT == 5);
     assert(ARGOS_GROUP_COUNT == 28);
     assert(ARGOS_GROUP_MEMBERSHIP_COUNT == 103U);
@@ -283,6 +284,77 @@ int main(void) {
                                        ARGOS_FEATURE_EXTENDED_METRICS));
     assert(!argos_profile_selection((argos_profile_id_t)ARGOS_PROFILE_COUNT,
                                     &selection, &feature_selection));
+
+    argos_cli_selection_t cli;
+    argos_cli_selection_init(&cli);
+    argos_cli_selection_finalize(&cli);
+    assert(bit_count(&cli.protocols.enabled) == 7U);
+    assert(argos_feature_selection_has(&cli.features, ARGOS_FEATURE_TCP_SYN));
+
+    argos_cli_selection_init(&cli);
+    argos_cli_selection_apply_feature(&cli, ARGOS_FEATURE_EXTENDED_METRICS, 0);
+    argos_cli_selection_finalize(&cli);
+    assert(bit_count(&cli.protocols.enabled) == 7U);
+    assert(argos_feature_selection_has(&cli.features, ARGOS_FEATURE_EXTENDED_METRICS));
+
+    argos_cli_selection_init(&cli);
+    argos_cli_selection_apply_feature(&cli, ARGOS_FEATURE_QUIC_STATEFUL, 0);
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROFILE, "sensor"));
+    assert(argos_feature_selection_has(&cli.features, ARGOS_FEATURE_QUIC_STATEFUL));
+    assert(argos_feature_selection_has(&cli.features, ARGOS_FEATURE_EXTENDED_METRICS));
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROFILE, "home"));
+    assert(argos_feature_selection_has(&cli.features, ARGOS_FEATURE_QUIC_STATEFUL));
+    assert(!argos_feature_selection_has(&cli.features, ARGOS_FEATURE_EXTENDED_METRICS));
+
+    argos_cli_selection_init(&cli);
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROFILE, "home"));
+    assert(bit_count(&cli.protocols.enabled) == 36U);
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_GROUP, "routing"));
+    assert(bit_count(&cli.protocols.enabled) == 39U);
+    assert(!argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_RIP));
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "DNS"));
+    assert(argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "dns"));
+    assert(!argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_NO_RATE_LIMIT,
+                                           "network"));
+    assert(argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_BGP));
+    assert(!argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_TLS));
+
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROFILE, "core"));
+    assert(bit_count(&cli.protocols.enabled) == 7U);
+    assert(!argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_BGP));
+    assert(!argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));
+
+    argos_cli_selection_init(&cli);
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_GROUP, "identity"));
+    assert(bit_count(&cli.protocols.enabled) == 4U);
+    assert(argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_KERBEROS));
+    assert(!argos_protocol_set_has(&cli.protocols.enabled, ARGOS_PROTOCOL_TACACS));
+    assert(cli.features.enabled == 0U);
+
+    argos_cli_selection_t cli_before = cli;
+    assert(!argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_GROUP, "IDENTITY"));
+    assert(!argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_PROTOCOL, "rip"));
+    assert(!argos_cli_selection_apply_named(&cli, (argos_cli_selector_kind_t)99, "dns"));
+    assert(memcmp(&cli, &cli_before, sizeof(cli)) == 0);
+
+    argos_cli_selection_init(&cli);
+    assert(argos_cli_selection_apply_named(&cli, ARGOS_CLI_SELECTOR_NO_RATE_LIMIT,
+                                           "all"));
+    assert(bit_count(&cli.protocols.enabled) == 0U);
+    assert(bit_count(&cli.protocols.unrated) == 0U);
+    argos_cli_selection_finalize(&cli);
+    assert(bit_count(&cli.protocols.enabled) == 7U);
+    assert(bit_count(&cli.protocols.unrated) == 0U);
+
+    argos_cli_selection_init(&cli);
+    argos_cli_selection_apply_legacy(&cli, ARGOS_LEGACY_CATEGORY_TLS, 1);
+    argos_cli_selection_apply_legacy(&cli, ARGOS_LEGACY_CATEGORY_DNS, 0);
+    argos_cli_selection_finalize(&cli);
+    assert(bit_count(&cli.protocols.enabled) == 4U);
+    assert(argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_TLS));
+    assert(!argos_protocol_set_has(&cli.protocols.unrated, ARGOS_PROTOCOL_DNS));
 
     puts("Canonical config catalog/bitmap contracts: PASS");
     return 0;
