@@ -896,6 +896,82 @@ static inline int ae_http_proxy(const unsigned char *p, int len, argos_enterpris
     return 1;
 }
 
+/* WinRM: inspect one bounded HTTP header block or a TLS handshake prefix only.
+ * Authorization values, SOAP bodies and encrypted session data are never read. */
+static inline int ae_winrm(const unsigned char *p, int len, int https,
+                           argos_enterprise_result_t *r) {
+    if (!r) return 0;
+    memset(r, 0, sizeof(*r));
+    if (!p || len <= 0) return 0;
+    if (https) {
+        if (len < 9 || p[0] != 0x16 || p[1] != 0x03 || p[2] < 0x01 || p[2] > 0x04 ||
+            (p[5] != 0x01 && p[5] != 0x02)) return 0;
+        unsigned record = ae_be16(p + 3);
+        unsigned handshake = ((unsigned)p[6] << 16) | ((unsigned)p[7] << 8) | p[8];
+        if (record < 4U || record > 16384U || handshake > record - 4U) return 0;
+        ae_set(r, "winrm", 1,
+            "transport=https wsman=- soap=- method=- auth=- username=- encrypted=1");
+        return 1;
+    }
+    if (len < 22) return 0;
+    int cap = len < 4096 ? len : 4096;
+    const unsigned char *e = ae_find(p, cap, (const unsigned char *)"\r\n", 2);
+    if (!e) return 0;
+    int first = (int)(e - p), method_len = 0;
+    while (method_len < first && p[method_len] != ' ') {
+        if (method_len >= 15 || p[method_len] < 'A' || p[method_len] > 'Z') return 0;
+        ++method_len;
+    }
+    if (!method_len || method_len == first) return 0;
+    int target = method_len + 1, target_end = target;
+    while (target_end < first && p[target_end] != ' ') ++target_end;
+    if (target_end - target != 6 || memcmp(p + target, "/wsman", 6) ||
+        first - target_end != 9 || memcmp(p + target_end, " HTTP/1.", 8) ||
+        (p[first - 1] != '0' && p[first - 1] != '1')) return 0;
+    char method[16];
+    memcpy(method, p, (size_t)method_len); method[method_len] = 0;
+    const char *auth = "-";
+    unsigned soap = 0, encrypted = 0;
+    int pos = first + 2, complete = 0;
+    while (pos + 2 <= cap) {
+        e = ae_find(p + pos, cap - pos, (const unsigned char *)"\r\n", 2);
+        if (!e) return 0;
+        int end = (int)(e - p);
+        if (end == pos) { complete = 1; break; }
+        int colon = pos;
+        while (colon < end && ae_http_token(p[colon])) ++colon;
+        if (colon == pos || colon == end || p[colon] != ':') return 0;
+        int value = colon + 1;
+        for (int i = value; i < end; ++i)
+            if ((p[i] < 32 && p[i] != '\t') || p[i] == 127) return 0;
+        while (value < end && (p[value] == ' ' || p[value] == '\t')) ++value;
+        if (ae_http_equal(p + pos, colon - pos, "Content-Type")) {
+            int semi = value;
+            while (semi < end && p[semi] != ';' && p[semi] != ' ' && p[semi] != '\t') ++semi;
+            soap = ae_http_equal(p + value, semi - value, "application/soap+xml");
+            encrypted = ae_http_equal(p + value, semi - value,
+                "application/HTTP-SPNEGO-session-encrypted") ||
+                ae_http_equal(p + value, semi - value,
+                "application/HTTP-CredSSP-session-encrypted");
+        } else if (ae_http_equal(p + pos, colon - pos, "Authorization")) {
+            int stop = value;
+            while (stop < end && ae_http_token(p[stop])) ++stop;
+            auth = ae_http_equal(p + value, stop - value, "Basic") ? "basic" :
+                ae_http_equal(p + value, stop - value, "Digest") ? "digest" :
+                ae_http_equal(p + value, stop - value, "NTLM") ? "ntlm" :
+                ae_http_equal(p + value, stop - value, "Negotiate") ? "negotiate" :
+                ae_http_equal(p + value, stop - value, "Kerberos") ? "kerberos" :
+                ae_http_equal(p + value, stop - value, "CredSSP") ? "credssp" : "other";
+        }
+        pos = end + 2;
+    }
+    if (!complete) return 0;
+    ae_set(r, "winrm", 1,
+        "transport=http wsman=1 soap=%u method=%s auth=%s username=- encrypted=%u",
+        soap, method, auth, encrypted);
+    return 1;
+}
+
 static inline int ae_pjl(const unsigned char *p, int len, argos_enterprise_result_t *r) {
     int n = len > 256 ? 256 : len;
     const unsigned char *q = ae_find_ci(p, n, "@PJL INFO ID");

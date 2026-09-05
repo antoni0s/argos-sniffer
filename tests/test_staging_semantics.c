@@ -26,7 +26,6 @@
 #include "../src/argos_s7.h"
 #include "../src/argos_tacacs.h"
 #include "../src/argos_thread.h"
-#include "../src/argos_winrm.h"
 
 #define SZ(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -53,6 +52,5 @@ static void test_rtsp(void){static const unsigned char ok[]="OPTIONS rtsp://exam
 static void test_s7(void){unsigned char p[10]={0x32,1,0,0,0,1,0,0,0,0};argos_s7_result_t r;assert(argos_s7_parse(p,SZ(p),&r)==1);p[0]=0x31;assert(argos_s7_parse(p,SZ(p),&r)==0);p[0]=0x32;assert(argos_s7_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_tacacs(void){unsigned char p[12]={0xc0,1,1,0,0,0,0,1,0,0,0,0};argos_tacacs_result_t r;assert(argos_tacacs_parse(p,SZ(p),&r)==1);p[0]=0xb0;assert(argos_tacacs_parse(p,SZ(p),&r)==0);p[0]=0xc0;assert(argos_tacacs_parse(p,SZ(p)-1U,&r)==0);} 
 static void test_thread(void){unsigned char ss[5]={0xb1,0x12,0x34,0x56,0x78};argos_thread_result_t r;assert(argos_thread_parse(ss,SZ(ss),&r)==1&&r.src_short==0x1234U&&r.dst_short==0x5678U);ss[0]=0x31;assert(argos_thread_parse(ss,SZ(ss),&r)==0);ss[0]=0xb1;assert(argos_thread_parse(ss,SZ(ss)-1U,&r)==0);unsigned char deep[6]={0xbf,20,0x12,0x34,0x56,0x78};assert(argos_thread_parse(deep,SZ(deep),&r)==1&&r.hops_left==20U);assert(argos_thread_parse(deep,SZ(deep)-1U,&r)==0);unsigned char ll[17]={0x81};assert(argos_thread_parse(ll,SZ(ll),&r)==1);assert(argos_thread_parse(ll,5U,&r)==0);} 
-static void test_winrm(void){static const unsigned char ok[]="POST /wsman HTTP/1.1\r\nContent-Type: application/soap+xml\r\n\r\n",bad[]="GET / HTTP/1.1\r\n\r\n";argos_winrm_result_t r;assert(argos_winrm_parse(ok,SZ(ok)-1U,&r)==1);assert(argos_winrm_parse(bad,SZ(bad)-1U,&r)==0);assert(argos_winrm_parse(ok,7U,&r)==0);} 
 
-int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_ike();test_knx();test_ldap();test_ldaps();test_matter();test_mongodb();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_tacacs();test_thread();test_winrm();return 0;}
+int main(void){test_ah();test_airplay();test_cast();test_dlna();test_dnp3();test_esp();test_ftp();test_ike();test_knx();test_ldap();test_ldaps();test_matter();test_mongodb();test_nvmeof();test_opcua();test_openvpn();test_redis();test_rtcp();test_rtp();test_rtsp();test_s7();test_tacacs();test_thread();return 0;}

@@ -148,6 +148,7 @@ static const char *argos_native_vector(argos_protocol_id_t protocol) {
         case ARGOS_PROTOCOL_HTTP_PROXY: return "HTTP-PROXY";
         case ARGOS_PROTOCOL_TELNET: return "TELNET";
         case ARGOS_PROTOCOL_VNC: return "VNC";
+        case ARGOS_PROTOCOL_WINRM: return "WINRM";
         default: return NULL;
     }
 }
@@ -369,6 +370,14 @@ static int app_flow_payload_complete(argos_protocol_id_t engine, uint16_t sport,
     if (!payload || payload_len <= 0) return 0;
     /* One attempt, successful or not; never revisit print data or listings. */
     if (engine == ARGOS_PROTOCOL_LPD) return 1;
+
+    if (argos_winrm_port(sport) || argos_winrm_port(dport)) {
+        if (sport == ARGOS_WINRM_HTTPS_PORT || dport == ARGOS_WINRM_HTTPS_PORT)
+            return payload_len >= 9 && payload[0] == 0x16 && payload[1] == 0x03 &&
+                (payload[5] == 0x01 || payload[5] == 0x02);
+        for (int i = 0; i + 3 < payload_len && i < 4096; ++i)
+            if (!memcmp(payload + i, "\r\n\r\n", 4)) return 1;
+    }
 
     if (argos_tls_tcp_port(sport)) {
         argos_tls_server_result_t server;
@@ -1583,6 +1592,7 @@ int main(int argc, char *argv[]) {
                 int proxy_tcp = argos_dispatch_http_proxy_enabled(&dispatch_plan, sport, dport);
                 int telnet_tcp = argos_dispatch_telnet_enabled(&dispatch_plan, sport, dport);
                 int vnc_tcp = argos_dispatch_vnc_enabled(&dispatch_plan, sport, dport);
+                int winrm_tcp = argos_dispatch_winrm_enabled(&dispatch_plan, sport, dport);
                 int http_tcp = argos_dispatch_protocol_enabled(
                     &dispatch_plan, ARGOS_PROTOCOL_HTTP) &&
                     (dport == 80U || dport == 8080U);
@@ -1601,7 +1611,7 @@ int main(int argc, char *argv[]) {
                      (dport == 88U && argos_dispatch_protocol_enabled(
                         &dispatch_plan, ARGOS_PROTOCOL_KERBEROS)));
                 int tcp_relevant = (opt_syn && (tcp->syn || tcp->rst || tcp->fin)) ||
-                                   http_tcp || proxy_tcp || telnet_tcp || vnc_tcp || tls_tcp || dot_tcp ||
+                                   http_tcp || proxy_tcp || telnet_tcp || vnc_tcp || winrm_tcp || tls_tcp || dot_tcp ||
                                    tcp_engine < ARGOS_PROTOCOL_COUNT || identity_tcp;
                 if (!tcp_relevant) continue;
                 if (!routed_evidence && is_outbound && (pkt_type == LINK_ETHERNET || pkt_type == LINK_COOKED)) {
@@ -1732,7 +1742,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-                int app_demand = http_tcp || proxy_tcp || telnet_tcp || tls_tcp || dot_tcp ||
+                int app_demand = http_tcp || proxy_tcp || telnet_tcp || winrm_tcp || tls_tcp || dot_tcp ||
                                  tcp_engine < ARGOS_PROTOCOL_COUNT || identity_tcp;
                 int app_track = payload_len > 0 && app_demand;
                 /* SYN is the connection-generation boundary for inspect-once state.
@@ -1817,6 +1827,17 @@ int main(int argc, char *argv[]) {
                             src_ip_str, dst_ip_str, routed_str,
                             argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_HTTP_PROXY));
                 }
+                int winrm_complete = 0;
+                if (winrm_tcp && payload_len > 0 &&
+                    ae_winrm(buffer + payload_offset, payload_len,
+                        sport == ARGOS_WINRM_HTTPS_PORT || dport == ARGOS_WINRM_HTTPS_PORT,
+                        &ent_tcp)) {
+                    winrm_complete = ent_tcp.complete;
+                    if (ent_tcp.emit)
+                        emit_enterprise_result(ARGOS_PROTOCOL_WINRM, &ent_tcp, src_mac,
+                            src_ip_str, dst_ip_str, routed_str,
+                            argos_dispatch_protocol_rate_limited(&dispatch_plan, ARGOS_PROTOCOL_WINRM));
+                }
                 int ent_tcp_seen = 0;
                 if (tcp_engine < ARGOS_PROTOCOL_COUNT && payload_len > 0) {
                     ent_tcp_seen = argos_enterprise_parse_tcp(sport, dport, buffer + payload_offset, payload_len, &ent_tcp);
@@ -1879,6 +1900,7 @@ int main(int argc, char *argv[]) {
                         tcp_engine, sport, dport, buffer + payload_offset, payload_len) : 0;
                     if (ent_tcp_seen && ent_tcp.complete) fingerprint_complete = 1;
                     if (proxy_complete) fingerprint_complete = 1;
+                    if (winrm_complete) fingerprint_complete = 1;
                     if (telnet_tcp) fingerprint_complete = 1; /* One attempt, even on invalid input. */
                     argos_flow_note_payload(&runtime_state.application, flow_ip_version, flow_src_addr, flow_dst_addr,
                                         sport, dport, fingerprint_complete);

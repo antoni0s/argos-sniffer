@@ -155,6 +155,7 @@ for parser, gate in {
     "argos_enterprise_parse_tcp(": "tcp_engine < ARGOS_PROTOCOL_COUNT",
     "ae_http_proxy(": "proxy_tcp && payload_len > 0",
     "ae_telnet(": "telnet_tcp && payload_len > 0",
+    "ae_winrm(": "winrm_tcp && payload_len > 0",
     "argos_enterprise_parse_udp(": "udp_engine < ARGOS_PROTOCOL_COUNT",
     "argos_identity_ntlm_type3(": "ARGOS_PROTOCOL_NTLM",
     "argos_identity_radius_access_request(": "ARGOS_PROTOCOL_RADIUS",
@@ -177,7 +178,7 @@ assert 'argos_network_ripng_parse(' in main_source
 assert 'dedup_should_suppress(mac_str, "RIP", rip.detail' in main_source
 assert 'emit_telemetry("RIP|%s|%s|%s|%s%s\\n"' in main_source
 assert 'emit_telemetry("ENT|%s|%s|%s|RIP|' not in main_source
-for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW", "LPD", "HTTP-PROXY", "TELNET", "VNC"):
+for vector in ("SYSLOG", "NETFLOW", "IPFIX", "SFLOW", "LPD", "HTTP-PROXY", "TELNET", "VNC", "WINRM"):
     assert f'return "{vector}"' in main_source
     assert f'emit_telemetry("ENT|%s|%s|%s|{vector}|' not in main_source
 assert 'dedup_should_suppress(text_mac, vector ? vector : "ENT"' in main_source
@@ -193,6 +194,10 @@ assert not (ROOT / "src" / ("argos_" + "vnc.h")).exists()
 assert "if (vnc_tcp)" in packet_loop
 assert packet_loop.index("parse_vnc_flow(") < packet_loop.index("if (app_track && argos_flow_should_skip")
 assert "argos_flow_prepare_context(&runtime_state.application)" not in packet_loop
+assert not (ROOT / "src" / ("argos_" + "winrm.h")).exists()
+assert "argos_dispatch_winrm_enabled" in packet_loop
+assert "ae_winrm(" in packet_loop
+assert "ARGOS_WINRM_HTTP_PORT" in bpf_source and "ARGOS_WINRM_HTTPS_PORT" in bpf_source
 for obsolete in ("argos_syslog.h", "argos_netflow.h", "argos_ipfix.h", "argos_sflow.h"):
     assert not (ROOT / "src" / obsolete).exists(), f"obsolete staging header remains: {obsolete}"
 for vector in ("LLDP-MED", "STP", "LACP"):

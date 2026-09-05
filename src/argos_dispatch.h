@@ -85,6 +85,17 @@ static inline int argos_dispatch_vnc_enabled(
         (argos_vnc_port(sport) != argos_vnc_port(dport));
 }
 
+#define ARGOS_WINRM_HTTP_PORT 5985U
+#define ARGOS_WINRM_HTTPS_PORT 5986U
+static inline int argos_winrm_port(uint16_t port) {
+    return port == ARGOS_WINRM_HTTP_PORT || port == ARGOS_WINRM_HTTPS_PORT;
+}
+static inline int argos_dispatch_winrm_enabled(
+    const argos_dispatch_plan_t *plan, uint16_t sport, uint16_t dport) {
+    return argos_dispatch_protocol_enabled(plan, ARGOS_PROTOCOL_WINRM) &&
+        (argos_winrm_port(sport) != argos_winrm_port(dport));
+}
+
 static inline int argos_dispatch_protocol_rate_limited(
     const argos_dispatch_plan_t *plan, argos_protocol_id_t protocol)
 {
@@ -353,7 +364,7 @@ static inline void argos_dispatch_plan_compile(
         plan->transport_routes |= ARGOS_DISPATCH_TRANSPORT_UDP_OWNER;
 
     if (argos_feature_selection_has(&plan->features, ARGOS_FEATURE_TCP_SYN) ||
-        ARGOS_DISPATCH_HAS(HTTP) || ARGOS_DISPATCH_HAS(HTTP_PROXY) || ARGOS_DISPATCH_HAS(TELNET) || ARGOS_DISPATCH_HAS(VNC) || ARGOS_DISPATCH_HAS(TLS) ||
+        ARGOS_DISPATCH_HAS(HTTP) || ARGOS_DISPATCH_HAS(HTTP_PROXY) || ARGOS_DISPATCH_HAS(TELNET) || ARGOS_DISPATCH_HAS(VNC) || ARGOS_DISPATCH_HAS(WINRM) || ARGOS_DISPATCH_HAS(TLS) ||
         ARGOS_DISPATCH_HAS(DOT) || ARGOS_DISPATCH_HAS(NTLM) ||
         (plan->transport_routes & ARGOS_DISPATCH_TRANSPORT_TCP_OWNER) != 0U)
         plan->l4_routes |= ARGOS_DISPATCH_L4_TCP;

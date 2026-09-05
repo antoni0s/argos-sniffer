@@ -222,10 +222,9 @@ the canonical enterprise super-group.
 
 ### `--help-application`
 
-LPD is production in `printing`, HTTP proxy in `web`, and Telnet/VNC in `remote-access`;
-the catalog removes their staging markers. Full/sensor contain 75 protocols and
-home contains 38 (remote-access is not a home group). WinRM remains staged until
-its own integration gate.
+LPD is production in `printing`, HTTP proxy in `web`, and Telnet/VNC/WinRM in
+`remote-access`; the catalog removes their staging markers. Full/sensor contain
+77 protocols and home contains 38 (remote-access is not a home group).
 
 Must expose only the application super-group and its groups:
 

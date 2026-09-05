@@ -1,8 +1,8 @@
 # Argos Sniffer v6 — progress
 
 Branch: `version-6`. Verified checkpoint: `8fe74987317f2d704450894be89548456febe59a` (PR #52).
-**Now:** WinRM source/fixture/privacy audit on `v6-winrm-canonical-integration`; native field freeze precedes runtime wiring.
-LPD, HTTP proxy, Telnet and VNC runtime slices are merged; WinRM remains open.
+**Now:** WinRM production integration and local validation on `v6-winrm-canonical-integration`; push/CI/merge pending.
+LPD, HTTP proxy, Telnet and VNC runtime slices are merged; WinRM is locally integrated.
 **Not yet:** full core freeze or all staging runtime integration. Isolation is temporary: every staged
 protocol listed for v6 must be integrated before the v6 release after its readiness gates pass.
 
@@ -298,9 +298,9 @@ phase 9→release. V6_HELP_BACKLOG→C3. V6_SENSOR_ENRICHMENT_BACKLOG→C5/C7/en
 V6_PROTOCOL_INTEGRATION_MATRIX→C3/C10/integration; V6_CORE_CONTRACTS→C1–C10.
 Detailed protocol field tables remain authoritative specifications, not duplicate prose here.
 
-**Next:** audit the current WinRM staging parser and fixtures, freeze privacy-safe
-native fields and exact HTTP/WS-Man completion before runtime wiring. Preserve
-progress/help/naming/cleanup and remove the staging source only after promotion.
+**Next:** finish WinRM strict/sanitizer verification, push/CI/merge/cleanup, then
+handoff the completed application-control milestone to realtime/media starting
+with RTP. Preserve progress/help/naming/cleanup at the milestone boundary.
 **Blocked:** full freeze, deployed collector compatibility and hardware acceptance;
 Thread, ESP/AH and TLS enrichment retain their recorded gates.
 **Delivery:** VNC is integrated in the existing handshake/control owner with
@@ -333,9 +333,26 @@ source/includes/workflow entries are deleted. The remote HTTP proxy/Telnet branc
 still need user deletion because Git authentication and connector delete-ref remain
 unavailable:
 `git push origin --delete v6-http-proxy-canonical-integration v6-telnet-canonical-integration`.
+**WinRM delivery:** the existing handshake/control owner now emits only native
+`WINRM` records in the frozen field order. Plain TCP 5985 requires a complete
+HTTP/1.0/1.1 request to exact `/wsman`; TCP 5986 requires a structurally valid
+TLS ClientHello/ServerHello prefix and leaves encrypted inner fields unknown.
+Only Content-Type and the Authorization scheme token are classified. Credential
+values, username, SOAP/XML body and encrypted session data are never decoded,
+copied or emitted. Exact userspace/BPF gates cover both directions and reject
+dual-service endpoints in userspace. The existing directional application owner
+provides eight attempts, expiry/eviction and SYN reset with zero new retained bytes,
+allocation or reassembly. Permanent `test_winrm.c` replaces the deleted staging
+header. The 83-test strict matrix, adoption checks and focused ASan/UBSan pass.
+BPF equivalence covers 10,680,320 packets; maximum instructions remain 287→183;
+kernel gates cover 1,024 legacy plus eight combined configurations. Full/stub text
+is 196690/184674 (+3356/+3288 from PR #52), data 3992 and BSS 80360/78760 unchanged.
+Main stack is 85,040 (+16); WinRM parser frame is 176. Reviewed full-text ceiling
+is 196750. No throughput improvement is claimed; the growth buys bounded framing,
+privacy classification and independent capture gating.
 **Handoff:** VNC is merged at `8fe74987317f2d704450894be89548456febe59a`;
-the active application-control milestone is WinRM field/privacy freeze and owner audit.
-**Model:** Sol for the WinRM source/fixture audit; use Astra if the verified wire
-contract requires cross-direction or multi-message authentication state.
+the active application-control milestone is WinRM final verification and delivery.
+**Model:** Astra through WinRM CI/merge; switch to Sol for the initial RTP source/
+fixture audit after the application-control milestone handoff.
 Always: bounded work/state; no hot-path malloc/regex/full DPI/full streams/secrets/bulk payloads;
 disabled features effectively zero cost; protocol engines do not own telemetry transport.

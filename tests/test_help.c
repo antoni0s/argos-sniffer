@@ -88,7 +88,8 @@ int main(void) {
     assert(!strstr(output, "telnet*"));
     assert(output_has_protocol(output, output + strlen(output), "vnc"));
     assert(!strstr(output, "vnc*"));
-    assert(strstr(output, "winrm*")); /* Remaining group scope is still staged. */
+    assert(output_has_protocol(output, output + strlen(output), "winrm"));
+    assert(!strstr(output, "winrm*"));
     render_topic(ARGOS_HELP_ENTERPRISE, output, sizeof(output));
     for (const char *name = "syslog"; name; name = !strcmp(name, "syslog") ? "netflow" :
          !strcmp(name, "netflow") ? "ipfix" : !strcmp(name, "ipfix") ? "sflow" : NULL) {

@@ -115,6 +115,7 @@ int main(void) {
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_NETFLOW].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_IPFIX].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert(argos_protocol_catalog[ARGOS_PROTOCOL_SFLOW].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
+    assert(argos_protocol_catalog[ARGOS_PROTOCOL_WINRM].status == ARGOS_PROTOCOL_STATUS_PRODUCTION);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_THREAD].status &
             ARGOS_PROTOCOL_STATUS_HOLD) != 0U);
     assert((argos_protocol_catalog[ARGOS_PROTOCOL_ESP].status &
@@ -267,7 +268,7 @@ int main(void) {
     assert(!argos_protocol_set_has(&selection.enabled, ARGOS_PROTOCOL_DNS));
 
     static const size_t expected_profile_counts[ARGOS_PROFILE_COUNT] = {
-        7U, 16U, 76U, 38U, 50U, 76U
+        7U, 16U, 77U, 38U, 50U, 77U
     };
     for (unsigned profile_id = 0; profile_id < ARGOS_PROFILE_COUNT; ++profile_id) {
         assert(argos_profile_selection((argos_profile_id_t)profile_id,
